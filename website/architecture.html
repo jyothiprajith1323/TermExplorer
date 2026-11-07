@@ -37,42 +37,9 @@
       </p>
     </div>
 
-    <!-- Architecture Diagram -->
-    <div class="terminal-window" style="margin-bottom: 3.5rem;">
-      <div class="terminal-header">
-        <div class="terminal-title">Subsystem Architecture &amp; Dataflow</div>
-      </div>
-      <div class="terminal-body"><span style="color: #6366f1;">┌────────────────────────────────────────────────────────────────────────┐</span>
-│                       <span style="color: #38bdf8; font-weight: bold;">Crossterm Event Stream</span>                           │
-│              (Keyboard, Mouse, Window Resize, Focus Events)            │
-<span style="color: #6366f1;">└──────────────────────────────────┬─────────────────────────────────────┘</span>
-                                   │
-                                   ▼
-<span style="color: #fb923c;">┌────────────────────────────────────────────────────────────────────────┐</span>
-│                  <span style="color: #38bdf8; font-weight: bold;">App Event Loop (tokio::select!)</span>                       │
-│  - 60 FPS Event Dispatcher                                            │
-│  - System Resource Polling (sysinfo)                                   │
-│  - PTY Reader Channel Receiver                                         │
-│  - State Synchronization & Mode Switching                              │
-<span style="color: #fb923c;">└──────┬─────────────────┬──────────────────┬─────────────────┬──────────┘</span>
-       │                 │                  │                 │
-       ▼                 ▼                  ▼                 ▼
-<span style="color: #34d399;">┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐</span>
-│ <span style="font-weight: bold;">File Browser</span> │  │ <span style="font-weight: bold;">Code Editor</span>  │  │ <span style="font-weight: bold;">Terminal PTY</span> │  │ <span style="font-weight: bold;">Universal Preview</span> │
-│ - Dual-Pane  │  │ - Syntect    │  │ - Master PTY │  │ - Magic Detector │
-│ - Trash I/O  │  │ - Undo/Redo  │  │ - Non-block  │  │ - Capability Reg │
-│ - Sort/Filter│  │ - Completion │  │ - VT Parsing │  │ - LRU Cache (64M)│
-<span style="color: #34d399;">└──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘</span>
-       │                 │                  │                 │
-       └─────────────────┴────────┬─────────┴─────────────────┘
-                                  │
-                                  ▼
-<span style="color: #c084fc;">┌────────────────────────────────────────────────────────────────────────┐</span>
-│                     <span style="color: #38bdf8; font-weight: bold;">Ratatui Terminal Renderer</span>                          │
-│  - 24-bit Truecolor Half-Block Engine (▀)                              │
-│  - Transparent Background Inheritance (bg: None)                       │
-│  - Responsive 5-Panel Layout Engine                                    │
-<span style="color: #c084fc;">└────────────────────────────────────────────────────────────────────────┘</span></div>
+    <!-- Architecture Diagram (Vector SVG) -->
+    <div style="margin: 2.5rem auto 3.5rem; max-width: 1000px;">
+      <img src="assets/architecture-diagram.svg" alt="TermExplorer Systems Architecture and Dataflow" class="hero-screenshot" width="100%" height="auto" />
     </div>
 
     <!-- Core Systems Breakdown -->

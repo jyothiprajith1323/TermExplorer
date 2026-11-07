@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="100%" height="100%">
+  <defs>
+    <filter id="diagShadow" x="-5%" y="-5%" width="110%" height="110%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+    <linearGradient id="eventGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="loopGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#eab308"/>
+    </linearGradient>
+    <linearGradient id="renderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowCyan" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#fb923c"/>
+    </marker>
+    <marker id="arrowPurple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#c084fc"/>
+    </marker>
+  </defs>
+
+  <style>
+    .mono { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace; }
+    .sans { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .bold { font-weight: 700; }
+  </style>
+
+  <!-- Background Canvas -->
+  <rect width="1000" height="560" rx="12" fill="#0d111a"/>
+
+  <!-- 1. Top Tier: Crossterm Input Stream -->
+  <g transform="translate(150, 24)" filter="url(#diagShadow)">
+    <rect width="700" height="64" rx="8" fill="#161d2d" stroke="#38bdf8" stroke-width="1.5"/>
+    <rect width="700" height="4" rx="2" fill="url(#eventGrad)"/>
+    <text x="350" y="32" text-anchor="middle" class="sans bold" font-size="15" fill="#ffffff">Crossterm Asynchronous Event Stream</text>
+    <text x="350" y="52" text-anchor="middle" class="mono" font-size="12" fill="#94a3b8">Raw Mode Keyboard Events &bull; Mouse &bull; Window Resize Signals &bull; Focus Change</text>
+  </g>
+
+  <!-- Down Arrow 1 -->
+  <line x1="500" y1="90" x2="500" y2="128" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrowCyan)"/>
+
+  <!-- 2. Mid Tier: Tokio Core Event Loop -->
+  <g transform="translate(100, 130)" filter="url(#diagShadow)">
+    <rect width="800" height="96" rx="8" fill="#181e2e" stroke="#fb923c" stroke-width="1.5"/>
+    <rect width="800" height="4" rx="2" fill="url(#loopGrad)"/>
+    <text x="400" y="32" text-anchor="middle" class="sans bold" font-size="16" fill="#ffffff">App Core Event Loop (tokio::select! &amp; State Machine)</text>
+    <text x="400" y="56" text-anchor="middle" class="mono" font-size="12" fill="#cbd5e1">60 FPS Render Tick &bull; Background Resource Polling &bull; Non-Blocking Channel Dispatcher</text>
+    <text x="400" y="78" text-anchor="middle" class="mono" font-size="11" fill="#94a3b8">Modal State Machine: Browse &bull; Edit &bull; Terminal &bull; Dual-Pane &bull; SettingsStudio &bull; Git &bull; Palette</text>
+  </g>
+
+  <!-- Connector Bus to 4 Subsystems -->
+  <line x1="500" y1="228" x2="500" y2="256" stroke="#fb923c" stroke-width="2"/>
+  <line x1="130" y1="256" x2="870" y2="256" stroke="#475569" stroke-width="2"/>
+
+  <!-- Drop arrows to 4 subsystems -->
+  <line x1="130" y1="256" x2="130" y2="280" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="375" y1="256" x2="375" y2="280" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="625" y1="256" x2="625" y2="280" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="870" y1="256" x2="870" y2="280" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 3. Four Core Subsystem Blocks -->
+  <!-- Card 1: Filesystem & Dual-Pane -->
+  <g transform="translate(30, 282)" filter="url(#diagShadow)">
+    <rect width="205" height="130" rx="8" fill="#141926" stroke="#262f44" stroke-width="1"/>
+    <rect width="205" height="3" rx="1.5" fill="#38bdf8"/>
+    <text x="14" y="26" class="sans bold" font-size="13" fill="#38bdf8">&#128193; File Explorer</text>
+    <text x="14" y="50" class="mono" font-size="11" fill="#cbd5e1">&bull; Dual-Pane Mode (F7)</text>
+    <text x="14" y="70" class="mono" font-size="11" fill="#cbd5e1">&bull; FreeDesktop Trash</text>
+    <text x="14" y="90" class="mono" font-size="11" fill="#cbd5e1">&bull; Fuzzy Search / Sort</text>
+    <text x="14" y="110" class="mono" font-size="11" fill="#cbd5e1">&bull; Inotify Dir Watcher</text>
+  </g>
+
+  <!-- Card 2: Code Editor -->
+  <g transform="translate(275, 282)" filter="url(#diagShadow)">
+    <rect width="205" height="130" rx="8" fill="#141926" stroke="#262f44" stroke-width="1"/>
+    <rect width="205" height="3" rx="1.5" fill="#34d399"/>
+    <text x="14" y="26" class="sans bold" font-size="13" fill="#34d399">&#9999; Code Editor</text>
+    <text x="14" y="50" class="mono" font-size="11" fill="#cbd5e1">&bull; Syntect Syntax</text>
+    <text x="14" y="70" class="mono" font-size="11" fill="#cbd5e1">&bull; Smart Auto-Pairing</text>
+    <text x="14" y="90" class="mono" font-size="11" fill="#cbd5e1">&bull; Word Autocomplete</text>
+    <text x="14" y="110" class="mono" font-size="11" fill="#cbd5e1">&bull; Atomic Tempfile Save</text>
+  </g>
+
+  <!-- Card 3: Embedded Terminal -->
+  <g transform="translate(520, 282)" filter="url(#diagShadow)">
+    <rect width="205" height="130" rx="8" fill="#141926" stroke="#262f44" stroke-width="1"/>
+    <rect width="205" height="3" rx="1.5" fill="#818cf8"/>
+    <text x="14" y="26" class="sans bold" font-size="13" fill="#818cf8">&#128187; Terminal PTY</text>
+    <text x="14" y="50" class="mono" font-size="11" fill="#cbd5e1">&bull; Portable-PTY Master</text>
+    <text x="14" y="70" class="mono" font-size="11" fill="#cbd5e1">&bull; Non-blocking Pipe</text>
+    <text x="14" y="90" class="mono" font-size="11" fill="#cbd5e1">&bull; Native Shell ($SHELL)</text>
+    <text x="14" y="110" class="mono" font-size="11" fill="#cbd5e1">&bull; Signal Handling</text>
+  </g>
+
+  <!-- Card 4: Universal Preview -->
+  <g transform="translate(765, 282)" filter="url(#diagShadow)">
+    <rect width="205" height="130" rx="8" fill="#141926" stroke="#262f44" stroke-width="1"/>
+    <rect width="205" height="3" rx="1.5" fill="#c084fc"/>
+    <text x="14" y="26" class="sans bold" font-size="13" fill="#c084fc">&#128065; Universal Preview</text>
+    <text x="14" y="50" class="mono" font-size="11" fill="#cbd5e1">&bull; Magic Bytes Detector</text>
+    <text x="14" y="70" class="mono" font-size="11" fill="#cbd5e1">&bull; 12+ Format Categories</text>
+    <text x="14" y="90" class="mono" font-size="11" fill="#cbd5e1">&bull; 24-bit Halfblocks (▀)</text>
+    <text x="14" y="110" class="mono" font-size="11" fill="#cbd5e1">&bull; 64MB LRU Memory Cache</text>
+  </g>
+
+  <!-- Re-converge Arrows to Renderer -->
+  <line x1="130" y1="414" x2="130" y2="438" stroke="#475569" stroke-width="1.5"/>
+  <line x1="375" y1="414" x2="375" y2="438" stroke="#475569" stroke-width="1.5"/>
+  <line x1="625" y1="414" x2="625" y2="438" stroke="#475569" stroke-width="1.5"/>
+  <line x1="870" y1="414" x2="870" y2="438" stroke="#475569" stroke-width="1.5"/>
+
+  <line x1="130" y1="438" x2="870" y2="438" stroke="#475569" stroke-width="2"/>
+  <line x1="500" y1="438" x2="500" y2="466" stroke="#c084fc" stroke-width="2" marker-end="url(#arrowPurple)"/>
+
+  <!-- 4. Bottom Tier: Ratatui Terminal Renderer -->
+  <g transform="translate(150, 470)" filter="url(#diagShadow)">
+    <rect width="700" height="66" rx="8" fill="#161d2d" stroke="#c084fc" stroke-width="1.5"/>
+    <rect width="700" height="4" rx="2" fill="url(#renderGrad)"/>
+    <text x="350" y="32" text-anchor="middle" class="sans bold" font-size="15" fill="#ffffff">Ratatui Terminal Renderer &amp; Layout Engine</text>
+    <text x="350" y="52" text-anchor="middle" class="mono" font-size="12" fill="#cbd5e1">24-bit Truecolor Graphics &bull; Transparent Background Inheritance (bg: None) &bull; 12 Built-in Themes</text>
+  </g>
+</svg>

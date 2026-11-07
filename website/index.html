@@ -51,32 +51,9 @@
       <button class="copy-btn" data-clipboard-target="cargo-install-cmd">Copy</button>
     </div>
 
-    <!-- Live Terminal Simulation Preview -->
-    <div class="terminal-window">
-      <div class="terminal-header">
-        <div class="terminal-controls">
-          <div class="terminal-circle close-btn"></div>
-          <div class="terminal-circle min-btn"></div>
-          <div class="terminal-circle max-btn"></div>
-        </div>
-        <div class="terminal-title">TermExplorer v0.1.0 — ~/Projects/TermExplorer (master*)</div>
-        <div style="font-size: 0.75rem; color: #64748b;">CPU: 8% | RAM: 3.2G</div>
-      </div>
-      <div class="terminal-body"><span style="color: #6366f1;">┌── SIDEBAR [1] ────┐</span><span style="color: #38bdf8;">┌── FILE EXPLORER [2] ────────────┐</span><span style="color: #c084fc;">┌── PREVIEW [3] [Preview | Info | Hex | Actions] ─┐</span>
-│ <span style="color: #facc15;">★ BOOKMARKS</span>       │ <span style="color: #64748b;">Size</span>   <span style="color: #64748b;">Modified</span>   <span style="color: #64748b;">Name</span>          │ <span style="color: #34d399;">Type:</span> Rust Source File (14.2 KB)                 │
-│   <span style="color: #38bdf8;">~</span> Home          │ <span style="color: #64748b;">DIR</span>    <span style="color: #64748b;">10:14:02</span>   <span style="color: #38bdf8;">src/</span>          │ <span style="color: #6366f1;">1</span> <span style="color: #f87171;">use</span> anyhow::Result;                            │
-│   <span style="color: #38bdf8;">~/Projects</span>      │ <span style="color: #64748b;">DIR</span>    <span style="color: #64748b;">09:45:11</span>   <span style="color: #38bdf8;">tests/</span>        │ <span style="color: #6366f1;">2</span> <span style="color: #f87171;">use</span> ratatui::widgets::Paragraph;               │
-│ <span style="color: #38bdf8;">📁 WORKSPACES</span>     │ 2.4 KB <span style="color: #64748b;">11:02:30</span>   Cargo.toml    │ <span style="color: #6366f1;">3</span>                                                │
-│   TermExplorer    │ 12.1KB <span style="color: #64748b;">11:02:30</span>   README.md     │ <span style="color: #6366f1;">4</span> <span style="color: #fb923c;">#[derive(Debug, Clone)]</span>                        │
-│   IronKV          │<span style="background-color: #1e293b; color: #fff;"> 14.2KB 11:05:12 ▶ main.rs       </span>│ <span style="color: #6366f1;">5</span> <span style="color: #f87171;">pub struct</span> <span style="color: #facc15;">AppEngine</span> {                     │
-│ <span style="color: #34d399;">⚙ SETTINGS</span>        │  1.1KB <span style="color: #64748b;">08:12:00</span>   build.rs      │ <span style="color: #6366f1;">6</span>     <span style="color: #38bdf8;">pub terminal:</span> TerminalSession,             │
-│   F10 Studio      │                       │ <span style="color: #6366f1;">7</span> }                                              │
-├───────────────────┴───────────────────────┴──────────────────────────────────────────────────┤
-│ <span style="color: #38bdf8;">termexplorer:~/Projects/TermExplorer$</span> cargo test --all-targets                               │
-│    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.45s                      │
-│     Running 8 integration test suites: 42 passed, 0 failed, 0 warnings                      │
-└──────────────────────────────────────────────────────────────────────────────────────────────┘
- <span style="background-color: #38bdf8; color: #000; font-weight: bold;"> NORMAL </span> <span style="color: #cbd5e1;">~/Projects/TermExplorer/src/main.rs</span> | <span style="color: #34d399;">Git: master*</span> | <span style="color: #a855f7;">F1:Help</span> <span style="color: #38bdf8;">F7:Dual-Pane</span> <span style="color: #fb923c;">F10:Settings</span> <span style="color: #ef4444;">q:Quit</span></div>
+    <!-- Official Terminal UI Screenshot (Vector SVG) -->
+    <div style="margin: 2.5rem auto 1.5rem; max-width: 1120px;">
+      <img src="assets/termexplorer-ui.svg" alt="TermExplorer Modern Terminal Developer Environment" class="hero-screenshot" width="100%" height="auto" />
     </div>
   </section>
 

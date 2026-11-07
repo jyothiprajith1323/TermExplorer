@@ -1,0 +1,269 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" width="100%" height="100%">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="24" stdDeviation="32" flood-color="#000000" flood-opacity="0.65"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#38bdf8" flood-opacity="0.15"/>
+    </filter>
+    <linearGradient id="windowBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.4"/>
+      <stop offset="50%" stop-color="#6366f1" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.8"/>
+    </linearGradient>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1e222d"/>
+      <stop offset="100%" stop-color="#161922"/>
+    </linearGradient>
+  </defs>
+
+  <style>
+    .mono { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, Consolas, monospace; }
+    .bold { font-weight: 700; }
+    .dim { fill: #64748b; }
+    .white { fill: #f8fafc; }
+    .cyan { fill: #38bdf8; }
+    .blue { fill: #818cf8; }
+    .purple { fill: #c084fc; }
+    .green { fill: #34d399; }
+    .yellow { fill: #fbbf24; }
+    .orange { fill: #fb923c; }
+    .red { fill: #f87171; }
+  </style>
+
+  <!-- Background Canvas -->
+  <rect width="1200" height="700" fill="#0b0d13"/>
+
+  <!-- Terminal Window Container -->
+  <g transform="translate(40, 30)" filter="url(#shadow)">
+    <!-- Window Outer Frame -->
+    <rect width="1120" height="640" rx="14" fill="#0f1219" stroke="url(#windowBorder)" stroke-width="1.5"/>
+
+    <!-- Window Header -->
+    <rect width="1120" height="42" rx="14" fill="url(#headerGrad)"/>
+    <rect y="28" width="1120" height="14" fill="#1e222d"/>
+    <line x1="0" y1="42" x2="1120" y2="42" stroke="#262b3d" stroke-width="1"/>
+
+    <!-- Traffic Light Controls -->
+    <circle cx="24" cy="21" r="6.5" fill="#ef4444"/>
+    <circle cx="44" cy="21" r="6.5" fill="#f59e0b"/>
+    <circle cx="64" cy="21" r="6.5" fill="#10b981"/>
+
+    <!-- Window Title -->
+    <text x="560" y="26" text-anchor="middle" class="mono bold" font-size="13" fill="#cbd5e1">TermExplorer v0.1.0 — ~/Projects/TermExplorer (master*)</text>
+    <text x="1096" y="26" text-anchor="end" class="mono" font-size="11" fill="#94a3b8">CPU: 8%  |  RAM: 3.2 GB</text>
+
+    <!-- Content Workspace Area -->
+    <!-- Column 1: Sidebar (Width: 200) -->
+    <rect x="14" y="52" width="200" height="400" rx="6" fill="#131722" stroke="#262c3e" stroke-width="1"/>
+    <!-- Sidebar Header -->
+    <rect x="14" y="52" width="200" height="28" rx="6" fill="#1a202f"/>
+    <rect x="14" y="70" width="200" height="10" fill="#1a202f"/>
+    <line x1="14" y1="80" x2="214" y2="80" stroke="#262c3e" stroke-width="1"/>
+    <text x="26" y="71" class="mono bold" font-size="11" fill="#818cf8">[1] SIDEBAR</text>
+
+    <!-- Sidebar Items -->
+    <text x="26" y="104" class="mono bold" font-size="11" fill="#fbbf24">&#9733; BOOKMARKS</text>
+    <text x="36" y="126" class="mono" font-size="11" fill="#cbd5e1"><tspan fill="#38bdf8">~</tspan> Home</text>
+    <text x="36" y="146" class="mono" font-size="11" fill="#cbd5e1"><tspan fill="#38bdf8">~/</tspan>Projects</text>
+    <text x="36" y="166" class="mono" font-size="11" fill="#cbd5e1"><tspan fill="#38bdf8">~/</tspan>Downloads</text>
+
+    <text x="26" y="200" class="mono bold" font-size="11" fill="#38bdf8">&#128193; WORKSPACES</text>
+    <rect x="22" y="210" width="184" height="22" rx="4" fill="#1e293b"/>
+    <text x="36" y="225" class="mono bold" font-size="11" fill="#38bdf8">&#9654; TermExplorer</text>
+    <text x="36" y="246" class="mono" font-size="11" fill="#94a3b8">  IronKV</text>
+    <text x="36" y="266" class="mono" font-size="11" fill="#94a3b8">  RustyVault</text>
+
+    <text x="26" y="300" class="mono bold" font-size="11" fill="#34d399">&#9881; SHORTCUTS</text>
+    <text x="36" y="322" class="mono" font-size="11" fill="#cbd5e1">F7 Dual-Pane</text>
+    <text x="36" y="342" class="mono" font-size="11" fill="#cbd5e1">F10 Settings Studio</text>
+    <text x="36" y="362" class="mono" font-size="11" fill="#cbd5e1">` PTY Terminal</text>
+    <text x="36" y="382" class="mono" font-size="11" fill="#cbd5e1">g Git Panel</text>
+    <text x="36" y="402" class="mono" font-size="11" fill="#cbd5e1">Ctrl+P Palette</text>
+
+    <!-- Column 2: File Explorer (Width: 350) -->
+    <rect x="224" y="52" width="350" height="400" rx="6" fill="#131722" stroke="#262c3e" stroke-width="1"/>
+    <!-- Explorer Header -->
+    <rect x="224" y="52" width="350" height="28" rx="6" fill="#1a202f"/>
+    <rect x="224" y="70" width="350" height="10" fill="#1a202f"/>
+    <line x1="224" y1="80" x2="574" y2="80" stroke="#262c3e" stroke-width="1"/>
+    <text x="236" y="71" class="mono bold" font-size="11" fill="#38bdf8">[2] FILE EXPLORER</text>
+    <text x="562" y="71" text-anchor="end" class="mono" font-size="10" fill="#64748b">Sort: Name &#9650;</text>
+
+    <!-- Columns Title Row -->
+    <text x="238" y="100" class="mono bold" font-size="10" fill="#64748b">SIZE</text>
+    <text x="290" y="100" class="mono bold" font-size="10" fill="#64748b">MODIFIED</text>
+    <text x="360" y="100" class="mono bold" font-size="10" fill="#64748b">NAME</text>
+    <line x1="228" y1="108" x2="570" y2="108" stroke="#1e2436" stroke-width="1"/>
+
+    <!-- Entries -->
+    <text x="238" y="128" class="mono dim" font-size="11">DIR</text>
+    <text x="290" y="128" class="mono dim" font-size="11">10:14:02</text>
+    <text x="360" y="128" class="mono bold" font-size="11" fill="#38bdf8">&#128193; src/</text>
+
+    <text x="238" y="152" class="mono dim" font-size="11">DIR</text>
+    <text x="290" y="152" class="mono dim" font-size="11">09:45:11</text>
+    <text x="360" y="152" class="mono bold" font-size="11" fill="#38bdf8">&#128193; tests/</text>
+
+    <text x="238" y="176" class="mono dim" font-size="11">DIR</text>
+    <text x="290" y="176" class="mono dim" font-size="11">08:12:00</text>
+    <text x="360" y="176" class="mono bold" font-size="11" fill="#38bdf8">&#128193; docs/</text>
+
+    <text x="238" y="200" class="mono dim" font-size="11">2.4 KB</text>
+    <text x="290" y="200" class="mono dim" font-size="11">11:02:30</text>
+    <text x="360" y="200" class="mono" font-size="11" fill="#cbd5e1">&#128196; Cargo.toml</text>
+
+    <text x="238" y="224" class="mono dim" font-size="11">12.1 KB</text>
+    <text x="290" y="224" class="mono dim" font-size="11">11:02:30</text>
+    <text x="360" y="224" class="mono" font-size="11" fill="#cbd5e1">&#128196; README.md</text>
+
+    <!-- Selected Active Entry -->
+    <rect x="228" y="234" width="342" height="26" rx="4" fill="#1e293b" stroke="#38bdf8" stroke-width="1.2"/>
+    <text x="238" y="251" class="mono bold" font-size="11" fill="#38bdf8">14.2 KB</text>
+    <text x="290" y="251" class="mono bold" font-size="11" fill="#38bdf8">11:05:12</text>
+    <text x="360" y="251" class="mono bold" font-size="11" fill="#ffffff">&#9654; main.rs</text>
+
+    <text x="238" y="278" class="mono dim" font-size="11">1.1 KB</text>
+    <text x="290" y="278" class="mono dim" font-size="11">08:12:00</text>
+    <text x="360" y="278" class="mono" font-size="11" fill="#cbd5e1">&#128196; build.rs</text>
+
+    <text x="238" y="302" class="mono dim" font-size="11">4.5 KB</text>
+    <text x="290" y="302" class="mono dim" font-size="11">07:30:19</text>
+    <text x="360" y="302" class="mono" font-size="11" fill="#cbd5e1">&#128196; CHANGELOG.md</text>
+
+    <text x="238" y="326" class="mono dim" font-size="11">1.0 KB</text>
+    <text x="290" y="326" class="mono dim" font-size="11">07:20:00</text>
+    <text x="360" y="326" class="mono" font-size="11" fill="#cbd5e1">&#128196; LICENSE</text>
+
+    <!-- Column 3: Universal Preview Panel (Width: 522) -->
+    <rect x="584" y="52" width="522" height="400" rx="6" fill="#131722" stroke="#262c3e" stroke-width="1"/>
+    <!-- Preview Header with 4 Tabs -->
+    <rect x="584" y="52" width="522" height="28" rx="6" fill="#1a202f"/>
+    <rect x="584" y="70" width="522" height="10" fill="#1a202f"/>
+    <line x1="584" y1="80" x2="1106" y2="80" stroke="#262c3e" stroke-width="1"/>
+
+    <!-- Active Tab [Preview] -->
+    <rect x="590" y="56" width="76" height="24" rx="4" fill="#252d43" stroke="#818cf8" stroke-width="1"/>
+    <text x="628" y="72" text-anchor="middle" class="mono bold" font-size="11" fill="#818cf8">[Preview]</text>
+
+    <!-- Tab 2 [Information] -->
+    <text x="715" y="72" text-anchor="middle" class="mono" font-size="11" fill="#94a3b8">[Information]</text>
+
+    <!-- Tab 3 [Hex] -->
+    <text x="795" y="72" text-anchor="middle" class="mono" font-size="11" fill="#94a3b8">[Hex]</text>
+
+    <!-- Tab 4 [Actions] -->
+    <text x="865" y="72" text-anchor="middle" class="mono" font-size="11" fill="#94a3b8">[Actions]</text>
+
+    <!-- Preview Sub-header Metadata Bar -->
+    <rect x="590" y="86" width="510" height="24" rx="3" fill="#161b29"/>
+    <text x="600" y="102" class="mono" font-size="10" fill="#34d399">Type: Rust Source File</text>
+    <text x="760" y="102" class="mono" font-size="10" fill="#64748b">Size: 14.2 KB (412 lines)</text>
+    <text x="960" y="102" class="mono" font-size="10" fill="#64748b">MIME: text/x-rust</text>
+
+    <!-- Code Content with Syntax Highlighting -->
+    <!-- Line 1 -->
+    <text x="596" y="130" class="mono dim" font-size="11">1</text>
+    <text x="620" y="130" class="mono" font-size="11"><tspan class="red bold">use</tspan> <tspan class="white">anyhow::Result;</tspan></text>
+
+    <!-- Line 2 -->
+    <text x="596" y="150" class="mono dim" font-size="11">2</text>
+    <text x="620" y="150" class="mono" font-size="11"><tspan class="red bold">use</tspan> <tspan class="white">ratatui::{layout::Rect, Frame};</tspan></text>
+
+    <!-- Line 3 -->
+    <text x="596" y="170" class="mono dim" font-size="11">3</text>
+    <text x="620" y="170" class="mono" font-size="11"><tspan class="red bold">use</tspan> <tspan class="white">termexplorer::preview::PreviewManager;</tspan></text>
+
+    <!-- Line 4 -->
+    <text x="596" y="190" class="mono dim" font-size="11">4</text>
+
+    <!-- Line 5 -->
+    <text x="596" y="210" class="mono dim" font-size="11">5</text>
+    <text x="620" y="210" class="mono" font-size="11"><tspan class="orange">#[derive(Debug, Clone)]</tspan></text>
+
+    <!-- Line 6 -->
+    <text x="596" y="230" class="mono dim" font-size="11">6</text>
+    <text x="620" y="230" class="mono" font-size="11"><tspan class="red bold">pub struct</tspan> <tspan class="yellow bold">AppEngine</tspan> <tspan class="white">{</tspan></text>
+
+    <!-- Line 7 -->
+    <text x="596" y="250" class="mono dim" font-size="11">7</text>
+    <text x="620" y="250" class="mono" font-size="11"><tspan class="white">    </tspan><tspan class="blue">pub terminal:</tspan> <tspan class="yellow">TerminalSession</tspan><tspan class="white">,</tspan></text>
+
+    <!-- Line 8 -->
+    <text x="596" y="270" class="mono dim" font-size="11">8</text>
+    <text x="620" y="270" class="mono" font-size="11"><tspan class="white">    </tspan><tspan class="blue">pub preview_manager:</tspan> <tspan class="yellow">PreviewManager</tspan><tspan class="white">,</tspan></text>
+
+    <!-- Line 9 -->
+    <text x="596" y="290" class="mono dim" font-size="11">9</text>
+    <text x="620" y="290" class="mono" font-size="11"><tspan class="white">    </tspan><tspan class="blue">pub is_dual_pane:</tspan> <tspan class="cyan">bool</tspan><tspan class="white">,</tspan></text>
+
+    <!-- Line 10 -->
+    <text x="596" y="310" class="mono dim" font-size="11">10</text>
+    <text x="620" y="310" class="mono" font-size="11"><tspan class="white">}</tspan></text>
+
+    <!-- Line 11 -->
+    <text x="596" y="330" class="mono dim" font-size="11">11</text>
+
+    <!-- Line 12 -->
+    <text x="596" y="350" class="mono dim" font-size="11">12</text>
+    <text x="620" y="350" class="mono" font-size="11"><tspan class="red bold">impl</tspan> <tspan class="yellow bold">AppEngine</tspan> <tspan class="white">{</tspan></text>
+
+    <!-- Line 13 -->
+    <text x="596" y="370" class="mono dim" font-size="11">13</text>
+    <text x="620" y="370" class="mono" font-size="11"><tspan class="white">    </tspan><tspan class="red bold">pub fn</tspan> <tspan class="blue bold">new</tspan><tspan class="white">() -&gt; </tspan><tspan class="yellow">Result</tspan><tspan class="white">&lt;</tspan><tspan class="cyan">Self</tspan><tspan class="white">&gt; {</tspan></text>
+
+    <!-- Line 14 -->
+    <text x="596" y="390" class="mono dim" font-size="11">14</text>
+    <text x="620" y="390" class="mono" font-size="11"><tspan class="white">        </tspan><tspan class="yellow">Ok</tspan><tspan class="white">(</tspan><tspan class="cyan">Self</tspan><tspan class="white"> { /* 60 FPS Event Loop */ })</tspan></text>
+
+    <!-- Line 15 -->
+    <text x="596" y="410" class="mono dim" font-size="11">15</text>
+    <text x="620" y="410" class="mono" font-size="11"><tspan class="white">    }</tspan></text>
+
+    <!-- Line 16 -->
+    <text x="596" y="430" class="mono dim" font-size="11">16</text>
+    <text x="620" y="430" class="mono" font-size="11"><tspan class="white">}</tspan></text>
+
+    <!-- Bottom Row: Integrated PTY Terminal Drawer (Height: 140) -->
+    <rect x="14" y="460" width="1092" height="135" rx="6" fill="#0d1017" stroke="#262c3e" stroke-width="1"/>
+    <!-- Terminal Header -->
+    <rect x="14" y="460" width="1092" height="24" rx="6" fill="#171b26"/>
+    <rect x="14" y="474" width="1092" height="10" fill="#171b26"/>
+    <line x1="14" y1="484" x2="1106" y2="484" stroke="#262c3e" stroke-width="1"/>
+    <text x="26" y="477" class="mono bold" font-size="11" fill="#38bdf8">INTEGRATED TERMINAL (PTY /bin/bash)</text>
+    <text x="1096" y="477" text-anchor="end" class="mono" font-size="10" fill="#64748b">Press ` or Ctrl+` to toggle</text>
+
+    <!-- Terminal Command Execution -->
+    <text x="26" y="508" class="mono" font-size="12">
+      <tspan fill="#34d399">termexplorer:~/Projects/TermExplorer$</tspan> <tspan fill="#f8fafc">cargo test --all-targets --all-features</tspan>
+    </text>
+    <text x="26" y="528" class="mono" font-size="12">
+      <tspan fill="#38bdf8">   Compiling</tspan> <tspan fill="#cbd5e1">termexplorer v0.1.0 (/home/prajith/TermExplorer)</tspan>
+    </text>
+    <text x="26" y="548" class="mono" font-size="12">
+      <tspan fill="#34d399">    Finished</tspan> <tspan fill="#cbd5e1">`test` profile in 0.45s — </tspan><tspan fill="#34d399" font-weight="bold">42 passed; 0 failed; 0 warnings</tspan>
+    </text>
+    <text x="26" y="572" class="mono" font-size="12">
+      <tspan fill="#34d399">termexplorer:~/Projects/TermExplorer$</tspan> <tspan fill="#38bdf8">_</tspan>
+    </text>
+
+    <!-- Bottom Status Line Bar -->
+    <rect x="0" y="604" width="1120" height="36" rx="14" fill="#121620"/>
+    <rect x="0" y="604" width="1120" height="14" fill="#121620"/>
+    <line x1="0" y1="604" x2="1120" y2="604" stroke="#262c3e" stroke-width="1"/>
+
+    <!-- NORMAL Mode Badge -->
+    <rect x="14" y="611" width="80" height="22" rx="4" fill="#38bdf8"/>
+    <text x="54" y="626" text-anchor="middle" class="mono bold" font-size="11" fill="#000000">NORMAL</text>
+
+    <!-- Current File -->
+    <text x="106" y="626" class="mono" font-size="11" fill="#cbd5e1">~/Projects/TermExplorer/src/main.rs</text>
+
+    <!-- Git Branch Badge -->
+    <text x="440" y="626" class="mono bold" font-size="11" fill="#34d399">&#128391; Git: master*</text>
+
+    <!-- Global Keybinding Badges -->
+    <text x="740" y="626" class="mono" font-size="11" fill="#c084fc">F1:Help</text>
+    <text x="820" y="626" class="mono" font-size="11" fill="#38bdf8">F7:Dual-Pane</text>
+    <text x="930" y="626" class="mono" font-size="11" fill="#fb923c">F10:Settings</text>
+    <text x="1050" y="626" class="mono bold" font-size="11" fill="#f87171">q:Quit</text>
+  </g>
+</svg>

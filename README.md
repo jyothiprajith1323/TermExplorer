@@ -17,20 +17,24 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 
 ## 📸 Interface Overview
 
+<p align="center">
+  <img src="docs/images/termexplorer-ui.svg" alt="TermExplorer Modern Terminal Developer Environment" width="100%" />
+</p>
+
 ```text
-┌── SIDEBAR [1] ────┐┌── FILE EXPLORER [2] ────────────┐┌── PREVIEW [3] [Preview | Info | Hex | Actions] ─┐
-│ ★ BOOKMARKS       │ Size   Modified   Name          │ Type: Rust Source File (14.2 KB)                 │
-│   ~ Home          │ DIR    10:14:02   src/          │ 1 use anyhow::Result;                            │
-│   ~/Projects      │ DIR    09:45:11   tests/        │ 2 use ratatui::widgets::Paragraph;               │
-│ 📁 WORKSPACES     │ 2.4 KB 11:02:30   Cargo.toml    │ 3                                                │
-│   TermExplorer    │ 12.1KB 11:02:30   README.md     │ 4 #[derive(Debug, Clone)]                        │
-│   IronKV          │ 14.2KB 11:05:12 ▶ main.rs       │ 5 pub struct AppEngine {                         │
-│ ⚙ SETTINGS        │  1.1KB 08:12:00   build.rs      │ 6     pub terminal: TerminalSession,             │
-│   F10 Studio      │                                 │ 7 }                                              │
-├───────────────────┴─────────────────────────────────┴──────────────────────────────────────────────────┤
-│ termexplorer:~/Projects/TermExplorer$ cargo test                                                       │
-│    Finished `test` profile in 0.45s — 42 passed; 0 failed                                              │
-└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌── SIDEBAR [1] ────┬── FILE EXPLORER [2] ──────────────┬── PREVIEW [Preview|Info|Hex|Actions] ────────────┐
+│ * BOOKMARKS       │ SIZE   MODIFIED   NAME            │ Type: Rust Source File (14.2 KB)                 │
+│   ~ Home          │ DIR    10:14:02   src/            │ 1  use anyhow::Result;                           │
+│   ~/Projects      │ DIR    09:45:11   tests/          │ 2  use ratatui::widgets::Paragraph;              │
+│ [+] WORKSPACES    │ 2.4 KB 11:02:30   Cargo.toml      │ 3                                                │
+│   > TermExplorer  │ 12.1KB 11:02:30   README.md       │ 4  #[derive(Debug, Clone)]                       │
+│     IronKV        │ 14.2KB 11:05:12 > main.rs         │ 5  pub struct AppEngine {                        │
+│ [*] SETTINGS      │  1.1KB 08:12:00   build.rs        │ 6      pub terminal: TerminalSession,            │
+│   F10 Studio      │                                   │ 7  }                                             │
+├───────────────────┴───────────────────────────────────┴──────────────────────────────────────────────────┤
+│ termexplorer:~/Projects/TermExplorer$ cargo test --all-targets --all-features                            │
+│    Finished `test` profile in 0.45s — 42 passed; 0 failed; 0 warnings                                    │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
  NORMAL  ~/Projects/TermExplorer/src/main.rs | Git: master* | F1:Help F7:Dual-Pane F10:Settings q:Quit
 ```
 

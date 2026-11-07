@@ -6,30 +6,41 @@
 
 ## 1. High-Level Architectural Diagram
 
+<p align="center">
+  <img src="images/architecture-diagram.svg" alt="TermExplorer Systems Architecture and Dataflow" width="100%" />
+</p>
+
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                             TermExplorer Binary                             │
-│                                                                             │
-│  ┌───────────────────────┐  Tokio Event Loop   ┌─────────────────────────┐  │
-│  │   Crossterm Backend   │ ──────────────────> │      App Core State     │  │
-│  │ (Raw Mode / KeyEvents)│                     │       (App / AppState)  │  │
-│  └───────────────────────┘                     └────────────┬────────────┘  │
-│              ▲                                              │               │
-│              │ Render Pass (100ms / on-event)               ▼               │
-│  ┌───────────┴───────────┐                     ┌─────────────────────────┐  │
-│  │     Ratatui Render    │ <────────────────── │  Modular UI Components  │  │
-│  │  (Transparent Engine) │                     │ (Explorer, Preview, etc)│  │
-│  └───────────────────────┘                     └─────────────────────────┘  │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-     ┌───────────────────┬─────────────┼─────────────────┬───────────────────┐
-     ▼                   ▼             ▼                 ▼                   ▼
-┌──────────────┐  ┌──────────────┐ ┌───────────────┐ ┌───────────────┐ ┌──────────────┐
-│  Filesystem  │  │  Universal   │ │   Embedded    │ │  Code Editor  │ │    System    │
-│  & Dual-Pane │  │Preview Engine│ │ Terminal PTY  │ │ & Auto-Pairer │ │   Monitor    │
-│  (std::fs /  │  │(Magic Sniff /│ │(portable-pty  │ │  (Syntect /   │ │  (sysinfo)   │
-│  FreeDesktop)│  │  LRU Cache)  │ │ + background) │ │  Completions) │ │              │
-└──────────────┘  └──────────────┘ └───────────────┘ └───────────────┘ └──────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ TermExplorer Binary Event & State Architecture                               │
+│                                                                              │
+│  ┌──────────────────────┐  Tokio Event Loop   ┌──────────────────────┐       │
+│  │  Crossterm Backend   │ ──────────────────> │    App Core State    │       │
+│  │(Raw Mode / KeyEvents)│                     │   (App / AppState)   │       │
+│  └──────────────────────┘                     └──────────┬───────────┘       │
+│              ▲                                           │                   │
+│              │ Render Pass (60 FPS / on-event)           ▼                   │
+│  ┌───────────┴──────────┐                     ┌──────────────────────┐       │
+│  │    Ratatui Render    │ <────────────────── │Modular UI Components │       │
+│  │ (Transparent Engine) │                     │(Explorer,Preview,etc)│       │
+│  └──────────────────────┘                     └──────────────────────┘       │
+└────────┬───────────────────┬───────────────────┬───────────────────┬─────────┘
+         ▼                   ▼                   ▼                   ▼          
+ ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐ 
+ │Filesystem/Pane │  │ Univ. Preview  │  │  Terminal PTY  │  │  Code Editor   │ 
+ │ Dual-Pane (F7) │  │ 12+ Categories │  │  portable-pty  │  │ Syntect Syntax │ 
+ │ Desktop Trash  │  │24-bit Halfblock│  │Non-blocking I/O│  │  Auto-Pairing  │ 
+ │  Fuzzy / Sort  │  │ 64MB LRU Cache │  │  Native Shell  │  │  Autocomplete  │ 
+ └────────────────┘  └────────────────┘  └────────────────┘  └────────────────┘ 
+         │                   │                   │                   │          
+         └───────────────────┴─────────┬─────────┴───────────────────┘          
+                                       ▼                                        
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Ratatui Terminal Renderer & Layout Engine                                    │
+│  - 24-bit Truecolor Half-Block Graphics Engine (▀)                           │
+│  - Transparent Background Inheritance (bg: None)                             │
+│  - Responsive 5-Panel Layout Engine (Sidebar, Explorer, Preview, PTY, Mon)   │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
