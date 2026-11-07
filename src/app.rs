@@ -77,7 +77,7 @@ impl App {
                 Err(_) => (None, None),
             };
 
-        Ok(Self {
+        let mut app = Self {
             state,
             theme,
             preview_manager: PreviewManager::new(max_preview_bytes),
@@ -90,7 +90,14 @@ impl App {
             pty_rx: None,
             _watcher,
             fs_rx,
-        })
+        };
+
+        if app.state.show_terminal {
+            app.start_terminal_session();
+            app.state.clear_status();
+        }
+
+        Ok(app)
     }
 
     pub fn state(&self) -> &AppState {
@@ -220,6 +227,8 @@ impl App {
                 sidebar_pct: state.config.sidebar_width,
                 preview_pct: state.config.preview_width,
                 bottom_height,
+                preview_maximized: state.preview_maximized,
+                terminal_maximized: state.terminal_maximized,
             };
 
             let areas = compute_layout(area, &layout_cfg);
@@ -285,7 +294,12 @@ impl App {
                 selected_idx,
             } = &state.mode
             {
-                let items = CommandRegistry::search(query);
+                let items = CommandRegistry::search_with_context(
+                    query,
+                    &state.config.pinned_folders,
+                    &state.recent_dirs.dirs,
+                    state.focused,
+                );
                 render_command_palette(frame, area, query, &items, *selected_idx, theme);
             }
 
@@ -559,6 +573,85 @@ impl App {
             _ => {}
         }
 
+        // Alt+F6 or Ctrl+Shift+T: toggle terminal maximize / normal / minimize
+        if (key.modifiers == KeyModifiers::ALT && key.code == KeyCode::F(6))
+            || (key.modifiers.contains(KeyModifiers::CONTROL)
+                && key.modifiers.contains(KeyModifiers::SHIFT)
+                && (key.code == KeyCode::Char('T') || key.code == KeyCode::Char('t')))
+        {
+            self.toggle_terminal_maximize();
+            return Ok(false);
+        }
+
+        // F11 or Z (in browse mode): toggle fullscreen preview
+        if key.code == KeyCode::F(11)
+            || (matches!(self.state.mode, AppMode::Browse)
+                && key.modifiers == KeyModifiers::NONE
+                && (key.code == KeyCode::Char('z') || key.code == KeyCode::Char('Z')))
+        {
+            self.toggle_preview_maximize();
+            return Ok(false);
+        }
+
+        // Panel resizing shortcuts:
+        // [ / Ctrl+Left: shrink preview width (expand explorer)
+        // ] / Ctrl+Right: expand preview width (shrink explorer)
+        if (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char('['))
+            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Left)
+        {
+            self.state.config.preview_width =
+                self.state.config.preview_width.saturating_sub(5).max(15);
+            let _ = self.state.config.save();
+            self.state.set_status(
+                format!("Preview width: {}%", self.state.config.preview_width),
+                StatusKind::Info,
+            );
+            return Ok(false);
+        }
+        if (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char(']'))
+            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Right)
+        {
+            self.state.config.preview_width = (self.state.config.preview_width + 5).min(65);
+            let _ = self.state.config.save();
+            self.state.set_status(
+                format!("Preview width: {}%", self.state.config.preview_width),
+                StatusKind::Info,
+            );
+            return Ok(false);
+        }
+
+        // { / Ctrl+Down: shrink bottom terminal height
+        // } / Ctrl+Up: expand bottom terminal height
+        if (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char('{'))
+            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Down)
+        {
+            self.state.config.terminal_height =
+                self.state.config.terminal_height.saturating_sub(2).max(5);
+            let _ = self.state.config.save();
+            self.state.set_status(
+                format!(
+                    "Terminal height: {} rows",
+                    self.state.config.terminal_height
+                ),
+                StatusKind::Info,
+            );
+            return Ok(false);
+        }
+        if (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char('}'))
+            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Up)
+        {
+            self.state.config.terminal_height = (self.state.config.terminal_height + 2).min(40);
+            let _ = self.state.config.save();
+            self.state.set_status(
+                format!(
+                    "Terminal height: {} rows",
+                    self.state.config.terminal_height
+                ),
+                StatusKind::Info,
+            );
+            return Ok(false);
+        }
+
         if key.modifiers.contains(KeyModifiers::CONTROL)
             && key.modifiers.contains(KeyModifiers::SHIFT)
             && key.code == KeyCode::Char('P')
@@ -656,8 +749,40 @@ impl App {
             return Ok(true);
         }
         // Toggle terminal back.
-        if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('`') {
+        if (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('`'))
+            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('t'))
+        {
             self.toggle_terminal();
+            return Ok(false);
+        }
+        // Focus escape from terminal: Alt+Up or Alt+k switches back to Explorer
+        if (key.modifiers == KeyModifiers::ALT
+            && (key.code == KeyCode::Up || key.code == KeyCode::Char('k')))
+            || (key.modifiers == (KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+                && key.code == KeyCode::Up)
+        {
+            self.state.focused = FocusedPanel::Explorer;
+            return Ok(false);
+        }
+        // Alt+F6 or Ctrl+Shift+T: toggle terminal maximize state
+        if (key.modifiers == KeyModifiers::ALT && key.code == KeyCode::F(6))
+            || (key.modifiers.contains(KeyModifiers::CONTROL)
+                && key.modifiers.contains(KeyModifiers::SHIFT)
+                && (key.code == KeyCode::Char('T') || key.code == KeyCode::Char('t')))
+        {
+            self.toggle_terminal_maximize();
+            return Ok(false);
+        }
+        // Terminal height resizing from inside terminal: Ctrl+Down / Ctrl+Up
+        if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Down {
+            self.state.config.terminal_height =
+                self.state.config.terminal_height.saturating_sub(2).max(5);
+            let _ = self.state.config.save();
+            return Ok(false);
+        }
+        if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Up {
+            self.state.config.terminal_height = (self.state.config.terminal_height + 2).min(40);
+            let _ = self.state.config.save();
             return Ok(false);
         }
 
@@ -908,12 +1033,39 @@ impl App {
             KeyCode::Backspace => {
                 self.state.search_query.pop();
             }
+            KeyCode::Tab => {
+                // Fuzzy path completion on Tab
+                if !self.state.search_query.is_empty() {
+                    let cur = self.state.explorer.current_dir.clone();
+                    let completions = crate::completion::explorer::complete_path(
+                        &self.state.search_query,
+                        &cur,
+                        5,
+                    );
+                    if let Some(first) = completions.first() {
+                        self.state.search_query = first.completed_path.clone();
+                    }
+                }
+            }
             KeyCode::Char(c)
                 if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT =>
             {
                 self.state.search_query.push(c);
             }
             KeyCode::Enter => {
+                let q = self.state.search_query.trim();
+                if !q.is_empty() {
+                    let expanded = shellexpand::tilde(q).to_string();
+                    let target_path = if std::path::Path::new(&expanded).is_absolute() {
+                        PathBuf::from(&expanded)
+                    } else {
+                        self.state.explorer.current_dir.join(&expanded)
+                    };
+                    if target_path.is_dir() {
+                        self.navigate_into(target_path).await;
+                        self.state.search_query.clear();
+                    }
+                }
                 self.state.mode = AppMode::Browse;
             }
             _ => {}
@@ -1567,11 +1719,16 @@ impl App {
                 return Ok(false);
             }
             KeyCode::Enter => {
-                let items = CommandRegistry::search(&query);
+                let items = CommandRegistry::search_with_context(
+                    &query,
+                    &self.state.config.pinned_folders,
+                    &self.state.recent_dirs.dirs,
+                    self.state.focused,
+                );
                 if let Some(cmd) = items.get(selected_idx) {
-                    let id = cmd.id;
+                    let id = cmd.id.to_string();
                     self.state.mode = AppMode::Browse;
-                    self.execute_palette_command(id).await;
+                    self.execute_palette_command(&id).await;
                     return Ok(false);
                 }
                 self.state.mode = AppMode::Browse;
@@ -1581,7 +1738,13 @@ impl App {
                 selected_idx = selected_idx.saturating_sub(1);
             }
             KeyCode::Down => {
-                let count = CommandRegistry::search(&query).len();
+                let count = CommandRegistry::search_with_context(
+                    &query,
+                    &self.state.config.pinned_folders,
+                    &self.state.recent_dirs.dirs,
+                    self.state.focused,
+                )
+                .len();
                 if selected_idx + 1 < count {
                     selected_idx += 1;
                 }
@@ -1771,6 +1934,20 @@ impl App {
                 self.state
                     .set_status("Launched external terminal", StatusKind::Success);
             }
+            id if id.starts_with("nav_dir:") => {
+                let path_str = &id["nav_dir:".len()..];
+                let p = PathBuf::from(path_str);
+                if p.is_dir() {
+                    self.navigate_into(p).await;
+                    self.state
+                        .set_status(format!("Navigated to {}", path_str), StatusKind::Success);
+                } else {
+                    self.state.set_status(
+                        format!("Directory not found: {}", path_str),
+                        StatusKind::Warning,
+                    );
+                }
+            }
             _ => {}
         }
     }
@@ -1903,71 +2080,100 @@ impl App {
 
     // ── Focus cycling ────────────────────────────────────────────────────────
 
+    fn visible_panels(&self) -> Vec<FocusedPanel> {
+        let mut list = Vec::new();
+        if self.state.show_sidebar {
+            list.push(FocusedPanel::Sidebar);
+        }
+        list.push(FocusedPanel::Explorer);
+        if self.state.dual_pane_enabled {
+            list.push(FocusedPanel::ExplorerSecondary);
+        }
+        if self.state.show_preview {
+            list.push(FocusedPanel::Preview);
+        }
+        if self.state.show_terminal {
+            list.push(FocusedPanel::Terminal);
+        } else if self.state.show_monitor {
+            list.push(FocusedPanel::Monitor);
+        }
+        list
+    }
+
     fn cycle_focus(&mut self) {
-        self.state.focused = match self.state.focused {
-            FocusedPanel::Sidebar => FocusedPanel::Explorer,
-            FocusedPanel::Explorer => {
-                if self.state.dual_pane_enabled {
-                    FocusedPanel::ExplorerSecondary
-                } else if self.state.show_preview {
-                    FocusedPanel::Preview
-                } else if self.state.show_terminal {
-                    FocusedPanel::Terminal
-                } else {
-                    FocusedPanel::Sidebar
-                }
-            }
-            FocusedPanel::ExplorerSecondary => {
-                if self.state.show_preview {
-                    FocusedPanel::Preview
-                } else if self.state.show_terminal {
-                    FocusedPanel::Terminal
-                } else {
-                    FocusedPanel::Sidebar
-                }
-            }
-            FocusedPanel::Preview => {
-                if self.state.show_terminal {
-                    FocusedPanel::Terminal
-                } else {
-                    FocusedPanel::Sidebar
-                }
-            }
-            FocusedPanel::Terminal => FocusedPanel::Sidebar,
-            FocusedPanel::Editor => FocusedPanel::Editor,
-            FocusedPanel::Monitor => FocusedPanel::Explorer,
-        };
+        let panels = self.visible_panels();
+        if panels.is_empty() {
+            return;
+        }
+        let current_pos = panels
+            .iter()
+            .position(|&p| p == self.state.focused)
+            .unwrap_or(0);
+        let next_pos = (current_pos + 1) % panels.len();
+        self.state.focused = panels[next_pos];
     }
 
     fn cycle_focus_back(&mut self) {
-        self.state.focused = match self.state.focused {
-            FocusedPanel::Sidebar => {
-                if self.state.show_terminal {
-                    FocusedPanel::Terminal
-                } else if self.state.show_preview {
-                    FocusedPanel::Preview
-                } else if self.state.dual_pane_enabled {
-                    FocusedPanel::ExplorerSecondary
-                } else {
-                    FocusedPanel::Explorer
-                }
-            }
-            FocusedPanel::Explorer => FocusedPanel::Sidebar,
-            FocusedPanel::ExplorerSecondary => FocusedPanel::Explorer,
-            FocusedPanel::Preview => {
-                if self.state.dual_pane_enabled {
-                    FocusedPanel::ExplorerSecondary
-                } else {
-                    FocusedPanel::Explorer
-                }
-            }
-            FocusedPanel::Terminal => FocusedPanel::Preview,
-            FocusedPanel::Editor => FocusedPanel::Editor,
-            FocusedPanel::Monitor => FocusedPanel::Explorer,
+        let panels = self.visible_panels();
+        if panels.is_empty() {
+            return;
+        }
+        let current_pos = panels
+            .iter()
+            .position(|&p| p == self.state.focused)
+            .unwrap_or(0);
+        let prev_pos = if current_pos == 0 {
+            panels.len() - 1
+        } else {
+            current_pos - 1
         };
+        self.state.focused = panels[prev_pos];
     }
 
     // ── Toggle helpers ────────────────────────────────────────────────────────
+
+    fn toggle_terminal_maximize(&mut self) {
+        if !self.state.show_terminal {
+            self.state.show_terminal = true;
+            self.state.terminal_maximized = false;
+            self.start_terminal_session();
+            self.state.focused = FocusedPanel::Terminal;
+            self.state
+                .set_status("Terminal: Normal (~25%)", StatusKind::Info);
+        } else if !self.state.terminal_maximized {
+            self.state.terminal_maximized = true;
+            self.state.focused = FocusedPanel::Terminal;
+            self.state
+                .set_status("Terminal: Maximized (~80%)", StatusKind::Info);
+        } else {
+            self.state.terminal_maximized = false;
+            self.state.show_terminal = false;
+            self.state.focused = FocusedPanel::Explorer;
+            self.state.set_status("Terminal: Hidden", StatusKind::Info);
+        }
+    }
+
+    fn toggle_preview_maximize(&mut self) {
+        if !self.state.show_preview {
+            self.state.show_preview = true;
+            self.state.preview_maximized = true;
+            self.state.focused = FocusedPanel::Preview;
+            self.state
+                .set_status("Preview: Fullscreen (100%)", StatusKind::Info);
+        } else if !self.state.preview_maximized {
+            self.state.preview_maximized = true;
+            self.state.focused = FocusedPanel::Preview;
+            self.state
+                .set_status("Preview: Fullscreen (100%)", StatusKind::Info);
+        } else {
+            self.state.preview_maximized = false;
+            self.state.focused = FocusedPanel::Explorer;
+            self.state.set_status(
+                format!("Preview: Split ({}%)", self.state.config.preview_width),
+                StatusKind::Info,
+            );
+        }
+    }
 
     fn toggle_terminal(&mut self) {
         self.state.show_terminal = !self.state.show_terminal;

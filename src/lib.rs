@@ -2,6 +2,7 @@
 
 pub mod app;
 pub mod commands;
+pub mod completion;
 pub mod config;
 pub mod editor;
 pub mod events;

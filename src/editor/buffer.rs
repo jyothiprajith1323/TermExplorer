@@ -13,7 +13,7 @@ pub struct Cursor {
     pub col: usize,
 }
 
-use crate::editor::completion::{prefix_at, word_completions, Completion};
+use crate::editor::completion::{layered_completions, prefix_at, Completion};
 
 // ── Completion state ────────────────────────────────────────────────────────
 
@@ -373,7 +373,7 @@ impl Buffer {
         let line = self.current_line();
         let prefix = prefix_at(line, self.cursor.col);
         if prefix.len() >= 2 {
-            let completions = word_completions(&self.lines, prefix, 8);
+            let completions = layered_completions(&self.lines, prefix, self.path.as_deref(), 8);
             if !completions.is_empty() {
                 self.completion = CompletionState {
                     active: true,

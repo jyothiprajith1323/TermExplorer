@@ -4,12 +4,12 @@ use termexplorer::config::{Config, PinnedFolder};
 #[test]
 fn test_default_config() {
     let cfg = Config::default();
-    assert!(cfg.show_sidebar);
+    assert!(!cfg.show_sidebar);
     assert!(cfg.show_preview);
-    assert!(!cfg.show_terminal);
+    assert!(cfg.show_terminal);
     assert!(!cfg.show_monitor);
     assert_eq!(cfg.sidebar_width, 20);
-    assert_eq!(cfg.preview_width, 35);
+    assert_eq!(cfg.preview_width, 30);
     assert_eq!(cfg.editor.tab_width, 4);
     assert!(cfg.editor.auto_pair);
     assert!(cfg.theme.transparent_background);

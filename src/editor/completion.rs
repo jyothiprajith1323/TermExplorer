@@ -1,6 +1,10 @@
-//! Word-completion engine (file-local + workspace words).
+//! Word and layered completion engine (file-local + workspace symbols + snippets).
 
-use std::collections::BTreeSet;
+pub use crate::completion::editor::{
+    buffer_word_completions, get_language_snippets, get_layered_completions, EditorCompletion,
+    EditorCompletionKind,
+};
+use std::path::Path;
 
 /// A single completion candidate.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -10,38 +14,50 @@ pub struct Completion {
     pub kind: CompletionKind,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CompletionKind {
     Word,
     Path,
     Snippet,
     Lsp,
+    WorkspaceSymbol,
 }
 
 /// Gather word-completions from the buffer lines for `prefix`.
 pub fn word_completions(lines: &[String], prefix: &str, max: usize) -> Vec<Completion> {
-    if prefix.is_empty() {
-        return Vec::new();
-    }
-    let mut seen = BTreeSet::new();
-    let prefix_lower = prefix.to_lowercase();
-    for line in lines {
-        for word in line.split(|c: char| !c.is_alphanumeric() && c != '_') {
-            if word.len() > prefix.len()
-                && word.to_lowercase().starts_with(&prefix_lower)
-                && word != prefix
-            {
-                seen.insert(word.to_string());
-            }
-        }
-    }
-    seen.into_iter()
-        .take(max)
-        .map(|label| Completion {
-            label,
-            detail: Some("buffer".to_string()),
+    let items = buffer_word_completions(lines, prefix, max);
+    items
+        .into_iter()
+        .map(|it| Completion {
+            label: it.label,
+            detail: Some(it.detail),
             kind: CompletionKind::Word,
+        })
+        .collect()
+}
+
+/// Gather layered completions (buffer words + snippets + workspace symbols).
+pub fn layered_completions(
+    lines: &[String],
+    prefix: &str,
+    file_path: Option<&Path>,
+    max: usize,
+) -> Vec<Completion> {
+    let items = get_layered_completions(lines, prefix, file_path, None, max);
+    items
+        .into_iter()
+        .map(|it| {
+            let kind = match it.kind {
+                EditorCompletionKind::BufferWord => CompletionKind::Word,
+                EditorCompletionKind::WorkspaceSymbol => CompletionKind::WorkspaceSymbol,
+                EditorCompletionKind::Snippet => CompletionKind::Snippet,
+                EditorCompletionKind::Lsp => CompletionKind::Lsp,
+            };
+            Completion {
+                label: it.label,
+                detail: Some(it.detail),
+                kind,
+            }
         })
         .collect()
 }

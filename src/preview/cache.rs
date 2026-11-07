@@ -55,6 +55,10 @@ impl<T: Clone> PreviewLruCache<T> {
         });
     }
 
+    pub fn invalidate(&mut self, path: &Path) {
+        self.entries.retain(|e| e.path != path);
+    }
+
     pub fn clear(&mut self) {
         self.entries.clear();
     }

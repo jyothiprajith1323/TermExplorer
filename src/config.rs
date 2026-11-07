@@ -26,7 +26,7 @@ fn default_sidebar_width() -> u16 {
     20
 }
 fn default_preview_width() -> u16 {
-    35
+    30
 }
 fn default_terminal_height() -> u16 {
     12
@@ -172,12 +172,12 @@ pub struct Config {
     #[serde(default)]
     pub custom_shortcuts: Vec<CustomShortcut>,
 
-    // Panel visibility defaults.
-    #[serde(default = "default_true")]
+    // Panel visibility defaults (Workspace sidebar removed by default; Terminal shown by default).
+    #[serde(default = "default_false")]
     pub show_sidebar: bool,
     #[serde(default = "default_true")]
     pub show_preview: bool,
-    #[serde(default = "default_false")]
+    #[serde(default = "default_true")]
     pub show_terminal: bool,
     #[serde(default = "default_false")]
     pub show_monitor: bool,
@@ -221,9 +221,9 @@ impl Default for Config {
         Self {
             pinned_folders: Vec::new(),
             custom_shortcuts: Vec::new(),
-            show_sidebar: true,
+            show_sidebar: false,
             show_preview: true,
-            show_terminal: false,
+            show_terminal: true,
             show_monitor: false,
             sidebar_width: default_sidebar_width(),
             preview_width: default_preview_width(),

@@ -146,9 +146,17 @@ pub fn render_editor(
                 } else {
                     theme.normal_style()
                 };
+                let badge = match c.kind {
+                    crate::editor::completion::CompletionKind::Word => "buf",
+                    crate::editor::completion::CompletionKind::Snippet => "snip",
+                    crate::editor::completion::CompletionKind::WorkspaceSymbol => "sym",
+                    crate::editor::completion::CompletionKind::Lsp => "lsp",
+                    crate::editor::completion::CompletionKind::Path => "path",
+                };
                 Line::from(vec![
                     Span::styled(symbol, theme.accent_style()),
                     Span::styled(&c.label, style),
+                    Span::styled(format!(" [{badge}]"), theme.muted_style()),
                 ])
             })
             .collect();

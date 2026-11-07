@@ -15,7 +15,6 @@ use termexplorer::ui::{
     layout::{compute_layout, LayoutConfig},
     preview::render_preview,
     settings::render_settings_studio,
-    sidebar::render_sidebar,
     status_bar::render_status_bar,
     system_monitor::render_system_monitor,
 };
@@ -38,9 +37,10 @@ fn test_render_workstation_main_layout_120x40() {
 
     let mut state = AppState::new(Config::default());
     state.workspace.name = "IronKV".to_string();
-    state.show_sidebar = true;
-    state.show_preview = true;
-    let theme = Theme::default_dark();
+    assert!(!state.show_sidebar);
+    assert!(state.show_preview);
+    assert!(state.show_terminal);
+    let theme = Theme::catppuccin_mocha();
     let snap = Monitor::new().refresh();
 
     terminal
@@ -49,21 +49,33 @@ fn test_render_workstation_main_layout_120x40() {
             let layout_cfg = LayoutConfig {
                 show_sidebar: state.show_sidebar,
                 show_preview: state.show_preview,
-                show_bottom: false,
+                show_bottom: state.show_terminal,
                 dual_pane: false,
-                sidebar_pct: 22,
-                preview_pct: 38,
+                sidebar_pct: 20,
+                preview_pct: 30,
                 bottom_height: 10,
+                preview_maximized: false,
+                terminal_maximized: false,
             };
             let areas = compute_layout(area, &layout_cfg);
 
             render_header(frame, areas.header, &state, Some(&snap), &theme);
-            if let Some(sb) = areas.sidebar {
-                render_sidebar(frame, sb, &state, &theme);
-            }
+            assert!(
+                areas.sidebar.is_none(),
+                "Default layout must NOT have permanent workspace sidebar"
+            );
             render_file_explorer(frame, areas.explorer, &state, &theme);
             if let Some(pv) = areas.preview {
                 render_preview(frame, pv, &state, &theme);
+            }
+            if let Some(btm) = areas.bottom_panel {
+                termexplorer::ui::terminal::render_terminal(
+                    frame,
+                    btm,
+                    b"termexplorer:~$ ",
+                    &state,
+                    &theme,
+                );
             }
             render_status_bar(frame, areas.status_bar, &state, &theme);
         })
@@ -77,7 +89,6 @@ fn test_render_workstation_main_layout_120x40() {
     assert!(screen.contains("TERMEXPLORER"));
     assert!(screen.contains("NORMAL"));
     assert!(screen.contains("EXPLORER"));
-    assert!(screen.contains("WORKSPACE"));
 }
 
 #[test]
@@ -90,6 +101,8 @@ fn test_responsive_layout_adaptive_breakpoints() {
         sidebar_pct: 22,
         preview_pct: 35,
         bottom_height: 10,
+        preview_maximized: false,
+        terminal_maximized: false,
     };
 
     // 1. Narrow terminal (80x24) -> sidebar auto-collapses
@@ -211,4 +224,45 @@ fn test_render_git_workbench() {
     std::fs::write("screenshots/git_workbench.txt", &screen).unwrap();
     assert!(screen.contains("GIT WORKBENCH"));
     assert!(screen.contains("main"));
+}
+
+#[test]
+fn test_fullscreen_preview_and_terminal_maximize_layouts() {
+    let area = Rect::new(0, 0, 120, 40);
+
+    // 1. Fullscreen Preview (F11 / Z)
+    let layout_preview_full = LayoutConfig {
+        show_sidebar: false,
+        show_preview: true,
+        show_bottom: false,
+        dual_pane: false,
+        sidebar_pct: 0,
+        preview_pct: 30,
+        bottom_height: 0,
+        preview_maximized: true,
+        terminal_maximized: false,
+    };
+    let areas_prev = compute_layout(area, &layout_preview_full);
+    assert_eq!(areas_prev.explorer.width, 0);
+    assert_eq!(areas_prev.preview.unwrap().width, 120);
+
+    // 2. Maximized Terminal (Alt+F6 / Ctrl+Shift+T) takes ~80% vertical height
+    let layout_term_max = LayoutConfig {
+        show_sidebar: false,
+        show_preview: true,
+        show_bottom: true,
+        dual_pane: false,
+        sidebar_pct: 0,
+        preview_pct: 30,
+        bottom_height: 10,
+        preview_maximized: false,
+        terminal_maximized: true,
+    };
+    let areas_term = compute_layout(area, &layout_term_max);
+    let term_h = areas_term.bottom_panel.unwrap().height;
+    assert!(
+        term_h >= 30,
+        "Maximized terminal height should be ~80% of 40 rows (actual: {})",
+        term_h
+    );
 }

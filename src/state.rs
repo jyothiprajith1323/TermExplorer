@@ -144,6 +144,8 @@ pub struct AppState {
     pub show_preview: bool,
     pub show_terminal: bool,
     pub show_monitor: bool,
+    pub preview_maximized: bool,
+    pub terminal_maximized: bool,
     pub dual_pane_enabled: bool,
     pub active_pane: ActivePane,
     pub explorer_secondary: ExplorerState,
@@ -227,6 +229,8 @@ impl AppState {
             show_preview,
             show_terminal,
             show_monitor,
+            preview_maximized: false,
+            terminal_maximized: false,
         }
     }
 

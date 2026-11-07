@@ -52,6 +52,34 @@ pub struct FullPreviewData {
     pub actions: Vec<PreviewAction>,
 }
 
+impl FullPreviewData {
+    pub fn empty(path: PathBuf) -> Self {
+        Self {
+            path,
+            active_tab: PreviewTab::Preview,
+            format_info: FileFormatInfo {
+                category: FileCategory::Other,
+                mime_type: "application/octet-stream".to_string(),
+                description: "File not found or inaccessible",
+                is_binary: false,
+            },
+            metadata: None,
+            source: None,
+            markdown: None,
+            image: None,
+            video: None,
+            audio: None,
+            pdf: None,
+            office: None,
+            data: None,
+            archive: None,
+            hex: None,
+            database: None,
+            actions: Vec::new(),
+        }
+    }
+}
+
 pub struct PreviewManager {
     cache: PreviewLruCache<FullPreviewData>,
     max_preview_bytes: u64,
@@ -72,6 +100,13 @@ impl PreviewManager {
         preview_width: u32,
         preview_height: u32,
     ) -> FullPreviewData {
+        if !path.exists() {
+            self.cache.invalidate(path);
+            let mut empty = FullPreviewData::empty(path.to_path_buf());
+            empty.active_tab = tab;
+            return empty;
+        }
+
         let modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();
 
         // Check LRU cache

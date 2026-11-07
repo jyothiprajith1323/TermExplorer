@@ -377,4 +377,19 @@ impl CommandRegistry {
         matches.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
         matches.into_iter().map(|(_, cmd)| cmd).collect()
     }
+
+    /// Perform contextual ranking across commands and dynamic pinned/recent locations.
+    pub fn search_with_context(
+        query: &str,
+        pinned: &[crate::config::PinnedFolder],
+        recent: &[std::path::PathBuf],
+        focused: crate::state::FocusedPanel,
+    ) -> Vec<CommandItem> {
+        let suggestions =
+            crate::completion::palette::rank_palette_commands(query, pinned, recent, focused);
+        suggestions
+            .into_iter()
+            .map(|s| s.to_command_item())
+            .collect()
+    }
 }

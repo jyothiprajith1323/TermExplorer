@@ -400,6 +400,128 @@ tr:last-child td {
   border-bottom: none;
 }
 
+/* Performance & Analytics Grid */
+.perf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin: 2.5rem 0;
+}
+
+.perf-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.perf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.perf-title {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--text-main);
+}
+
+.perf-badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--accent-green);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.perf-val {
+  font-size: 2rem;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: var(--accent-cyan);
+  margin-bottom: 0.25rem;
+}
+
+.perf-target {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.perf-bar-bg {
+  background: var(--bg-secondary);
+  border-radius: 9999px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.perf-bar-fill {
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
+  height: 100%;
+  border-radius: 9999px;
+}
+
+/* Theme Showcase Pills */
+.theme-showcase {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.theme-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+}
+
+.palette-swatches {
+  display: flex;
+  height: 18px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.75rem 0;
+}
+
+.swatch {
+  flex: 1;
+}
+
+/* Code Snippet Block */
+.code-window {
+  background: var(--bg-code);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin: 1.5rem 0;
+  font-family: var(--font-mono);
+}
+
+.code-header {
+  background: var(--bg-secondary);
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+}
+
+.code-content {
+  padding: 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
 /* Footer */
 footer {
   border-top: 1px solid var(--border-color);
