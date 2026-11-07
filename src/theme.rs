@@ -103,23 +103,23 @@ impl Theme {
         Self {
             name: "Default Dark",
             bg: None,
-            fg: Color::Rgb(171, 178, 191),
-            accent: Color::Rgb(97, 175, 239),
-            selection_bg: Color::Rgb(44, 62, 80),
-            selection_fg: Color::Rgb(229, 229, 229),
-            border: Color::Rgb(60, 60, 70),
-            border_focused: Color::Rgb(97, 175, 239),
-            status_fg: Color::Rgb(130, 140, 160),
-            error: Color::Rgb(224, 108, 117),
-            warning: Color::Rgb(229, 192, 123),
-            success: Color::Rgb(152, 195, 121),
-            dir_color: Color::Rgb(97, 175, 239),
-            file_color: Color::Rgb(171, 178, 191),
-            symlink_color: Color::Rgb(86, 182, 194),
-            hidden_color: Color::Rgb(100, 110, 130),
-            size_color: Color::Rgb(130, 140, 160),
-            date_color: Color::Rgb(130, 140, 160),
-            header_fg: Color::Rgb(229, 229, 229),
+            fg: Color::Rgb(210, 218, 230),
+            accent: Color::Rgb(0, 215, 255),
+            selection_bg: Color::Rgb(36, 48, 68),
+            selection_fg: Color::Rgb(255, 255, 255),
+            border: Color::Rgb(50, 56, 68),
+            border_focused: Color::Rgb(0, 215, 255),
+            status_fg: Color::Rgb(140, 150, 170),
+            error: Color::Rgb(255, 107, 107),
+            warning: Color::Rgb(255, 190, 70),
+            success: Color::Rgb(80, 220, 140),
+            dir_color: Color::Rgb(90, 180, 255),
+            file_color: Color::Rgb(215, 222, 235),
+            symlink_color: Color::Rgb(80, 210, 200),
+            hidden_color: Color::Rgb(95, 105, 125),
+            size_color: Color::Rgb(140, 150, 170),
+            date_color: Color::Rgb(120, 130, 150),
+            header_fg: Color::Rgb(240, 245, 255),
             header_bg: None,
         }
     }
@@ -427,5 +427,19 @@ impl Theme {
             s = s.bg(bg);
         }
         s
+    }
+
+    pub fn muted_style(&self) -> Style {
+        Style::default().fg(self.hidden_color)
+    }
+
+    pub fn pill_style(&self, fg: Color, bg: Color) -> Style {
+        Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD)
+    }
+
+    pub fn key_hint_style(&self) -> Style {
+        Style::default()
+            .fg(self.accent)
+            .add_modifier(Modifier::BOLD)
     }
 }

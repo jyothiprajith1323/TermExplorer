@@ -27,19 +27,41 @@ pub fn render_preview(frame: &mut Frame, area: Rect, state: &AppState, theme: &T
         .as_ref()
         .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "Preview".to_string());
+        .unwrap_or_else(|| "Inspector".to_string());
 
-    let tab_str = match preview.active_tab {
-        PreviewTab::Preview => "[Preview]  Info   Hex   Actions",
-        PreviewTab::Information => " Preview  [Info]  Hex   Actions",
-        PreviewTab::Hex => " Preview   Info  [Hex]  Actions",
-        PreviewTab::Actions => " Preview   Info   Hex  [Actions]",
-    };
+    // Modern styled tab pills
+    let tabs = [
+        (PreviewTab::Preview, "󰈈 Preview"),
+        (PreviewTab::Information, "󰋽 Info"),
+        (PreviewTab::Hex, "󰆦 Hex"),
+        (PreviewTab::Actions, "󰌒 Actions"),
+    ];
 
-    let title = format!(" 󰍉 {}  ─  {} ", file_name, tab_str);
+    let mut title_spans = vec![
+        Span::styled(format!(" 󰍉 {} ", file_name), theme.header_style()),
+        Span::styled("─ ", Style::default().fg(theme.border)),
+    ];
+
+    for (t, label) in tabs {
+        let is_active = preview.active_tab == t;
+        if is_active {
+            title_spans.push(Span::styled(
+                format!(" [{}] ", label),
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        } else {
+            title_spans.push(Span::styled(
+                format!(" {} ", label),
+                Style::default().fg(theme.size_color),
+            ));
+        }
+    }
 
     let block = Block::default()
-        .title(Span::styled(title, theme.header_style()))
+        .title(Line::from(title_spans))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(border_style);
@@ -52,9 +74,10 @@ pub fn render_preview(frame: &mut Frame, area: Rect, state: &AppState, theme: &T
     }
 
     let Some(path) = &preview.path else {
-        let hint =
-            Paragraph::new("\n  Select a file or folder to preview\n\n  Tabs: [ / ] or h / l switch tabs")
-                .style(Style::default().fg(Color::DarkGray));
+        let hint = Paragraph::new(
+            "\n  Select a file or folder to preview\n\n  Tabs: [ / ] or h / l switch tabs",
+        )
+        .style(Style::default().fg(Color::DarkGray));
         frame.render_widget(hint, inner);
         return;
     };
@@ -182,9 +205,7 @@ fn render_content_preview(
             for row in &vid.thumbnail_grid {
                 let spans: Vec<Span> = row
                     .iter()
-                    .map(|&(fg, bg, _ch)| {
-                        Span::styled("▀", Style::default().fg(fg).bg(bg))
-                    })
+                    .map(|&(fg, bg, _ch)| Span::styled("▀", Style::default().fg(fg).bg(bg)))
                     .collect();
                 lines.push(Line::from(spans));
             }
@@ -760,12 +781,7 @@ fn render_actions_tab(
     frame.render_widget(p, area);
 }
 
-fn render_directory_preview(
-    frame: &mut Frame,
-    area: Rect,
-    path: &std::path::Path,
-    theme: &Theme,
-) {
+fn render_directory_preview(frame: &mut Frame, area: Rect, path: &std::path::Path, theme: &Theme) {
     let mut lines = Vec::new();
 
     let (entries, total_count, dir_count, file_count) = match std::fs::read_dir(path) {
@@ -783,12 +799,10 @@ fn render_directory_preview(
                 }
                 items.push((entry.file_name().to_string_lossy().to_string(), is_dir));
             }
-            items.sort_by(|a, b| {
-                match (a.1, b.1) {
-                    (true, false) => std::cmp::Ordering::Less,
-                    (false, true) => std::cmp::Ordering::Greater,
-                    _ => a.0.to_lowercase().cmp(&b.0.to_lowercase()),
-                }
+            items.sort_by(|a, b| match (a.1, b.1) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.0.to_lowercase().cmp(&b.0.to_lowercase()),
             });
             let total = items.len();
             (items, total, dirs, files)
@@ -805,7 +819,9 @@ fn render_directory_preview(
     lines.push(Line::from(vec![
         Span::styled(
             "  Directory: ",
-            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!("{}/", dir_name),
@@ -833,10 +849,16 @@ fn render_directory_preview(
     )));
 
     let max_display = (area.height as usize).saturating_sub(6).min(entries.len());
-    for (name, is_dir) in entries.iter().take(max_display) {
+    for (i, (name, is_dir)) in entries.iter().take(max_display).enumerate() {
+        let is_last = i + 1 == max_display && entries.len() <= max_display;
+        let branch = if is_last {
+            "    └── "
+        } else {
+            "    ├── "
+        };
         if *is_dir {
             lines.push(Line::from(vec![
-                Span::raw("    "),
+                Span::styled(branch, Style::default().fg(theme.hidden_color)),
                 Span::styled("📁 ", Style::default().fg(theme.dir_color)),
                 Span::styled(
                     format!("{}/", name),
@@ -847,7 +869,7 @@ fn render_directory_preview(
             ]));
         } else {
             lines.push(Line::from(vec![
-                Span::raw("    "),
+                Span::styled(branch, Style::default().fg(theme.hidden_color)),
                 Span::styled("📄 ", Style::default().fg(theme.file_color)),
                 Span::raw(name.as_str()),
             ]));

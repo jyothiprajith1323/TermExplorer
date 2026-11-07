@@ -57,9 +57,11 @@ impl ImagePreview {
                 let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
                 let halfblock_grid = if file_size <= 20 * 1024 * 1024 {
                     match image::open(path) {
-                        Ok(img) => {
-                            GraphicsCapability::render_halfblocks(&img, preview_width, preview_height)
-                        }
+                        Ok(img) => GraphicsCapability::render_halfblocks(
+                            &img,
+                            preview_width,
+                            preview_height,
+                        ),
                         Err(_) => Vec::new(),
                     }
                 } else {

@@ -1,4 +1,4 @@
-//! Interactive Settings Studio full-screen UI rendering.
+//! Interactive Settings Studio — modern developer workstation settings interface.
 
 use crate::settings::{get_section_items, SettingValue, SettingsSection};
 use crate::state::AppState;
@@ -24,7 +24,7 @@ pub fn render_settings_studio(
 
     let outer_block = Block::default()
         .title(Span::styled(
-            " 󰒓 SETTINGS STUDIO  ─  [F10 / Esc] Exit  [Tab] Switch Pane  [Enter / Space] Toggle  [←/→] Adjust ",
+            " 󰒓 SETTINGS STUDIO  ─  [Tab] Switch Pane  │  [Space/Enter] Toggle  │  [←/→] Adjust  │  [F10 / Esc] Exit ",
             theme.header_style(),
         ))
         .borders(Borders::ALL)
@@ -41,7 +41,7 @@ pub fn render_settings_studio(
     // Split horizontally: Left navigation (15 sections), Right items + details
     let horizontal_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(30), Constraint::Min(40)])
+        .constraints([Constraint::Length(36), Constraint::Min(40)])
         .split(inner);
 
     let left_area = horizontal_chunks[0];
@@ -63,9 +63,13 @@ pub fn render_settings_studio(
             } else {
                 theme.normal_style()
             };
-            let prefix = if is_sel { "▶ " } else { "  " };
+            let prefix = if is_sel { "▌ " } else { "  " };
             ListItem::new(Line::from(vec![
                 Span::styled(prefix, style),
+                Span::styled(
+                    format!("{:02} ", i + 1),
+                    Style::default().fg(theme.hidden_color),
+                ),
                 Span::styled(format!("{} ", sec.icon()), style),
                 Span::styled(sec.title(), style),
             ]))
@@ -79,7 +83,7 @@ pub fn render_settings_studio(
     };
 
     let section_block = Block::default()
-        .title(Span::styled(" Categories ", theme.header_style()))
+        .title(Span::styled(" Categories (15) ", theme.header_style()))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(section_border_style);
@@ -113,43 +117,64 @@ pub fn render_settings_studio(
                 theme.normal_style()
             };
 
-            let prefix = if is_sel { "▶ " } else { "  " };
+            let prefix = if is_sel { "▌ " } else { "  " };
 
-            let value_span = match &item.value {
+            let (type_badge, value_span) = match &item.value {
                 SettingValue::Bool(b) => {
-                    if *b {
+                    let badge = Span::styled("[TOGGLE] ", Style::default().fg(theme.hidden_color));
+                    let val = if *b {
                         Span::styled(
-                            "[✓ Enabled] ",
+                            "[ ● ON  ]",
                             Style::default()
-                                .fg(theme.success)
+                                .fg(Color::Black)
+                                .bg(theme.success)
                                 .add_modifier(Modifier::BOLD),
                         )
                     } else {
-                        Span::styled("[✗ Disabled]", Style::default().fg(Color::DarkGray))
-                    }
+                        Span::styled("[ ○ OFF ]", Style::default().fg(theme.hidden_color))
+                    };
+                    (badge, val)
                 }
                 SettingValue::Choice { current, options } => {
+                    let badge = Span::styled("[SELECT] ", Style::default().fg(theme.hidden_color));
                     let opt_name = options
                         .get(*current)
                         .cloned()
                         .unwrap_or_else(|| "Default".to_string());
-                    Span::styled(
-                        format!("< {} >", opt_name),
-                        Style::default().fg(theme.accent),
-                    )
+                    let val = Span::styled(
+                        format!("◀  {}  ▶", opt_name),
+                        Style::default()
+                            .fg(theme.accent)
+                            .add_modifier(Modifier::BOLD),
+                    );
+                    (badge, val)
                 }
                 SettingValue::Number { value, .. } => {
-                    Span::styled(format!("< {} >", value), Style::default().fg(theme.accent))
+                    let badge = Span::styled("[SLIDER] ", Style::default().fg(theme.hidden_color));
+                    let val = Span::styled(
+                        format!("◀  {}  ▶", value),
+                        Style::default()
+                            .fg(theme.accent)
+                            .add_modifier(Modifier::BOLD),
+                    );
+                    (badge, val)
                 }
-                SettingValue::Text(t) => Span::styled(t.clone(), Style::default().fg(Color::White)),
+                SettingValue::Text(t) => {
+                    let badge = Span::styled("[TEXT]   ", Style::default().fg(theme.hidden_color));
+                    let val = Span::styled(format!("\"{}\"", t), Style::default().fg(Color::White));
+                    (badge, val)
+                }
                 SettingValue::ReadOnly(s) => {
-                    Span::styled(s.clone(), Style::default().fg(Color::Gray))
+                    let badge = Span::styled("[INFO]   ", Style::default().fg(theme.hidden_color));
+                    let val = Span::styled(s.clone(), Style::default().fg(theme.size_color));
+                    (badge, val)
                 }
             };
 
             ListItem::new(Line::from(vec![
                 Span::styled(prefix, row_style),
-                Span::styled(format!("{:<32}", item.label), row_style),
+                type_badge,
+                Span::styled(format!("{:<28}", item.label), row_style),
                 Span::raw("  "),
                 value_span,
             ]))
@@ -164,7 +189,11 @@ pub fn render_settings_studio(
 
     let items_block = Block::default()
         .title(Span::styled(
-            format!(" {} Settings ", active_section.title()),
+            format!(
+                " {} {} Settings ",
+                active_section.icon(),
+                active_section.title()
+            ),
             theme.header_style(),
         ))
         .borders(Borders::ALL)
@@ -180,16 +209,28 @@ pub fn render_settings_studio(
         .unwrap_or("Select a setting to view details and options.");
 
     let desc_block = Block::default()
-        .title(Span::styled(" Description & Hint ", theme.header_style()))
+        .title(Span::styled(
+            " 󰋽 Description & Shortcut Hints ",
+            theme.header_style(),
+        ))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(theme.border_style());
 
-    let desc_paragraph = Paragraph::new(format!(
-        "  {}\n\n  Press [Space] or [Enter] to toggle or select, [←/→] to adjust values.",
-        selected_desc
-    ))
-    .style(Style::default().fg(Color::Rgb(180, 190, 205)))
+    let desc_paragraph = Paragraph::new(vec![
+        Line::from(vec![
+            Span::styled("  Description: ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+            Span::raw(selected_desc),
+        ]),
+        Line::raw(""),
+        Line::from(vec![
+            Span::styled("  Hint:        ", Style::default().fg(theme.size_color)),
+            Span::styled(
+                "Press [Space] or [Enter] to toggle or select, [←/→] to adjust, [Tab] to switch panels.",
+                Style::default().fg(theme.hidden_color),
+            ),
+        ]),
+    ])
     .block(desc_block);
 
     frame.render_widget(desc_paragraph, desc_area);

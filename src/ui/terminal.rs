@@ -1,15 +1,10 @@
-//! Embedded terminal panel rendering.
-//!
-//! The TUI renders the scrollback as plain (but ANSI-coloured) text.
-//! For full VT100 emulation inside a Ratatui widget, we use a simplified
-//! approach: render the raw output and trust the terminal emulator for
-//! display, while Ratatui handles the surrounding UI chrome.
+//! Embedded terminal panel rendering — developer workstation terminal experience.
 
 use crate::state::{AppState, FocusedPanel};
 use crate::theme::Theme;
 use ratatui::{
     layout::Rect,
-    style::Style,
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Paragraph},
     Frame,
@@ -35,9 +30,50 @@ pub fn render_terminal(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| shell_name.clone());
 
-    let title = format!(" 󰆍  Terminal ({}) [Ctrl+` toggle] ", shell_base);
+    let cwd_str = state
+        .explorer
+        .current_dir
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "~".to_string());
+
+    let session_tab = if focused {
+        Span::styled(
+            format!(" 󰆍 1: {} ", shell_base),
+            Style::default()
+                .fg(Color::Black)
+                .bg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        )
+    } else {
+        Span::styled(
+            format!(" 󰆍 1: {} ", shell_base),
+            Style::default()
+                .fg(theme.header_fg)
+                .add_modifier(Modifier::BOLD),
+        )
+    };
+
+    let title = Line::from(vec![
+        session_tab,
+        Span::raw(" "),
+        Span::styled(
+            format!("📁 ~/{} ", cwd_str),
+            Style::default().fg(theme.size_color),
+        ),
+        Span::styled("│ ", Style::default().fg(theme.border)),
+        Span::styled(
+            format!("{}×{} ", area.width, area.height),
+            Style::default().fg(theme.hidden_color),
+        ),
+        Span::styled(
+            "│ [Ctrl+` toggle] ",
+            Style::default().fg(theme.hidden_color),
+        ),
+    ]);
+
     let block = Block::default()
-        .title(Span::styled(title, theme.header_style()))
+        .title(title)
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(border_style);
@@ -45,7 +81,7 @@ pub fn render_terminal(
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    if inner.height < 2 {
+    if inner.height < 2 || inner.width < 4 {
         return;
     }
 
@@ -108,28 +144,30 @@ fn process_terminal_output(raw: &[u8]) -> Vec<String> {
                 }
             }
             '\r' => {
+                // Carriage return: reset line cursor if next char is not \n
                 if chars.peek() != Some(&'\n') {
                     current_line.clear();
                 }
             }
             '\n' => {
-                lines.push(current_line);
-                current_line = String::new();
-            }
-            '\x08' => {
-                current_line.pop();
+                lines.push(std::mem::take(&mut current_line));
             }
             '\t' => {
                 current_line.push_str("    ");
             }
-            other if !other.is_control() => {
-                current_line.push(other);
+            '\x08' => {
+                current_line.pop();
+            }
+            ch if !ch.is_control() => {
+                current_line.push(ch);
             }
             _ => {}
         }
     }
+
     if !current_line.is_empty() {
         lines.push(current_line);
     }
+
     lines
 }

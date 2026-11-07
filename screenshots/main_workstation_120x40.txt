@@ -1,0 +1,40 @@
+ ◆ TERMEXPLORER  󰲋 IronKV [🦀  Rust (Cargo)] │  ~ › TermExplorer │ 󰊢 master ● 17 │ 󰻠 12%  󰍛 1.3 GB │ [󰍉 Ctrl+P] [󰒓 F10]  
+╭ 󰊢 WORKSPACE ───────────╮╭ 󰝰 /home/prajith/TermExplorer  │  󰒺 Name ▲ ───╮╭ 󰍉 Inspector ─  [󰈈 Preview]  󰋽 Info  󰆦 Hex  ╮
+│  PINNED (0)            ││ Name            Size     Modified   Perms    ││                                            │
+│    (Alt+P to pin)      ││                                              ││  Select a file or folder to preview        │
+│                        ││                                              ││                                            │
+│  LOCATIONS (6)         ││                                              ││  Tabs: [ / ] or h / l switch tabs          │
+│  󰋜  Home               ││                                              ││                                            │
+│  󰒋  / (Root)           ││                                              ││                                            │
+│  󰔢  /tmp               ││                                              ││                                            │
+│  󰒋  /var               ││                                              ││                                            │
+│  󰒓  /etc               ││                                              ││                                            │
+│  󰒋  /usr               ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+│                        ││                                              ││                                            │
+╰────────────────────────╯╰──────────────────────────────────────────────╯╰────────────────────────────────────────────╯
+ NORMAL   EXPLORER   0/0                                                                                                

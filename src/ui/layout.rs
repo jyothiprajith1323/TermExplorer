@@ -23,9 +23,14 @@ pub struct LayoutConfig {
 }
 
 pub fn compute_layout(area: Rect, cfg: &LayoutConfig) -> LayoutAreas {
+    // ── Adaptive responsive breakpoints ──────────────────────────────────
+    // On narrow terminals, gracefully collapse secondary panels to preserve readability.
+    let show_sidebar = cfg.show_sidebar && area.width >= 90;
+    let show_preview = cfg.show_preview && area.width >= 65;
+
     // ── Vertical slices: header / content / status_bar ───────────────────
     let bottom_h = if cfg.show_bottom {
-        cfg.bottom_height
+        cfg.bottom_height.min(area.height.saturating_sub(6))
     } else {
         0
     };
@@ -42,7 +47,7 @@ pub fn compute_layout(area: Rect, cfg: &LayoutConfig) -> LayoutAreas {
 
     let header = vertical[0];
     let content_area = vertical[1];
-    let bottom_panel = if cfg.show_bottom {
+    let bottom_panel = if cfg.show_bottom && bottom_h > 0 {
         Some(vertical[2])
     } else {
         None
@@ -51,11 +56,11 @@ pub fn compute_layout(area: Rect, cfg: &LayoutConfig) -> LayoutAreas {
 
     // ── Horizontal slices: sidebar / explorer / preview ──────────────────
     let mut h_constraints = Vec::new();
-    if cfg.show_sidebar {
+    if show_sidebar {
         h_constraints.push(Constraint::Percentage(cfg.sidebar_pct));
     }
     // Explorer gets whatever is left.
-    if cfg.show_preview {
+    if show_preview {
         h_constraints.push(Constraint::Min(1));
         h_constraints.push(Constraint::Percentage(cfg.preview_pct));
     } else {
@@ -68,7 +73,7 @@ pub fn compute_layout(area: Rect, cfg: &LayoutConfig) -> LayoutAreas {
         .split(content_area);
 
     let mut idx = 0usize;
-    let sidebar = if cfg.show_sidebar {
+    let sidebar = if show_sidebar {
         let r = Some(h_areas[idx]);
         idx += 1;
         r
@@ -77,7 +82,7 @@ pub fn compute_layout(area: Rect, cfg: &LayoutConfig) -> LayoutAreas {
     };
     let explorer_full = h_areas[idx];
     idx += 1;
-    let preview = if cfg.show_preview {
+    let preview = if show_preview {
         Some(h_areas[idx])
     } else {
         None

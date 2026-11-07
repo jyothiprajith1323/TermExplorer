@@ -1,4 +1,4 @@
-//! Floating Command Palette UI modal rendering.
+//! Floating Command Palette UI modal — Raycast and Linear inspired command surface.
 
 use crate::commands::palette::CommandItem;
 use crate::theme::Theme;
@@ -19,7 +19,7 @@ pub fn render_command_palette(
     theme: &Theme,
 ) {
     // Center a floating dialog
-    let dlg_width = (area.width * 7 / 10).clamp(50, 90);
+    let dlg_width = (area.width * 7 / 10).clamp(55, 96);
     let dlg_height = 20u16.min(area.height.saturating_sub(4));
     let x = (area.width.saturating_sub(dlg_width)) / 2;
     let y = (area.height.saturating_sub(dlg_height)) / 2;
@@ -35,7 +35,7 @@ pub fn render_command_palette(
 
     let block = Block::default()
         .title(Span::styled(
-            " 󰍉 COMMAND PALETTE  ─  [Esc] Cancel  [Enter] Execute ",
+            " 󰍉 COMMAND PALETTE  ─  [Enter] Execute  │  [Esc] Cancel ",
             theme.header_style(),
         ))
         .borders(Borders::ALL)
@@ -64,13 +64,31 @@ pub fn render_command_palette(
         .border_type(BorderType::Rounded)
         .border_style(theme.border_focused_style());
 
-    let input_para = Paragraph::new(format!(" > {}█", query))
-        .style(
+    let query_display = if query.is_empty() {
+        Span::styled(
+            " Type to filter commands, workspaces, settings...",
+            Style::default().fg(theme.hidden_color),
+        )
+    } else {
+        Span::styled(
+            query,
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         )
-        .block(input_block);
+    };
+
+    let input_para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            " 󰍉 > ",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
+        query_display,
+        Span::styled("█", Style::default().fg(theme.accent)),
+    ]))
+    .block(input_block);
 
     frame.render_widget(input_para, chunks[0]);
 
@@ -95,7 +113,7 @@ pub fn render_command_palette(
                 theme.normal_style()
             };
 
-            let prefix = if is_sel { "▶ " } else { "  " };
+            let prefix = if is_sel { "▌ " } else { "  " };
             let shortcut_str = cmd
                 .shortcut
                 .map(|s| format!(" [{}]", s))
@@ -109,24 +127,25 @@ pub fn render_command_palette(
                         .fg(theme.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(format!("{:<36}", cmd.title), row_style),
-                Span::styled(shortcut_str, Style::default().fg(Color::DarkGray)),
+                Span::styled(format!("{:<38}", cmd.title), row_style),
+                Span::styled(shortcut_str, Style::default().fg(theme.size_color)),
             ]))
         })
         .collect();
 
     let list_block = Block::default().borders(Borders::NONE);
-
     frame.render_widget(List::new(list_items).block(list_block), chunks[1]);
 
     // ── 3. Selected description ──────────────────────────────────────────────
     let desc = items
         .get(selected_idx)
         .map(|c| c.description)
-        .unwrap_or("Type to filter actions, workspaces, and themes...");
+        .unwrap_or("Search actions across navigation, files, git, and workspace settings.");
 
-    let desc_para = Paragraph::new(format!("  󰋼 {}", desc))
-        .style(Style::default().fg(Color::Rgb(150, 165, 185)));
+    let desc_para = Paragraph::new(Line::from(vec![
+        Span::styled("  󰋽 ", Style::default().fg(theme.accent)),
+        Span::styled(desc, Style::default().fg(theme.status_fg)),
+    ]));
 
     frame.render_widget(desc_para, chunks[2]);
 }

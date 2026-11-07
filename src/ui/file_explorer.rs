@@ -1,4 +1,4 @@
-//! File explorer panel rendering.
+//! File explorer panel rendering — modern developer workstation aesthetic.
 
 use crate::filesystem::browser::EntryKind;
 use crate::state::{AppMode, AppState, FocusedPanel};
@@ -7,8 +7,8 @@ use bytesize::ByteSize;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
-    text::Span,
-    widgets::{Block, BorderType, Borders, Cell, Row, Table, TableState},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState},
     Frame,
 };
 
@@ -23,21 +23,22 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
     let dir_str = state.explorer.current_dir.to_string_lossy();
     let sort_lbl = state.explorer.sort_order.label();
     let hidden_lbl = if state.config.show_hidden {
-        " [Hidden: On]"
+        " [· Hidden]"
     } else {
         ""
     };
     let clip_lbl = if let Some((path, is_cut)) = &state.clipboard_entry {
         format!(
-            " [Clip: {} {}]",
-            if *is_cut { "cut" } else { "copy" },
+            " [{} {}]",
+            if *is_cut { "✂ cut:" } else { "📋 copy:" },
             path.file_name().unwrap_or_default().to_string_lossy()
         )
     } else {
         String::new()
     };
+
     let title = format!(
-        " 󰝰  {}  [Sort: {}]{}{} ",
+        " 󰝰 {}  │  󰒺 {}{}{} ",
         dir_str, sort_lbl, hidden_lbl, clip_lbl
     );
 
@@ -50,11 +51,11 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    if inner.height < 3 {
+    if inner.height < 3 || inner.width < 10 {
         return;
     }
 
-    // Show search bar if in search mode.
+    // Filtered entries
     let entries = &state.explorer.entries;
     let query = &state.search_query;
 
@@ -67,7 +68,10 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
             .collect()
     };
 
-    // Build table rows.
+    // Precompute Git file map for current directory entries
+    let repo_root = state.git_status.repo_root.as_deref();
+    let current_dir = &state.explorer.current_dir;
+
     let rows: Vec<Row> = filtered_indices
         .iter()
         .map(|&i| {
@@ -88,6 +92,40 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
                 }
             };
 
+            // Git badge per entry
+            let git_badge = if state.git_status.is_repo {
+                let entry_path = current_dir.join(&entry.name);
+                let rel_path = repo_root
+                    .and_then(|r| entry_path.strip_prefix(r).ok())
+                    .map(|p| p.to_string_lossy().to_string());
+
+                if let Some(rel) = rel_path {
+                    if state.git_status.staged_files.iter().any(|f| f.path == rel) {
+                        Some((" ●", theme.success))
+                    } else if state
+                        .git_status
+                        .unstaged_files
+                        .iter()
+                        .any(|f| f.path == rel)
+                    {
+                        Some((" ●", theme.warning))
+                    } else if state
+                        .git_status
+                        .untracked_files
+                        .iter()
+                        .any(|f| f.path == rel)
+                    {
+                        Some((" ?", theme.accent))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
             let size_str = match &entry.kind {
                 EntryKind::Directory => String::from("--"),
                 _ => ByteSize(entry.size).to_string(),
@@ -98,7 +136,7 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
                 .map(|m| m.format("%Y-%m-%d %H:%M").to_string())
                 .unwrap_or_else(|| "--".to_string());
 
-            let perms = entry.permissions_str.clone();
+            let perms = &entry.permissions_str;
 
             let row_style = if is_selected {
                 theme.selection_style()
@@ -106,18 +144,32 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
                 Style::default()
             };
 
+            let mut name_spans = vec![
+                Span::raw(format!("{} ", icon)),
+                Span::styled(&entry.name, name_style),
+            ];
+
+            if let Some((badge_char, badge_color)) = git_badge {
+                name_spans.push(Span::styled(
+                    badge_char,
+                    Style::default()
+                        .fg(badge_color)
+                        .add_modifier(Modifier::BOLD),
+                ));
+            }
+
             Row::new(vec![
-                Cell::from(format!("{} {}", icon, entry.name)).style(name_style),
+                Cell::from(Line::from(name_spans)),
                 Cell::from(size_str).style(Style::default().fg(theme.size_color)),
                 Cell::from(modified_str).style(Style::default().fg(theme.date_color)),
-                Cell::from(perms).style(Style::default().fg(Color::DarkGray)),
+                Cell::from(perms.as_str()).style(Style::default().fg(Color::DarkGray)),
             ])
             .style(row_style)
         })
         .collect();
 
     let header = Row::new(vec![
-        Cell::from("Name").style(theme.header_style()),
+        Cell::from(" Name").style(theme.header_style()),
         Cell::from("Size").style(theme.header_style()),
         Cell::from("Modified").style(theme.header_style()),
         Cell::from("Perms").style(theme.header_style()),
@@ -126,17 +178,16 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
     let table = Table::new(
         rows,
         [
-            Constraint::Min(20),
-            Constraint::Length(10),
+            Constraint::Min(16),
+            Constraint::Length(8),
             Constraint::Length(16),
             Constraint::Length(10),
         ],
     )
     .header(header)
     .row_highlight_style(theme.selection_style())
-    .highlight_symbol("▶ ");
+    .highlight_symbol("▎ ");
 
-    // Find the visual selected index within filtered entries.
     let visual_selected = filtered_indices
         .iter()
         .position(|&i| i == state.explorer.selected_index);
@@ -146,24 +197,27 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
 
     frame.render_stateful_widget(table, inner, &mut table_state);
 
-    // Show search indicator.
+    // Search indicator overlay
     if matches!(state.mode, AppMode::Search) && !query.is_empty() {
-        // Overlay a small search bar at the bottom of the inner area.
         let search_area = Rect {
             x: inner.x,
             y: inner.y + inner.height.saturating_sub(1),
             width: inner.width,
             height: 1,
         };
-        let search_text = format!(" 🔍 Search: {} ", query);
+        let search_text = format!(" 󰍉 Filter: {}█ ", query);
         frame.render_widget(
-            ratatui::widgets::Paragraph::new(search_text)
-                .style(Style::default().fg(theme.accent).bg(Color::Rgb(30, 30, 40))),
+            Paragraph::new(search_text).style(
+                Style::default()
+                    .fg(theme.accent)
+                    .bg(Color::Rgb(25, 30, 40))
+                    .add_modifier(Modifier::BOLD),
+            ),
             search_area,
         );
     }
 
-    // Loading indicator.
+    // Loading indicator
     if state.explorer.loading {
         let load_area = Rect {
             x: inner.x,
@@ -172,8 +226,7 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
             height: 1,
         };
         frame.render_widget(
-            ratatui::widgets::Paragraph::new(" ⏳ Loading…")
-                .style(Style::default().fg(theme.warning)),
+            Paragraph::new(" ⏳ Loading…").style(Style::default().fg(theme.warning)),
             load_area,
         );
     }
@@ -224,7 +277,7 @@ pub fn render_secondary_explorer(frame: &mut Frame, area: Rect, state: &AppState
             };
 
             Row::new(vec![
-                Cell::from(format!("{}{}", icon, entry.name)).style(style),
+                Cell::from(format!("{} {}", icon, entry.name)).style(style),
                 Cell::from(size_str).style(Style::default().fg(theme.size_color)),
             ])
         })
@@ -233,7 +286,8 @@ pub fn render_secondary_explorer(frame: &mut Frame, area: Rect, state: &AppState
     let table = Table::new(
         rows,
         [Constraint::Percentage(70), Constraint::Percentage(30)],
-    );
+    )
+    .highlight_symbol("▎ ");
 
     let mut table_state = TableState::default();
     table_state.select(Some(state.explorer_secondary.selected_index));

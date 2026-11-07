@@ -26,6 +26,7 @@ use crate::{
         editor::render_editor,
         file_explorer::{render_file_explorer, render_secondary_explorer},
         git_panel::render_git_panel,
+        header::render_header,
         help::render_help,
         layout::{compute_layout, LayoutConfig},
         onboarding::{render_onboarding, OnboardingStep},
@@ -181,6 +182,20 @@ impl App {
         terminal.draw(|frame| {
             let area = frame.area();
 
+            // ── Minimum Terminal Size Check ───────────────────────────────
+            if area.width < 40 || area.height < 8 {
+                let msg = format!(
+                    "\n  󰀪 Terminal window too small ({}×{}).\n  Minimum required: 40×8. Please enlarge.",
+                    area.width, area.height
+                );
+                frame.render_widget(
+                    ratatui::widgets::Paragraph::new(msg)
+                        .style(ratatui::style::Style::default().fg(theme.warning)),
+                    area,
+                );
+                return;
+            }
+
             // ── Full-screen editor mode ───────────────────────────────────
             if matches!(state.mode, AppMode::Edit) {
                 if let Some(buf) = editor_buf {
@@ -209,21 +224,8 @@ impl App {
 
             let areas = compute_layout(area, &layout_cfg);
 
-            // ── Header ────────────────────────────────────────────────────
-            {
-                use ratatui::{
-                    text::{Line, Span},
-                    widgets::Paragraph,
-                };
-                let title = Line::from(vec![
-                    Span::styled(" TermExplorer ", theme.accent_style()),
-                    Span::styled(
-                        format!("  {} ", state.explorer.current_dir.display()),
-                        theme.status_style(),
-                    ),
-                ]);
-                frame.render_widget(Paragraph::new(title), areas.header);
-            }
+            // ── Header (Workstation Command Bar) ──────────────────────────
+            render_header(frame, areas.header, state, monitor_snap.as_ref(), theme);
 
             // ── Sidebar ───────────────────────────────────────────────────
             if let Some(sb_area) = areas.sidebar {
@@ -352,9 +354,7 @@ impl App {
             Ok(entries) => {
                 let exp = self.state.active_explorer_mut();
                 exp.entries = entries;
-                exp.selected_index = exp
-                    .selected_index
-                    .min(exp.entries.len().saturating_sub(1));
+                exp.selected_index = exp.selected_index.min(exp.entries.len().saturating_sub(1));
                 self.update_preview().await;
             }
             Err(e) => {
@@ -409,7 +409,8 @@ impl App {
             }
             self.update_preview().await;
         } else {
-            self.state.set_status("At filesystem root", StatusKind::Info);
+            self.state
+                .set_status("At filesystem root", StatusKind::Info);
         }
     }
 
@@ -1178,7 +1179,7 @@ impl App {
                         .map(|p| p.path.clone()),
                     SidebarSection::Shortcuts => shortcuts
                         .get(self.state.sidebar.selected_index)
-                        .map(|(_, p)| p.clone()),
+                        .map(|(_, p, _)| p.clone()),
                 };
                 if let Some(dir) = target_dir {
                     if dir.exists() {
@@ -1362,8 +1363,7 @@ impl App {
         self.state.dual_pane_enabled = !self.state.dual_pane_enabled;
         if self.state.dual_pane_enabled {
             if self.state.explorer_secondary.entries.is_empty() {
-                self.state.explorer_secondary.current_dir =
-                    self.state.explorer.current_dir.clone();
+                self.state.explorer_secondary.current_dir = self.state.explorer.current_dir.clone();
                 let entries = list_dir(
                     &self.state.explorer_secondary.current_dir.clone(),
                     self.state.config.show_hidden,

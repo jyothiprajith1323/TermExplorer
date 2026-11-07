@@ -1,118 +1,122 @@
-//! Status bar rendering.
+//! Modern multi-segment workstation status bar.
 
 use crate::state::{AppMode, AppState, FocusedPanel, StatusKind};
 use crate::theme::Theme;
 use ratatui::{
     layout::Rect,
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
     Frame,
 };
 
 pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
-    let left = build_left(state, theme);
-    let right = build_right(state);
-
-    let left_width = left.iter().map(|s| s.content.len()).sum::<usize>();
-    let right_str = right.join(" │ ");
-    let padding = area
-        .width
-        .saturating_sub(left_width as u16 + right_str.len() as u16 + 2) as usize;
-
-    let mut spans = left;
-    spans.push(Span::raw(" ".repeat(padding)));
-    spans.push(Span::styled(
-        right_str,
-        Style::default().fg(Color::DarkGray),
-    ));
-
-    frame.render_widget(
-        Paragraph::new(Line::from(spans)).style(theme.status_style()),
-        area,
-    );
-}
-
-fn build_left<'a>(state: &'a AppState, theme: &'a Theme) -> Vec<Span<'a>> {
-    // Priority: status message > mode indicator
-    if let Some((msg, kind)) = &state.status_message {
-        let style = match kind {
-            StatusKind::Error => theme.error_style(),
-            StatusKind::Warning => theme.warning_style(),
-            StatusKind::Success => theme.success_style(),
-            StatusKind::Info => theme.status_style(),
-        };
-        return vec![Span::styled(format!(" {} ", msg), style)];
+    if area.height < 1 || area.width < 10 {
+        return;
     }
 
-    let mode_str = match &state.mode {
-        AppMode::Browse => " BROWSE ",
-        AppMode::Edit => " EDIT ",
-        AppMode::Search => " SEARCH ",
-        AppMode::Help => " HELP ",
-        AppMode::Modal(_) => " DIALOG ",
-        AppMode::SettingsStudio { .. } => " SETTINGS ",
-        AppMode::CommandPalette { .. } => " PALETTE ",
-        AppMode::GitDashboard { .. } => " GIT ",
-        AppMode::Onboarding { .. } => " SETUP ",
-    };
+    let width = area.width as usize;
 
-    let focused_str = match state.focused {
-        FocusedPanel::Sidebar => "Sidebar",
-        FocusedPanel::Explorer => {
-            if state.dual_pane_enabled {
-                "Explorer (Left)"
-            } else {
-                "Explorer"
-            }
-        }
-        FocusedPanel::ExplorerSecondary => "Explorer (Right)",
-        FocusedPanel::Preview => "Preview",
-        FocusedPanel::Terminal => "Terminal",
-        FocusedPanel::Editor => "Editor",
-        FocusedPanel::Monitor => "Monitor",
+    // ── 1. Mode Pill ─────────────────────────────────────────────────────────
+    let (mode_str, mode_color) = match &state.mode {
+        AppMode::Browse => (" NORMAL ", theme.accent),
+        AppMode::Edit => (" EDIT ", theme.success),
+        AppMode::Search => (" SEARCH ", theme.warning),
+        AppMode::Help => (" HELP ", theme.accent),
+        AppMode::Modal(_) => (" DIALOG ", theme.warning),
+        AppMode::SettingsStudio { .. } => (" SETTINGS ", Color::Rgb(187, 154, 247)),
+        AppMode::CommandPalette { .. } => (" PALETTE ", theme.accent),
+        AppMode::GitDashboard { .. } => (" GIT ", Color::Rgb(187, 154, 247)),
+        AppMode::Onboarding { .. } => (" SETUP ", theme.accent),
     };
 
     let mut spans = vec![
-        Span::styled(mode_str, theme.accent_style()),
+        Span::styled(
+            mode_str,
+            Style::default()
+                .fg(Color::Black)
+                .bg(mode_color)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" "),
-        Span::styled(focused_str, theme.normal_style()),
-        Span::raw(" │ "),
-        Span::styled(
-            format!("󰲋 {} ", state.workspace.name),
-            Style::default().fg(theme.accent),
-        ),
-        Span::styled(
-            format!("({})", state.workspace.project_kind.badge()),
-            Style::default().fg(Color::DarkGray),
-        ),
     ];
 
-    if state.git_status.is_repo {
-        let git_color = if state.git_status.is_dirty {
-            theme.warning
-        } else {
-            theme.success
+    // ── 2. Focused Panel ─────────────────────────────────────────────────────
+    let focused_str = match state.focused {
+        FocusedPanel::Sidebar => "SIDEBAR",
+        FocusedPanel::Explorer => {
+            if state.dual_pane_enabled {
+                "EXPLORER [L]"
+            } else {
+                "EXPLORER"
+            }
+        }
+        FocusedPanel::ExplorerSecondary => "EXPLORER [R]",
+        FocusedPanel::Preview => "PREVIEW",
+        FocusedPanel::Terminal => "TERMINAL",
+        FocusedPanel::Editor => "EDITOR",
+        FocusedPanel::Monitor => "MONITOR",
+    };
+
+    spans.push(Span::styled(
+        format!(" {} ", focused_str),
+        Style::default()
+            .fg(theme.header_fg)
+            .bg(Color::Rgb(35, 42, 54))
+            .add_modifier(Modifier::BOLD),
+    ));
+    spans.push(Span::raw(" "));
+
+    // ── 3. Status Message / Toast Notification (or Position Counter) ──────────
+    if let Some((msg, kind)) = &state.status_message {
+        let (icon, color) = match kind {
+            StatusKind::Error => ("✖", theme.error),
+            StatusKind::Warning => ("⚠", theme.warning),
+            StatusKind::Success => ("✔", theme.success),
+            StatusKind::Info => ("ℹ", theme.accent),
         };
-        spans.push(Span::raw(" │ "));
         spans.push(Span::styled(
-            format!(
-                "󰊢 {}{}",
-                state.git_status.branch,
-                if state.git_status.is_dirty { "*" } else { "" }
-            ),
-            Style::default().fg(git_color),
+            format!(" {} {} ", icon, msg),
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ));
+    } else {
+        let entry_count = state.active_explorer().entries.len();
+        let idx = state.active_explorer().selected_index;
+        let pos_str = format!(
+            "{}/{}",
+            if entry_count > 0 { idx + 1 } else { 0 },
+            entry_count
+        );
+        spans.push(Span::styled(
+            format!(" {} ", pos_str),
+            Style::default().fg(theme.status_fg),
         ));
     }
 
-    spans
-}
+    // ── 4. Right: Quick Navigation Keybinding Cheat-sheet ────────────────────
+    let right_text = if width >= 120 {
+        "? Help │ / Search │ F2 Edit │ F6 Monitor │ F7 Dual │ Ctrl+` Terminal │ F10 Settings"
+    } else if width >= 90 {
+        "? Help │ / Search │ F2 Edit │ F6 Monitor │ F10 Settings"
+    } else if width >= 60 {
+        "? Help │ / Search │ F10 Settings"
+    } else {
+        "? Help"
+    };
 
-fn build_right(state: &AppState) -> Vec<String> {
-    let entry_count = state.active_explorer().entries.len();
-    let idx = state.active_explorer().selected_index;
-    vec![
-        "F1 Help │ F2 Edit │ F6 Monitor │ F7 Dual │ F10 Settings │ Ctrl+Shift+P Palette │ Ctrl+Q Quit".to_string(),
-        format!("{}/{}", if entry_count > 0 { idx + 1 } else { 0 }, entry_count),
-    ]
+    let left_len: usize = spans.iter().map(|s| s.content.len()).sum();
+    let right_len = right_text.len();
+
+    if left_len + right_len + 2 <= width {
+        let pad = width.saturating_sub(left_len + right_len);
+        spans.push(Span::raw(" ".repeat(pad)));
+        spans.push(Span::styled(
+            right_text,
+            Style::default().fg(theme.hidden_color),
+        ));
+    }
+
+    let bg_color = theme.header_bg.unwrap_or(Color::Rgb(16, 20, 26));
+    let p = Paragraph::new(Line::from(spans)).style(Style::default().bg(bg_color));
+    frame.render_widget(p, area);
 }
