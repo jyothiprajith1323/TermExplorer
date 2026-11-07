@@ -1,0 +1,35 @@
+╔ ◇ PLUGIN CENTER & MARKETPLACE ─ [1/2/3 or Tab] Tabs  │  [↑/↓] Select  │  [i/Enter] Action  │  [Esc] Exit ════════════╗
+║  [󰄬 Marketplace (8)]     󰏗 Installed (2)      󰒃 Permissions                                                          ║
+║                                                                                                                      ║
+║──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────║
+║ 󰍉 Filter: [Type to search...]  │ Category: < All > (c to cycle)                                                      ║
+║                                                                                                                      ║
+║╭ Available Extensions ─────────────────────────────────────────╮╭ Extension Details ────────────────────────────────╮║
+║│▌ 󰲋 Workspace Tools      v0.1.0  [Installed]                   ││󰲋 Workspace Tools  v0.1.0                          │║
+║│  󰈈 File Inspector       v0.1.0  [Installed]                   ││Author:      TermExplorer Core Team                │║
+║│  󰊢 Git Supercharged     v1.2.0  [Install]                     ││Category:    Developer Tools                       │║
+║│  󰏘 Hex Color Decorator  v0.9.4  [Install]                     ││Compat:      >= 1.0.0                              │║
+║│  󰍔 Markdown Preview Pro v1.1.0  [Install]                     ││                                                   │║
+║│  󰆦 SQLite Lens          v0.8.2  [Install]                     ││Workspace management actions, project metrics, and │║
+║│  󰻠 System Telemetry Plus v1.0.1  [Install]                    ││                                                   │║
+║│  󰘦 JSON Schema Validator v0.5.0  [Install]                    ││Capabilities & Permissions Requested:              │║
+║│                                                               ││  • commands           — Register custom actions an│║
+║│                                                               ││  • workspace_actions  — Inspect and trigger worksp│║
+║│                                                               ││  • status_text        — Display telemetry and cust│║
+║│                                                               ││                                                   │║
+║│                                                               ││SHA256: 9016b629c2e145b4...                        │║
+║│                                                               ││                                                   │║
+║│                                                               ││✓ Extension is installed. Switch to [2: Installed] │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║│                                                               ││                                                   │║
+║╰───────────────────────────────────────────────────────────────╯╰───────────────────────────────────────────────────╯║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝

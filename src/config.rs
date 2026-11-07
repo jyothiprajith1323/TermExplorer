@@ -20,7 +20,7 @@ fn default_icon_pack() -> String {
     "catppuccin".to_string()
 }
 fn default_accent() -> String {
-    "#61AFEF".to_string()
+    "#89b4fa".to_string()
 }
 fn default_sidebar_width() -> u16 {
     20
@@ -29,7 +29,7 @@ fn default_preview_width() -> u16 {
     30
 }
 fn default_terminal_height() -> u16 {
-    12
+    8
 }
 fn default_monitor_height() -> u16 {
     14
@@ -259,8 +259,29 @@ impl Config {
         if path.exists() {
             let content = std::fs::read_to_string(&path)
                 .with_context(|| format!("Reading config: {}", path.display()))?;
-            let config: Self = toml::from_str(&content)
+            let mut config: Self = toml::from_str(&content)
                 .with_context(|| format!("Parsing config: {}", path.display()))?;
+
+            let mut migrated = false;
+            let current_theme = config.theme.name.to_lowercase();
+            if current_theme == "default dark"
+                || current_theme == "default_dark"
+                || current_theme.is_empty()
+            {
+                config.theme.name = "Catppuccin Mocha".to_string();
+                migrated = true;
+            }
+            if config.icon_pack.is_empty() || config.icon_pack == "default" {
+                config.icon_pack = "catppuccin".to_string();
+                migrated = true;
+            }
+            if config.terminal_height > 10 {
+                config.terminal_height = 8;
+                migrated = true;
+            }
+            if migrated {
+                let _ = config.save();
+            }
             Ok(config)
         } else {
             let config = Self::default();

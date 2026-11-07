@@ -1,20 +1,20 @@
 ╔ 󰒓 SETTINGS STUDIO  ─  [Tab] Switch Pane  │  [Space/Enter] Toggle  │  [←/→] Adjust  │  [F10 / Esc] Exit ════╗
-║╭ Categories (15) ─────────────────╮╭ 󰒓 1. General Settings ───────────────────────────────────────────────╮║
+║╭ Categories (14) ─────────────────╮╭ 󰒓 1. General Settings ───────────────────────────────────────────────╮║
 ║│▌ 01 󰒓 1. General                 ││▌ [TOGGLE] Confirm Destructive Actions   [ ● ON  ]                    │║
-║│  02 󰔎 2. Appearance & Themes     ││  [TOGGLE] Restore Last Workspace Session  [ ● ON  ]                  │║
-║│  03 󰕰 3. Layout & Panels         ││  [TOGGLE] Live Filesystem Monitoring (inotify)  [ ● ON  ]            │║
-║│  04 󰌌 4. Keybinding Manager      ││                                                                      │║
-║│  05 󰉓 5. File Explorer           ││                                                                      │║
-║│  06 󰍉 6. Universal Preview       ││                                                                      │║
-║│  07 󰅩 7. Integrated Editor & LSP ││                                                                      │║
-║│  08 󰞷 8. Embedded Terminal (PTY) ││                                                                      │║
-║│  09 󰨇 9. System Resource Monitor ││                                                                      │║
-║│  10 󰊢 10. Git Integration        ││                                                                      │║
-║│  11 󰲋 11. Workspaces & Projects  ││                                                                      │║
-║│  12 󰘦 12. External Integrations  ││                                                                      │║
-║│  13 󰜎 13. Custom Developer Action││                                                                      │║
-║│  14 󰀯 14. Configuration Profiles ││                                                                      │║
-║│  15 󰘳 15. Advanced & Diagnostics ││                                                                      │║
+║│  02 󰔎 2. Appearance & UI         ││  [TOGGLE] Restore Last Workspace Session  [ ● ON  ]                  │║
+║│  03 󰏘 3. Themes (Catppuccin)     ││  [TOGGLE] Live Filesystem Monitoring (inotify)  [ ● ON  ]            │║
+║│  04 󰛖 4. Fonts & Typography      ││                                                                      │║
+║│  05 󰉓 5. File & Folder Icons     ││                                                                      │║
+║│  06 󰕰 6. Layout & Workstation    ││                                                                      │║
+║│  07 󰌌 7. Keybinding Manager      ││                                                                      │║
+║│  08 󰝰 8. File Explorer           ││                                                                      │║
+║│  09 󰍉 9. Universal Preview       ││                                                                      │║
+║│  10 󰅩 10. Integrated Editor & LSP││                                                                      │║
+║│  11 󰞷 11. Embedded Terminal (PTY)││                                                                      │║
+║│  12 󰨇 12. System Resource Monitor││                                                                      │║
+║│  13 ◇ 13. Plugin Center & Extensi││                                                                      │║
+║│  14 󰘳 14. Advanced & Diagnostics ││                                                                      │║
+║│                                  ││                                                                      │║
 ║│                                  ││                                                                      │║
 ║│                                  ││                                                                      │║
 ║│                                  ││                                                                      │║

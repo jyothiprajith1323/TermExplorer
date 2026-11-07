@@ -2,10 +2,10 @@
 //!
 //! Default Main Workspace Architecture:
 //! - 1-line Top Header (branding, breadcrumb, git, search, telemetry, settings)
-//! - Two-Column Content Workspace:
+//! - Two-Column Content Workspace (78-80% height):
 //!   - LEFT: File Explorer (default 70% width)
 //!   - RIGHT: Contextual Preview (default 30% width)
-//! - Integrated Bottom Terminal (default ~25% height)
+//! - Integrated Bottom Terminal (default ~20-22% height, 6-8 content rows)
 //! - 1-line Minimal Status Bar
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -40,19 +40,20 @@ pub fn compute_layout(area: Rect, cfg: &LayoutConfig) -> LayoutAreas {
     // On narrow terminals (< 70 columns), collapse preview to preserve explorer readability.
     let show_preview = cfg.show_preview && area.width >= 70;
 
-    // ── Vertical slices: header (1) / content (75%) / terminal (25%) / status_bar (1) ──
-    let bottom_h = if cfg.show_bottom && area.height >= 12 {
+    // ── Vertical slices: header (1) / content (78-80%) / terminal (~20-22%) / status_bar (1) ──
+    let bottom_h = if cfg.show_bottom && area.height >= 10 {
         if cfg.terminal_maximized {
             // Maximized terminal takes ~80% height leaving 1 row header, 1 row status, and small context
             (area.height * 80 / 100)
                 .min(area.height.saturating_sub(4))
                 .max(8)
         } else {
-            // Default height is ~25% of terminal height (min 5 rows, max height - 6)
+            // Proportional adaptive constraint: ~20-22% of terminal height (approx 6-8 content rows)
+            let adaptive_pct = (area.height * 21 / 100).clamp(6, 10);
             let calc_height = if cfg.bottom_height > 0 {
-                cfg.bottom_height
+                cfg.bottom_height.clamp(5, (area.height * 40 / 100).max(6))
             } else {
-                (area.height * 25 / 100).max(6)
+                adaptive_pct
             };
             calc_height.min(area.height.saturating_sub(6)).max(5)
         }

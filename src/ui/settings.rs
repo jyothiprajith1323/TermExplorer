@@ -83,7 +83,7 @@ pub fn render_settings_studio(
     };
 
     let section_block = Block::default()
-        .title(Span::styled(" Categories (15) ", theme.header_style()))
+        .title(Span::styled(" Categories (14) ", theme.header_style()))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(section_border_style);

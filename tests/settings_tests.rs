@@ -8,9 +8,9 @@ use termexplorer::settings::{
 use termexplorer::theme::Theme;
 
 #[test]
-fn test_all_15_settings_sections() {
+fn test_all_14_settings_sections() {
     let cfg = Config::default();
-    assert_eq!(SettingsSection::ALL.len(), 15);
+    assert_eq!(SettingsSection::ALL.len(), 14);
 
     for sec in SettingsSection::ALL {
         let items = get_section_items(*sec, &cfg);

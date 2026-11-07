@@ -784,20 +784,27 @@ fn render_actions_tab(
 fn render_directory_preview(frame: &mut Frame, area: Rect, path: &std::path::Path, theme: &Theme) {
     let mut lines = Vec::new();
 
-    let (entries, total_count, dir_count, file_count) = match std::fs::read_dir(path) {
+    let (entries, total_count, dir_count, file_count, total_bytes) = match std::fs::read_dir(path) {
         Ok(read_dir) => {
             let mut items = Vec::new();
             let mut dirs = 0;
             let mut files = 0;
+            let mut bytes: u64 = 0;
             for entry in read_dir.flatten() {
                 let file_type = entry.file_type().ok();
                 let is_dir = file_type.map(|t| t.is_dir()).unwrap_or(false);
+                let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
                 if is_dir {
                     dirs += 1;
                 } else {
                     files += 1;
+                    bytes = bytes.saturating_add(size);
                 }
-                items.push((entry.file_name().to_string_lossy().to_string(), is_dir));
+                items.push((
+                    entry.file_name().to_string_lossy().to_string(),
+                    is_dir,
+                    size,
+                ));
             }
             items.sort_by(|a, b| match (a.1, b.1) {
                 (true, false) => std::cmp::Ordering::Less,
@@ -805,7 +812,7 @@ fn render_directory_preview(frame: &mut Frame, area: Rect, path: &std::path::Pat
                 _ => a.0.to_lowercase().cmp(&b.0.to_lowercase()),
             });
             let total = items.len();
-            (items, total, dirs, files)
+            (items, total, dirs, files, bytes)
         }
         Err(e) => {
             let p = Paragraph::new(format!("\n  Cannot read directory: {}", e))
@@ -818,38 +825,53 @@ fn render_directory_preview(frame: &mut Frame, area: Rect, path: &std::path::Pat
     let dir_name = path.file_name().unwrap_or_default().to_string_lossy();
     lines.push(Line::from(vec![
         Span::styled(
-            "  Directory: ",
+            "  󰉓 ",
             Style::default()
                 .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!("{}/", dir_name),
-            Style::default().add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme.header_fg)
+                .add_modifier(Modifier::BOLD),
         ),
     ]));
+
     lines.push(Line::from(vec![
         Span::styled("  Items:     ", Style::default().fg(theme.accent)),
+        Span::styled(
+            format!("{} entries", total_count),
+            Style::default()
+                .fg(theme.header_fg)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(format!(
-            "{} entries ({} folders, {} files)",
-            total_count, dir_count, file_count
+            " ({} folders, {} files, {})",
+            dir_count,
+            file_count,
+            ByteSize(total_bytes)
         )),
     ]));
+
     lines.push(Line::from(vec![
-        Span::styled("  Action:    ", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            "Press [→] or [Enter] to enter directory",
-            Style::default().fg(Color::DarkGray),
-        ),
+        Span::styled("  Actions:   ", Style::default().fg(theme.accent)),
+        Span::styled("[Enter] Open ", Style::default().fg(theme.status_fg)),
+        Span::styled("[F2] Rename ", Style::default().fg(theme.status_fg)),
+        Span::styled("[a] New File ", Style::default().fg(theme.status_fg)),
+        Span::styled("[A] New Dir", Style::default().fg(theme.status_fg)),
     ]));
+
     lines.push(Line::raw(""));
     lines.push(Line::from(Span::styled(
-        "  Contents:",
-        Style::default().fg(theme.accent),
+        "  Contents (Recent / Top Entries):",
+        Style::default()
+            .fg(theme.accent)
+            .add_modifier(Modifier::BOLD),
     )));
 
-    let max_display = (area.height as usize).saturating_sub(6).min(entries.len());
-    for (i, (name, is_dir)) in entries.iter().take(max_display).enumerate() {
+    let max_display = (area.height as usize).saturating_sub(7).min(entries.len());
+    for (i, (name, is_dir, size)) in entries.iter().take(max_display).enumerate() {
         let is_last = i + 1 == max_display && entries.len() <= max_display;
         let branch = if is_last {
             "    └── "
@@ -868,10 +890,12 @@ fn render_directory_preview(frame: &mut Frame, area: Rect, path: &std::path::Pat
                 ),
             ]));
         } else {
+            let size_pill = format!(" ({})", ByteSize(*size));
             lines.push(Line::from(vec![
                 Span::styled(branch, Style::default().fg(theme.hidden_color)),
                 Span::styled("📄 ", Style::default().fg(theme.file_color)),
                 Span::raw(name.as_str()),
+                Span::styled(size_pill, Style::default().fg(theme.size_color)),
             ]));
         }
     }

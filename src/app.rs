@@ -1,7 +1,7 @@
 //! Core application struct, event loop, and input handling.
 
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 use std::path::PathBuf;
@@ -26,10 +26,11 @@ use crate::{
         editor::render_editor,
         file_explorer::{render_file_explorer, render_secondary_explorer},
         git_panel::render_git_panel,
-        header::render_header,
+        header::{header_click_action, render_header, HeaderAction},
         help::render_help,
         layout::{compute_layout, LayoutConfig},
         onboarding::{render_onboarding, OnboardingStep},
+        plugin_center::render_plugin_center,
         preview::render_preview,
         settings::render_settings_studio,
         sidebar::render_sidebar,
@@ -164,7 +165,9 @@ impl App {
                         break;
                     }
                 }
-                AppEvent::Mouse(_) => {}
+                AppEvent::Mouse(mouse) => {
+                    self.handle_mouse(mouse).await?;
+                }
                 AppEvent::FsChange => self.refresh_dir().await,
                 AppEvent::MonitorRefresh => {}
                 AppEvent::PtyOutput => {}
@@ -315,6 +318,27 @@ impl App {
             } = state.mode
             {
                 render_onboarding(frame, area, step, selected_option, theme);
+            }
+
+            // ── Interactive Plugin Center & Marketplace ───────────────────
+            if let AppMode::PluginCenter {
+                tab,
+                selected_idx,
+                query,
+                category_idx,
+                confirm_install,
+                inspecting_logs,
+            } = &state.mode
+            {
+                let view = crate::ui::plugin_center::PluginCenterView {
+                    tab: *tab,
+                    selected_idx: *selected_idx,
+                    query,
+                    category_idx: *category_idx,
+                    confirm_install: confirm_install.as_deref(),
+                    inspecting_logs: *inspecting_logs,
+                };
+                render_plugin_center(frame, area, state, theme, &view);
             }
         })?;
 
@@ -549,6 +573,40 @@ impl App {
         // ── Onboarding Wizard ─────────────────────────────────────────────
         if matches!(self.state.mode, AppMode::Onboarding { .. }) {
             return self.handle_onboarding_key(key).await;
+        }
+
+        // ── Plugin Center & Marketplace ──────────────────────────────────
+        if matches!(self.state.mode, AppMode::PluginCenter { .. }) {
+            return self.handle_plugin_center_key(key).await;
+        }
+
+        // ── Global shortcuts (always active) ──────────────────────────────
+        // Ctrl+, or F10: Interactive Settings Studio
+        if (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char(','))
+            || (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::F(10))
+        {
+            self.state.mode = AppMode::SettingsStudio {
+                section_idx: 0,
+                item_idx: 0,
+                in_items: false,
+            };
+            return Ok(false);
+        }
+
+        // Ctrl+Shift+X: Plugin Marketplace / Center
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.modifiers.contains(KeyModifiers::SHIFT)
+            && (key.code == KeyCode::Char('X') || key.code == KeyCode::Char('x'))
+        {
+            self.state.mode = AppMode::PluginCenter {
+                tab: 0,
+                selected_idx: 0,
+                query: String::new(),
+                category_idx: 0,
+                confirm_install: None,
+                inspecting_logs: false,
+            };
+            return Ok(false);
         }
 
         // ── Global shortcuts (always active) ──────────────────────────────
@@ -1673,11 +1731,31 @@ impl App {
                         "preview_width" => {
                             if key.code == KeyCode::Left {
                                 self.state.config.preview_width =
-                                    self.state.config.preview_width.saturating_sub(5).max(20);
+                                    self.state.config.preview_width.saturating_sub(5).max(15);
                             } else {
                                 self.state.config.preview_width =
                                     (self.state.config.preview_width + 5).min(60);
                             }
+                        }
+                        "terminal_height" => {
+                            if key.code == KeyCode::Left {
+                                self.state.config.terminal_height =
+                                    self.state.config.terminal_height.saturating_sub(1).max(5);
+                            } else {
+                                self.state.config.terminal_height =
+                                    (self.state.config.terminal_height + 1).min(20);
+                            }
+                        }
+                        "plugin_marketplace" => {
+                            self.state.mode = AppMode::PluginCenter {
+                                tab: 0,
+                                selected_idx: 0,
+                                query: String::new(),
+                                category_idx: 0,
+                                confirm_install: None,
+                                inspecting_logs: false,
+                            };
+                            return Ok(false);
                         }
                         "profile_preset" => {
                             let profiles = ProfileKind::ALL;
@@ -1796,6 +1874,48 @@ impl App {
             }
             "refresh_view" => self.refresh_dir().await,
             "toggle_terminal" => self.toggle_terminal(),
+            "terminal_increase_height" => {
+                self.state.config.terminal_height = (self.state.config.terminal_height + 2).min(30);
+                let _ = self.state.config.save();
+                self.state.set_status(
+                    format!(
+                        "Terminal height: {} rows",
+                        self.state.config.terminal_height
+                    ),
+                    StatusKind::Info,
+                );
+            }
+            "terminal_decrease_height" => {
+                self.state.config.terminal_height =
+                    self.state.config.terminal_height.saturating_sub(2).max(5);
+                let _ = self.state.config.save();
+                self.state.set_status(
+                    format!(
+                        "Terminal height: {} rows",
+                        self.state.config.terminal_height
+                    ),
+                    StatusKind::Info,
+                );
+            }
+            "terminal_maximize" => self.maximize_terminal(),
+            "terminal_minimize" => self.minimize_terminal(),
+            "terminal_restore" => self.restore_terminal(),
+            "focus_terminal" => {
+                if !self.state.show_terminal {
+                    self.toggle_terminal();
+                }
+                self.state.focused = FocusedPanel::Terminal;
+            }
+            "open_plugins" => {
+                self.state.mode = AppMode::PluginCenter {
+                    tab: 0,
+                    selected_idx: 0,
+                    query: String::new(),
+                    category_idx: 0,
+                    confirm_install: None,
+                    inspecting_logs: false,
+                };
+            }
             "toggle_monitor" => self.toggle_monitor(),
             "toggle_sidebar" => self.state.show_sidebar = !self.state.show_sidebar,
             "toggle_preview" => self.state.show_preview = !self.state.show_preview,
@@ -2199,6 +2319,458 @@ impl App {
         } else {
             self.state.focused = FocusedPanel::Explorer;
         }
+    }
+
+    fn maximize_terminal(&mut self) {
+        if !self.state.show_terminal {
+            self.state.show_terminal = true;
+            self.start_terminal_session();
+        }
+        self.state.terminal_maximized = true;
+        self.state.focused = FocusedPanel::Terminal;
+        self.state
+            .set_status("Terminal: Maximized (~80%)", StatusKind::Info);
+    }
+
+    fn minimize_terminal(&mut self) {
+        if self.state.terminal_maximized {
+            self.state.terminal_maximized = false;
+            self.state
+                .set_status("Terminal: Restored", StatusKind::Info);
+        } else {
+            self.state.config.terminal_height = 6;
+            let _ = self.state.config.save();
+            self.state
+                .set_status("Terminal: Minimized (6 rows)", StatusKind::Info);
+        }
+    }
+
+    fn restore_terminal(&mut self) {
+        self.state.terminal_maximized = false;
+        self.state.show_terminal = true;
+        self.state.config.terminal_height = 8;
+        let _ = self.state.config.save();
+        self.state
+            .set_status("Terminal: Restored (8 rows)", StatusKind::Info);
+    }
+
+    async fn handle_plugin_center_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let (mut tab, mut selected_idx, mut query, mut category_idx, confirm_install) =
+            match &self.state.mode {
+                AppMode::PluginCenter {
+                    tab,
+                    selected_idx,
+                    query,
+                    category_idx,
+                    confirm_install,
+                    ..
+                } => (
+                    *tab,
+                    *selected_idx,
+                    query.clone(),
+                    *category_idx,
+                    confirm_install.clone(),
+                ),
+                _ => return Ok(false),
+            };
+
+        // Confirmation modal active
+        if let Some(target_id) = confirm_install {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
+                    self.state.mode = AppMode::PluginCenter {
+                        tab,
+                        selected_idx,
+                        query,
+                        category_idx,
+                        confirm_install: None,
+                        inspecting_logs: false,
+                    };
+                    self.state
+                        .set_status("Extension installation cancelled", StatusKind::Info);
+                }
+                KeyCode::Enter | KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    let catalog_item = crate::ui::plugin_center::MARKETPLACE_CATALOG
+                        .iter()
+                        .find(|p| p.id == target_id);
+                    if let Some(item) = catalog_item {
+                        let user_plugins = crate::plugins::PluginManager::user_plugins_dir();
+                        let plugin_dir = user_plugins.join(item.id);
+                        let _ = std::fs::create_dir_all(&plugin_dir);
+                        let manifest = crate::plugins::PluginManifest {
+                            id: item.id.to_string(),
+                            name: item.name.to_string(),
+                            version: item.version.to_string(),
+                            author: Some(item.author.to_string()),
+                            description: Some(item.description.to_string()),
+                            entrypoint: "plugin.wasm".to_string(),
+                            permissions: item.permissions.iter().copied().collect(),
+                            sha256: Some(item.sha256.to_string()),
+                        };
+                        let manifest_content =
+                            toml::to_string_pretty(&manifest).unwrap_or_default();
+                        let _ = std::fs::write(plugin_dir.join("plugin.toml"), manifest_content);
+
+                        if !self
+                            .state
+                            .plugin_manager
+                            .plugins
+                            .iter()
+                            .any(|p| p.manifest.id == item.id)
+                        {
+                            self.state
+                                .plugin_manager
+                                .plugins
+                                .push(crate::plugins::LoadedPlugin {
+                                    manifest,
+                                    state: crate::plugins::PluginState::Active,
+                                    path: plugin_dir,
+                                    instance: None,
+                                });
+                        }
+                        self.state.set_status(
+                            format!("Extension '{}' installed successfully", item.name),
+                            StatusKind::Success,
+                        );
+                    }
+                    self.state.mode = AppMode::PluginCenter {
+                        tab: 1,
+                        selected_idx: self.state.plugin_manager.plugins.len().saturating_sub(1),
+                        query: String::new(),
+                        category_idx: 0,
+                        confirm_install: None,
+                        inspecting_logs: false,
+                    };
+                }
+                _ => {}
+            }
+            return Ok(false);
+        }
+
+        match key.code {
+            KeyCode::Esc => {
+                self.state.mode = AppMode::Browse;
+                return Ok(false);
+            }
+            KeyCode::Tab => {
+                tab = (tab + 1) % 3;
+                selected_idx = 0;
+            }
+            KeyCode::Char('1') => {
+                tab = 0;
+                selected_idx = 0;
+            }
+            KeyCode::Char('2') => {
+                tab = 1;
+                selected_idx = 0;
+            }
+            KeyCode::Char('3') => {
+                tab = 2;
+                selected_idx = 0;
+            }
+            KeyCode::Char('c') if tab == 0 => {
+                category_idx = (category_idx + 1) % crate::ui::plugin_center::CATEGORIES.len();
+                selected_idx = 0;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                selected_idx = selected_idx.saturating_sub(1);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                let max_len = match tab {
+                    0 => {
+                        let sel_category = crate::ui::plugin_center::CATEGORIES[category_idx];
+                        crate::ui::plugin_center::MARKETPLACE_CATALOG
+                            .iter()
+                            .filter(|p| {
+                                (sel_category == "All" || p.category == sel_category)
+                                    && (query.is_empty()
+                                        || p.name.to_lowercase().contains(&query.to_lowercase())
+                                        || p.description
+                                            .to_lowercase()
+                                            .contains(&query.to_lowercase()))
+                            })
+                            .count()
+                    }
+                    1 => self.state.plugin_manager.plugins.len(),
+                    _ => 6,
+                };
+                if selected_idx + 1 < max_len {
+                    selected_idx += 1;
+                }
+            }
+            KeyCode::Enter | KeyCode::Char('i') => {
+                if tab == 0 {
+                    let sel_category = crate::ui::plugin_center::CATEGORIES[category_idx];
+                    let filtered: Vec<&crate::ui::plugin_center::MarketplacePlugin> =
+                        crate::ui::plugin_center::MARKETPLACE_CATALOG
+                            .iter()
+                            .filter(|p| {
+                                (sel_category == "All" || p.category == sel_category)
+                                    && (query.is_empty()
+                                        || p.name.to_lowercase().contains(&query.to_lowercase())
+                                        || p.description
+                                            .to_lowercase()
+                                            .contains(&query.to_lowercase()))
+                            })
+                            .collect();
+                    if let Some(&p) = filtered.get(selected_idx) {
+                        let is_installed = self
+                            .state
+                            .plugin_manager
+                            .plugins
+                            .iter()
+                            .any(|lp| lp.manifest.id == p.id);
+                        if is_installed {
+                            self.state.set_status(
+                                format!(
+                                    "'{}' is already installed. Switch to tab 2 to manage.",
+                                    p.name
+                                ),
+                                StatusKind::Info,
+                            );
+                        } else {
+                            self.state.mode = AppMode::PluginCenter {
+                                tab,
+                                selected_idx,
+                                query,
+                                category_idx,
+                                confirm_install: Some(p.id.to_string()),
+                                inspecting_logs: false,
+                            };
+                            return Ok(false);
+                        }
+                    }
+                } else if tab == 1 {
+                    let status_info =
+                        if let Some(p) = self.state.plugin_manager.plugins.get_mut(selected_idx) {
+                            if p.state == crate::plugins::PluginState::Active {
+                                p.state = crate::plugins::PluginState::Disabled;
+                                p.instance = None;
+                                Some((p.manifest.name.clone(), false))
+                            } else {
+                                p.state = crate::plugins::PluginState::Active;
+                                Some((p.manifest.name.clone(), true))
+                            }
+                        } else {
+                            None
+                        };
+                    if let Some((name, active)) = status_info {
+                        if active {
+                            self.state.set_status(
+                                format!("Extension '{}' activated", name),
+                                StatusKind::Success,
+                            );
+                        } else {
+                            self.state.set_status(
+                                format!("Extension '{}' disabled", name),
+                                StatusKind::Info,
+                            );
+                        }
+                    }
+                }
+            }
+            KeyCode::Char(' ') if tab == 1 => {
+                let status_info =
+                    if let Some(p) = self.state.plugin_manager.plugins.get_mut(selected_idx) {
+                        if p.state == crate::plugins::PluginState::Active {
+                            p.state = crate::plugins::PluginState::Disabled;
+                            p.instance = None;
+                            Some((p.manifest.name.clone(), false))
+                        } else {
+                            p.state = crate::plugins::PluginState::Active;
+                            Some((p.manifest.name.clone(), true))
+                        }
+                    } else {
+                        None
+                    };
+                if let Some((name, active)) = status_info {
+                    if active {
+                        self.state.set_status(
+                            format!("Extension '{}' activated", name),
+                            StatusKind::Success,
+                        );
+                    } else {
+                        self.state
+                            .set_status(format!("Extension '{}' disabled", name), StatusKind::Info);
+                    }
+                }
+            }
+            KeyCode::Char('d') | KeyCode::Char('u') if tab == 1 => {
+                if selected_idx < self.state.plugin_manager.plugins.len() {
+                    let removed = self.state.plugin_manager.plugins.remove(selected_idx);
+                    let _ = std::fs::remove_dir_all(&removed.path);
+                    self.state.set_status(
+                        format!("Extension '{}' uninstalled", removed.manifest.name),
+                        StatusKind::Success,
+                    );
+                    selected_idx = selected_idx.saturating_sub(1);
+                }
+            }
+            KeyCode::Char('r') if tab == 1 => {
+                let start_dir = self
+                    .state
+                    .explorer
+                    .current_dir
+                    .to_string_lossy()
+                    .to_string();
+                self.state.plugin_manager.discover_and_load(
+                    &crate::plugins::PluginManager::user_plugins_dir(),
+                    &start_dir,
+                );
+                self.state
+                    .set_status("Extensions reloaded from disk", StatusKind::Success);
+            }
+            KeyCode::Backspace if tab == 0 => {
+                query.pop();
+                selected_idx = 0;
+            }
+            KeyCode::Char(c) if tab == 0 && c != '1' && c != '2' && c != '3' && c != 'c' => {
+                query.push(c);
+                selected_idx = 0;
+            }
+            _ => {}
+        }
+
+        self.state.mode = AppMode::PluginCenter {
+            tab,
+            selected_idx,
+            query,
+            category_idx,
+            confirm_install: None,
+            inspecting_logs: false,
+        };
+        Ok(false)
+    }
+
+    async fn handle_mouse(&mut self, mouse: MouseEvent) -> Result<()> {
+        let (width, height) = match crossterm::terminal::size() {
+            Ok((w, h)) => (w, h),
+            Err(_) => return Ok(()),
+        };
+
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                // Row 0: Workstation Command Header
+                if mouse.row == 0 {
+                    if let Some(action) = header_click_action(mouse.column, width) {
+                        match action {
+                            HeaderAction::Brand => {
+                                self.state.mode = AppMode::Help;
+                            }
+                            HeaderAction::Search => {
+                                self.state.mode = AppMode::CommandPalette {
+                                    query: String::new(),
+                                    selected_idx: 0,
+                                };
+                            }
+                            HeaderAction::Plugins => {
+                                self.state.mode = AppMode::PluginCenter {
+                                    tab: 0,
+                                    selected_idx: 0,
+                                    query: String::new(),
+                                    category_idx: 0,
+                                    confirm_install: None,
+                                    inspecting_logs: false,
+                                };
+                            }
+                            HeaderAction::Settings => {
+                                self.state.mode = AppMode::SettingsStudio {
+                                    section_idx: 0,
+                                    item_idx: 0,
+                                    in_items: false,
+                                };
+                            }
+                        }
+                        return Ok(());
+                    }
+                }
+
+                // Terminal header & controls
+                if self.state.show_terminal {
+                    let bottom_height = if self.state.terminal_maximized {
+                        (height * 80 / 100).min(height.saturating_sub(4)).max(8)
+                    } else {
+                        (height * 21 / 100).clamp(6, 10)
+                    };
+                    let terminal_y = height.saturating_sub(bottom_height + 1);
+                    if mouse.row == terminal_y {
+                        let col = mouse.column;
+                        if width >= 50 {
+                            let rel_from_right = width.saturating_sub(col);
+                            if rel_from_right <= 12 {
+                                // [↕ Resize]
+                                self.state.config.terminal_height =
+                                    if self.state.config.terminal_height >= 12 {
+                                        6
+                                    } else {
+                                        12
+                                    };
+                                let _ = self.state.config.save();
+                            } else if rel_from_right <= 20 {
+                                // [▼ Min]
+                                self.minimize_terminal();
+                            } else if rel_from_right <= 32 {
+                                // [▲ Max] / [▼ Restore]
+                                self.toggle_terminal_maximize();
+                            } else if rel_from_right <= 36 {
+                                // [×] Close / Hide
+                                self.toggle_terminal();
+                            } else if rel_from_right <= 40 {
+                                // [+] Clear terminal buffer
+                                self.terminal_scrollback.clear();
+                                self.state
+                                    .set_status("Terminal buffer cleared", StatusKind::Info);
+                            }
+                        }
+                        self.state.focused = FocusedPanel::Terminal;
+                        return Ok(());
+                    } else if mouse.row > terminal_y && mouse.row < height.saturating_sub(1) {
+                        self.state.focused = FocusedPanel::Terminal;
+                        return Ok(());
+                    }
+                }
+
+                // Explorer / Preview
+                let preview_pct = self.state.config.preview_width.clamp(15, 60);
+                let explorer_w = width * (100 - preview_pct) / 100;
+                if mouse.column < explorer_w {
+                    self.state.focused = FocusedPanel::Explorer;
+                    if mouse.row >= 2 {
+                        let clicked_row = (mouse.row - 2) as usize;
+                        if clicked_row < self.state.explorer.entries.len() {
+                            self.state.explorer.selected_index = clicked_row;
+                            self.update_preview().await;
+                        }
+                    }
+                } else {
+                    self.state.focused = FocusedPanel::Preview;
+                }
+            }
+            MouseEventKind::ScrollDown => {
+                if self.state.focused == FocusedPanel::Explorer {
+                    if self.state.explorer.selected_index + 1 < self.state.explorer.entries.len() {
+                        self.state.explorer.selected_index += 1;
+                        self.update_preview().await;
+                    }
+                } else if self.state.focused == FocusedPanel::Preview {
+                    self.state.preview.scroll_offset =
+                        self.state.preview.scroll_offset.saturating_add(3);
+                }
+            }
+            MouseEventKind::ScrollUp => {
+                if self.state.focused == FocusedPanel::Explorer {
+                    self.state.explorer.selected_index =
+                        self.state.explorer.selected_index.saturating_sub(1);
+                    self.update_preview().await;
+                } else if self.state.focused == FocusedPanel::Preview {
+                    self.state.preview.scroll_offset =
+                        self.state.preview.scroll_offset.saturating_sub(3);
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
     }
 }
 

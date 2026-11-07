@@ -139,19 +139,49 @@ pub fn render_header(
         }
     }
 
-    if width >= 80 {
+    if width >= 90 {
         right_spans.push(Span::styled(
-            "[󰍉 Ctrl+P] ",
+            "[ 󰍉 Search ] ",
             Style::default()
                 .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         ));
+        right_spans.push(Span::styled(
+            "[ ◇ Plugins ] ",
+            Style::default()
+                .fg(theme.success)
+                .add_modifier(Modifier::BOLD),
+        ));
+        right_spans.push(Span::styled(
+            "[ ⚙ Settings ]",
+            Style::default()
+                .fg(theme.header_fg)
+                .add_modifier(Modifier::BOLD),
+        ));
+    } else if width >= 55 {
+        right_spans.push(Span::styled(
+            "[Search] ",
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ));
+        right_spans.push(Span::styled(
+            "[Plugins] ",
+            Style::default()
+                .fg(theme.success)
+                .add_modifier(Modifier::BOLD),
+        ));
+        right_spans.push(Span::styled(
+            "[Settings]",
+            Style::default()
+                .fg(theme.header_fg)
+                .add_modifier(Modifier::BOLD),
+        ));
+    } else {
+        right_spans.push(Span::styled("[󰍉] ", Style::default().fg(theme.accent)));
+        right_spans.push(Span::styled("[◇] ", Style::default().fg(theme.success)));
+        right_spans.push(Span::styled("[⚙]", Style::default().fg(theme.header_fg)));
     }
-
-    right_spans.push(Span::styled(
-        "[󰒓 F10]",
-        Style::default().fg(theme.size_color),
-    ));
 
     // Calculate total widths and assemble
     let left_len: usize = left_spans.iter().map(|s| s.content.len()).sum();
@@ -179,4 +209,58 @@ pub fn render_header(
     let header_bg = theme.header_bg.unwrap_or(Color::Rgb(20, 24, 32));
     let paragraph = Paragraph::new(Line::from(line_spans)).style(Style::default().bg(header_bg));
     frame.render_widget(paragraph, area);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeaderAction {
+    Brand,
+    Search,
+    Plugins,
+    Settings,
+}
+
+pub fn header_click_action(x: u16, width: u16) -> Option<HeaderAction> {
+    if x < 18 {
+        return Some(HeaderAction::Brand);
+    }
+    if width >= 90 {
+        let settings_start = width.saturating_sub(16);
+        let plugins_start = width.saturating_sub(32);
+        let search_start = width.saturating_sub(48);
+        if x >= settings_start {
+            Some(HeaderAction::Settings)
+        } else if x >= plugins_start {
+            Some(HeaderAction::Plugins)
+        } else if x >= search_start {
+            Some(HeaderAction::Search)
+        } else {
+            None
+        }
+    } else if width >= 55 {
+        let settings_start = width.saturating_sub(12);
+        let plugins_start = width.saturating_sub(23);
+        let search_start = width.saturating_sub(33);
+        if x >= settings_start {
+            Some(HeaderAction::Settings)
+        } else if x >= plugins_start {
+            Some(HeaderAction::Plugins)
+        } else if x >= search_start {
+            Some(HeaderAction::Search)
+        } else {
+            None
+        }
+    } else {
+        let settings_start = width.saturating_sub(5);
+        let plugins_start = width.saturating_sub(10);
+        let search_start = width.saturating_sub(15);
+        if x >= settings_start {
+            Some(HeaderAction::Settings)
+        } else if x >= plugins_start {
+            Some(HeaderAction::Plugins)
+        } else if x >= search_start {
+            Some(HeaderAction::Search)
+        } else {
+            None
+        }
+    }
 }

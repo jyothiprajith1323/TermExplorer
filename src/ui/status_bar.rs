@@ -28,6 +28,7 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState, theme:
         AppMode::CommandPalette { .. } => (" PALETTE ", theme.accent),
         AppMode::GitDashboard { .. } => (" GIT ", Color::Rgb(187, 154, 247)),
         AppMode::Onboarding { .. } => (" SETUP ", theme.accent),
+        AppMode::PluginCenter { .. } => (" PLUGINS ", theme.success),
     };
 
     let mut spans = vec![

@@ -8,17 +8,17 @@
                ║│ 󰍉 > git█                                                         │║               
                ║╰──────────────────────────────────────────────────────────────────╯║               
                ║▌ [Layout]     Toggle Dual-Pane Explorer              [F7]          ║               
-               ║  [Nav]        Open Settings Studio                   [F10]         ║               
+               ║  [Nav]        Open Settings Studio                   [Ctrl+, / F10]║               
                ║  [Nav]        Open Help & Keybindings                [F1]          ║               
                ║  [Explorer]   Toggle Hidden Files                    [.]           ║               
                ║  [Explorer]   Cycle Sorting Order                    [s]           ║               
                ║  [Explorer]   Create New File                        [a]           ║               
                ║  [Explorer]   Create New Directory                   [A]           ║               
                ║  [Explorer]   Refresh Explorer                       [F5]          ║               
-               ║  [Terminal]   Toggle Embedded Terminal               [F6 / Ctrl+T] ║               
-               ║  [Terminal]   Toggle System Resource Monitor         [F6]          ║               
-               ║  [Layout]     Toggle Sidebar                         [Ctrl+B]      ║               
-               ║  [Layout]     Toggle Preview Panel                   [F3]          ║               
+               ║  [Terminal]   Toggle Embedded Terminal               [Ctrl+` / Ctrl║               
+               ║  [Terminal]   Increase Terminal Height               [} / Ctrl+Up] ║               
+               ║  [Terminal]   Decrease Terminal Height               [{ / Ctrl+Down║               
+               ║  [Terminal]   Maximize Embedded Terminal             [Alt+F6 / Ctrl║               
                ║  󰋽 Split explorer into two independent side-by-side panes          ║               
                ║                                                                    ║               
                ║                                                                    ║               

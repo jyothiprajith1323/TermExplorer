@@ -266,3 +266,39 @@ fn test_fullscreen_preview_and_terminal_maximize_layouts() {
         term_h
     );
 }
+
+#[test]
+fn test_render_plugin_center_modal() {
+    use termexplorer::ui::plugin_center::{render_plugin_center, PluginCenterView};
+
+    let backend = TestBackend::new(120, 35);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    let state = AppState::new(Config::default());
+    let theme = Theme::catppuccin_mocha();
+
+    terminal
+        .draw(|frame| {
+            let area = frame.area();
+            let view = PluginCenterView {
+                tab: 0,
+                selected_idx: 0,
+                query: "",
+                category_idx: 0,
+                confirm_install: None,
+                inspecting_logs: false,
+            };
+            render_plugin_center(frame, area, &state, &theme, &view);
+        })
+        .unwrap();
+
+    let screen = buffer_to_string(terminal.backend().buffer());
+    let _ = std::fs::create_dir_all("screenshots");
+    let _ = std::fs::write("screenshots/plugin_center_modal.txt", &screen);
+
+    assert!(screen.contains("PLUGIN CENTER & MARKETPLACE"));
+    assert!(screen.contains("Marketplace"));
+    assert!(screen.contains("Installed"));
+    assert!(screen.contains("Permissions"));
+    assert!(screen.contains("Workspace Tools"));
+}

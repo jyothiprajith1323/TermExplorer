@@ -8,6 +8,7 @@ pub mod header;
 pub mod help;
 pub mod layout;
 pub mod onboarding;
+pub mod plugin_center;
 pub mod preview;
 pub mod settings;
 pub mod sidebar;

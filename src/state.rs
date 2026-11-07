@@ -57,6 +57,15 @@ pub enum AppMode {
         step: OnboardingStep,
         selected_option: usize,
     },
+    /// Interactive Plugin Marketplace and Manager (Ctrl+Shift+X or Header button).
+    PluginCenter {
+        tab: usize,
+        selected_idx: usize,
+        query: String,
+        category_idx: usize,
+        confirm_install: Option<String>,
+        inspecting_logs: bool,
+    },
 }
 
 #[allow(dead_code)]

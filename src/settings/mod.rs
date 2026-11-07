@@ -34,7 +34,27 @@ pub fn get_section_items(section: SettingsSection, config: &Config) -> Vec<Setti
                 value: SettingValue::Bool(true),
             },
         ],
-        SettingsSection::Appearance => {
+        SettingsSection::Appearance => vec![
+            SettingItem {
+                key: "ui_density",
+                label: "UI Visual Density",
+                description: "Clean compact layout optimized for high information density",
+                value: SettingValue::ReadOnly("Compact (Developer Workstation)".to_string()),
+            },
+            SettingItem {
+                key: "borders",
+                label: "Panel Border Styling",
+                description: "Rounded double borders with active focus highlights",
+                value: SettingValue::ReadOnly("Rounded / High Contrast Focus".to_string()),
+            },
+            SettingItem {
+                key: "show_git_status",
+                label: "Git Repository Badges",
+                description: "Display branch badge and file modification indicators in header and explorer",
+                value: SettingValue::Bool(true),
+            },
+        ],
+        SettingsSection::Themes => {
             let themes: Vec<String> = crate::theme::Theme::list_themes()
                 .iter()
                 .map(|&(name, _)| name.to_string())
@@ -43,18 +63,6 @@ pub fn get_section_items(section: SettingsSection, config: &Config) -> Vec<Setti
                 .iter()
                 .position(|t| t.eq_ignore_ascii_case(&config.theme.name))
                 .unwrap_or(0);
-
-            let icon_packs: Vec<String> = crate::icons::IconPack::all()
-                .iter()
-                .map(|p| p.display_name().to_string())
-                .collect();
-            let current_pack = crate::icons::IconPack::parse(&config.icon_pack);
-            let pack_idx = crate::icons::IconPack::all()
-                .iter()
-                .position(|&p| p == current_pack)
-                .unwrap_or(0);
-
-            let font_status = crate::fonts::FontStatus::detect();
 
             vec![
                 SettingItem {
@@ -67,14 +75,28 @@ pub fn get_section_items(section: SettingsSection, config: &Config) -> Vec<Setti
                     },
                 },
                 SettingItem {
-                    key: "icon_pack",
-                    label: "File & Folder Icon Pack",
-                    description: "Icon styling: Catppuccin Nerd Font, Monochrome Nerd Font, Unicode, ASCII, or None",
-                    value: SettingValue::Choice {
-                        current: pack_idx,
-                        options: icon_packs,
-                    },
+                    key: "transparent_bg",
+                    label: "Inherit Terminal Transparency",
+                    description: "Use terminal default background color (bg: None) instead of opaque background",
+                    value: SettingValue::Bool(config.theme.transparent_background),
                 },
+                SettingItem {
+                    key: "accent_color",
+                    label: "Accent Color Hex",
+                    description: "Primary accent color used for headers, focus borders, and active highlights",
+                    value: SettingValue::Text(config.theme.accent.clone()),
+                },
+                SettingItem {
+                    key: "custom_themes_dir",
+                    label: "Custom Themes Path",
+                    description: "Directory scanned for user JSON/TOML theme definitions",
+                    value: SettingValue::ReadOnly("~/.config/termexplorer/themes/".to_string()),
+                },
+            ]
+        }
+        SettingsSection::Fonts => {
+            let font_status = crate::fonts::FontStatus::detect();
+            vec![
                 SettingItem {
                     key: "font_status",
                     label: "Host Font Detection",
@@ -90,51 +112,69 @@ pub fn get_section_items(section: SettingsSection, config: &Config) -> Vec<Setti
                     ),
                 },
                 SettingItem {
-                    key: "transparent_bg",
-                    label: "Inherit Terminal Transparency",
-                    description: "Use terminal default background color (bg: None) instead of opaque background",
-                    value: SettingValue::Bool(config.theme.transparent_background),
+                    key: "font_installer",
+                    label: "Automated Font Installer",
+                    description: "Run scripts/install-fonts.sh to download and cache latest JetBrains Mono Nerd Font",
+                    value: SettingValue::ReadOnly("scripts/install-fonts.sh (Available)".to_string()),
+                },
+            ]
+        }
+        SettingsSection::FileIcons => {
+            let icon_packs: Vec<String> = crate::icons::IconPack::all()
+                .iter()
+                .map(|p| p.display_name().to_string())
+                .collect();
+            let current_pack = crate::icons::IconPack::parse(&config.icon_pack);
+            let pack_idx = crate::icons::IconPack::all()
+                .iter()
+                .position(|&p| p == current_pack)
+                .unwrap_or(0);
+
+            vec![
+                SettingItem {
+                    key: "icon_pack",
+                    label: "File & Folder Icon Pack",
+                    description: "Icon styling: Catppuccin Nerd Font, Monochrome Nerd Font, Unicode, ASCII, or None",
+                    value: SettingValue::Choice {
+                        current: pack_idx,
+                        options: icon_packs,
+                    },
                 },
                 SettingItem {
-                    key: "accent_color",
-                    label: "Accent Color Hex",
-                    description: "Primary accent color used for headers, focus borders, and active highlights",
-                    value: SettingValue::Text(config.theme.accent.clone()),
+                    key: "custom_icons_path",
+                    label: "Custom Icon Rules Path",
+                    description: "Configuration file for per-extension and directory icon glyph overrides",
+                    value: SettingValue::ReadOnly("~/.config/termexplorer/icons.toml".to_string()),
                 },
             ]
         }
         SettingsSection::Layout => vec![
             SettingItem {
-                key: "sidebar_width",
-                label: "Sidebar Width (Columns)",
-                description: "Width allocated to the navigation sidebar in character columns",
-                value: SettingValue::Number {
-                    value: config.sidebar_width as i64,
-                    min: 12,
-                    max: 40,
-                    step: 2,
-                },
+                key: "workspace_layout",
+                label: "Workspace Layout Architecture",
+                description: "Two-Column Workstation: Left 70% File Explorer / Right 30% Contextual Preview",
+                value: SettingValue::ReadOnly("Two-Column (70% Explorer / 30% Preview)".to_string()),
             },
             SettingItem {
                 key: "preview_width",
                 label: "Preview Width (%)",
-                description: "Percentage width allocated to the universal preview panel",
+                description: "Percentage width allocated to the universal preview panel (default 30%)",
                 value: SettingValue::Number {
                     value: config.preview_width as i64,
-                    min: 20,
+                    min: 15,
                     max: 60,
                     step: 5,
                 },
             },
             SettingItem {
                 key: "terminal_height",
-                label: "Terminal Height (Rows)",
-                description: "Height allocated to the embedded PTY terminal panel when visible",
+                label: "Terminal Default Height (Rows)",
+                description: "Compact embedded PTY terminal height (~20-22% height, 6-8 content rows)",
                 value: SettingValue::Number {
                     value: config.terminal_height as i64,
                     min: 6,
-                    max: 30,
-                    step: 2,
+                    max: 20,
+                    step: 1,
                 },
             },
             SettingItem {
@@ -253,6 +293,17 @@ pub fn get_section_items(section: SettingsSection, config: &Config) -> Vec<Setti
                 ),
             },
             SettingItem {
+                key: "terminal_height",
+                label: "Default Height (Rows)",
+                description: "Compact terminal panel height (default: 8 rows, ~20-22% height)",
+                value: SettingValue::Number {
+                    value: config.terminal_height as i64,
+                    min: 5,
+                    max: 25,
+                    step: 1,
+                },
+            },
+            SettingItem {
                 key: "scrollback_limit",
                 label: "Scrollback Memory Limit (KiB)",
                 description: "Maximum buffer size retained for terminal scrollback history",
@@ -277,81 +328,26 @@ pub fn get_section_items(section: SettingsSection, config: &Config) -> Vec<Setti
                 },
             },
         ],
-        SettingsSection::Git => vec![
+        SettingsSection::Plugins => vec![
             SettingItem {
-                key: "git_detected",
-                label: "Git CLI Availability",
-                description: "Status of git version control integration",
-                value: SettingValue::ReadOnly(
-                    if crate::preview::CapabilityRegistry::is_tool_available("git") {
-                        "Installed (/usr/bin/git)".to_string()
-                    } else {
-                        "Not Installed".to_string()
-                    },
-                ),
+                key: "plugin_marketplace",
+                label: "Open Plugin Marketplace",
+                description: "Browse, install, and manage extensions (Shortcut: Ctrl+Shift+X)",
+                value: SettingValue::ReadOnly("Press [Enter] or Ctrl+Shift+X to open".to_string()),
             },
             SettingItem {
-                key: "show_git_status",
-                label: "Show Git Branch in Status Bar",
-                description: "Display current Git branch and repository clean/dirty indicator",
-                value: SettingValue::Bool(true),
+                key: "bundled_plugins",
+                label: "Bundled Extensions",
+                description: "Core plugins included with TermExplorer",
+                value: SettingValue::ReadOnly("Workspace Tools, File Inspector".to_string()),
             },
-        ],
-        SettingsSection::Workspaces => vec![
             SettingItem {
-                key: "active_workspace",
-                label: "Current Workspace",
-                description: "Active project workspace profile and environment settings",
-                value: SettingValue::ReadOnly("Default Workspace".to_string()),
+                key: "plugin_sandbox",
+                label: "Plugin Security Sandbox",
+                description: "Isolated WebAssembly (WASI) runtime with capability grants and fuel limits",
+                value: SettingValue::ReadOnly("Active (Wasmtime Fuel Enforced)".to_string()),
             },
         ],
-        SettingsSection::Integrations => {
-            let tools = crate::preview::CapabilityRegistry::list_integrations();
-            tools
-                .into_iter()
-                .map(|t| SettingItem {
-                    key: t.name,
-                    label: t.name,
-                    description: t.purpose,
-                    value: SettingValue::ReadOnly(if t.installed {
-                        format!("Available ({})", t.path.unwrap_or_default())
-                    } else {
-                        "Not Installed".to_string()
-                    }),
-                })
-                .collect()
-        }
-        SettingsSection::CustomActions => vec![
-            SettingItem {
-                key: "action_vscode",
-                label: "Open in VS Code (code .)",
-                description: "Launch Visual Studio Code in current directory",
-                value: SettingValue::ReadOnly("Registered (Cmd Palette)".to_string()),
-            },
-            SettingItem {
-                key: "action_cargo_test",
-                label: "Run cargo test",
-                description: "Execute test suite in embedded terminal",
-                value: SettingValue::ReadOnly("Registered (Cmd Palette)".to_string()),
-            },
-        ],
-        SettingsSection::Profiles => {
-            let profiles = ProfileKind::ALL
-                .iter()
-                .map(|p| p.name().to_string())
-                .collect();
-            vec![
-                SettingItem {
-                    key: "profile_preset",
-                    label: "Select Preset Profile",
-                    description: "Apply pre-tuned layout and pane configuration (Developer, Minimal, Terminal, etc.)",
-                    value: SettingValue::Choice {
-                        current: 0,
-                        options: profiles,
-                    },
-                },
-            ]
-        }
         SettingsSection::Advanced => vec![
             SettingItem {
                 key: "log_level",

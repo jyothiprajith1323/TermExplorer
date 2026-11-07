@@ -54,23 +54,43 @@ pub fn render_terminal(
         )
     };
 
-    let title = Line::from(vec![
+    let max_label = if state.terminal_maximized {
+        "[▼ Restore]"
+    } else {
+        "[▲ Max]"
+    };
+
+    let mut title_spans = vec![
         session_tab,
         Span::raw(" "),
         Span::styled(
             format!("📁 ~/{} ", cwd_str),
             Style::default().fg(theme.size_color),
         ),
-        Span::styled("│ ", Style::default().fg(theme.border)),
-        Span::styled(
-            format!("{}×{} ", area.width, area.height),
-            Style::default().fg(theme.hidden_color),
-        ),
-        Span::styled(
-            "│ [Ctrl+` toggle] ",
-            Style::default().fg(theme.hidden_color),
-        ),
-    ]);
+    ];
+
+    if area.width >= 80 {
+        title_spans.push(Span::styled("│ ", Style::default().fg(theme.border)));
+        title_spans.push(Span::styled("[+] ", Style::default().fg(theme.success)));
+        title_spans.push(Span::styled("[×] ", Style::default().fg(theme.error)));
+        title_spans.push(Span::styled(
+            format!("{} ", max_label),
+            Style::default().fg(theme.accent),
+        ));
+        title_spans.push(Span::styled("[▼ Min] ", Style::default().fg(theme.warning)));
+        title_spans.push(Span::styled(
+            "[↕ Resize] ",
+            Style::default().fg(theme.status_fg),
+        ));
+    } else if area.width >= 50 {
+        title_spans.push(Span::styled("│ ", Style::default().fg(theme.border)));
+        title_spans.push(Span::styled(
+            "[+] [×] [▲] [▼] [↕] ",
+            Style::default().fg(theme.accent),
+        ));
+    }
+
+    let title = Line::from(title_spans);
 
     let block = Block::default()
         .title(title)
