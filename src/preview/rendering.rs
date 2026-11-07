@@ -53,7 +53,9 @@ impl GraphicsCapability {
         let max_w = target_width.clamp(10, 160);
         let max_h = (target_height * 2).clamp(10, 160); // 2 pixels per char row
 
-        let resized = img.resize(max_w, max_h, image::imageops::FilterType::Triangle);
+        // Nearest-neighbor resizing is orders of magnitude faster than Triangle convolution,
+        // eliminating UI lag while maintaining crisp terminal half-block pixel art.
+        let resized = img.resize(max_w, max_h, image::imageops::FilterType::Nearest);
         let rgba = resized.to_rgba8();
         let (w, h) = rgba.dimensions();
 

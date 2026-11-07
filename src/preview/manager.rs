@@ -60,7 +60,7 @@ pub struct PreviewManager {
 impl PreviewManager {
     pub fn new(max_preview_bytes: u64) -> Self {
         Self {
-            cache: PreviewLruCache::new(30),
+            cache: PreviewLruCache::new(64),
             max_preview_bytes,
         }
     }
@@ -95,12 +95,13 @@ impl PreviewManager {
         let mut database = None;
 
         // Populate appropriate preview based on detected category
+        // Limit initial preview lines to 120 for fast syntax highlighting and rendering
         match format_info.category {
             FileCategory::SourceCode => {
-                source = Some(SourcePreview::load(path, self.max_preview_bytes, 400));
+                source = Some(SourcePreview::load(path, self.max_preview_bytes, 120));
             }
             FileCategory::Markdown => {
-                markdown = Some(MarkdownPreview::load(path, 400));
+                markdown = Some(MarkdownPreview::load(path, 120));
             }
             FileCategory::Image => {
                 image = Some(ImagePreview::load(path, preview_width, preview_height));

@@ -35,6 +35,9 @@ impl MarkdownPreview {
         let mut total_lines = 0;
 
         for (idx, line_res) in reader.lines().enumerate() {
+            if formatted_lines.len() >= max_lines {
+                break;
+            }
             total_lines += 1;
             let line = line_res.unwrap_or_default();
 

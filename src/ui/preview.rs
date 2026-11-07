@@ -127,11 +127,11 @@ fn render_content_preview(
             Line::raw(""),
         ];
 
-        // Render halfblock image pixels if available
+        // Render halfblock image pixels if available (using static "▀" to avoid thousands of per-frame String allocations)
         for row in &img.halfblock_grid {
             let spans: Vec<Span> = row
                 .iter()
-                .map(|&(fg, bg, ch)| Span::styled(ch.to_string(), Style::default().fg(fg).bg(bg)))
+                .map(|&(fg, bg, _ch)| Span::styled("▀", Style::default().fg(fg).bg(bg)))
                 .collect();
             lines.push(Line::from(spans));
         }
@@ -177,8 +177,8 @@ fn render_content_preview(
             for row in &vid.thumbnail_grid {
                 let spans: Vec<Span> = row
                     .iter()
-                    .map(|&(fg, bg, ch)| {
-                        Span::styled(ch.to_string(), Style::default().fg(fg).bg(bg))
+                    .map(|&(fg, bg, _ch)| {
+                        Span::styled("▀", Style::default().fg(fg).bg(bg))
                     })
                     .collect();
                 lines.push(Line::from(spans));
@@ -532,7 +532,7 @@ fn render_content_preview(
             .iter()
             .skip(offset)
             .take(visible_height)
-            .map(|l| Line::from(format!("  {}", l)))
+            .map(|l| Line::from(vec![Span::raw("  "), Span::raw(l.as_str())]))
             .collect();
         let p = Paragraph::new(display_lines);
         frame.render_widget(p, area);
@@ -556,7 +556,7 @@ fn render_content_preview(
                 )];
                 for (r, g, b, text) in spans {
                     line_spans.push(Span::styled(
-                        text.clone(),
+                        text.as_str(),
                         Style::default().fg(Color::Rgb(*r, *g, *b)),
                     ));
                 }
@@ -574,7 +574,7 @@ fn render_content_preview(
                 let line_num = format!("{:>width$} ", i + 1, width = line_num_width);
                 Line::from(vec![
                     Span::styled(line_num, Style::default().fg(Color::Rgb(70, 80, 100))),
-                    Span::raw(text.clone()),
+                    Span::raw(text.as_str()),
                 ])
             })
             .collect()

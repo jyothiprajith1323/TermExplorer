@@ -28,17 +28,17 @@ impl SourcePreview {
         let mut lines = Vec::new();
         let mut bytes_read = 0u64;
         let mut truncated = false;
-        let mut total_lines = 0;
 
+        // Stop reading immediately once max_lines or max_bytes is reached to prevent
+        // allocating thousands of unused Strings on large files and blocking the UI.
         for line_result in reader.lines() {
-            total_lines += 1;
             match line_result {
                 Ok(line) => {
                     bytes_read += line.len() as u64 + 1;
-                    if lines.len() < max_lines && bytes_read <= max_bytes {
-                        lines.push(line);
-                    } else if !truncated {
+                    lines.push(line);
+                    if lines.len() >= max_lines || bytes_read >= max_bytes {
                         truncated = true;
+                        break;
                     }
                 }
                 Err(_) => {
@@ -48,6 +48,7 @@ impl SourcePreview {
             }
         }
 
+        let total_lines = lines.len();
         let full_text = lines.join("\n");
         let highlighted_spans = highlight_file(path, &full_text);
 
