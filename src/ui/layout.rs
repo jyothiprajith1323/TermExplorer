@@ -6,6 +6,7 @@ pub struct LayoutAreas {
     pub header: Rect,
     pub sidebar: Option<Rect>,
     pub explorer: Rect,
+    pub explorer_secondary: Option<Rect>,
     pub preview: Option<Rect>,
     pub bottom_panel: Option<Rect>, // terminal OR monitor
     pub status_bar: Rect,
@@ -15,6 +16,7 @@ pub struct LayoutConfig {
     pub show_sidebar: bool,
     pub show_preview: bool,
     pub show_bottom: bool,
+    pub dual_pane: bool,
     pub sidebar_pct: u16,
     pub preview_pct: u16,
     pub bottom_height: u16,
@@ -73,7 +75,7 @@ pub fn compute_layout(area: Rect, cfg: &LayoutConfig) -> LayoutAreas {
     } else {
         None
     };
-    let explorer = h_areas[idx];
+    let explorer_full = h_areas[idx];
     idx += 1;
     let preview = if cfg.show_preview {
         Some(h_areas[idx])
@@ -81,10 +83,21 @@ pub fn compute_layout(area: Rect, cfg: &LayoutConfig) -> LayoutAreas {
         None
     };
 
+    let (explorer, explorer_secondary) = if cfg.dual_pane {
+        let dual = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(explorer_full);
+        (dual[0], Some(dual[1]))
+    } else {
+        (explorer_full, None)
+    };
+
     LayoutAreas {
         header,
         sidebar,
         explorer,
+        explorer_secondary,
         preview,
         bottom_panel,
         status_bar,

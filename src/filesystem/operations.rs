@@ -48,6 +48,44 @@ pub fn delete_entry(path: &Path) -> Result<()> {
     }
 }
 
+/// Send entry to FreeDesktop trash using `gio trash`, `trash-put`, or standard `~/.local/share/Trash`.
+pub fn trash_entry(path: &Path) -> Result<()> {
+    // 1. Try gio trash
+    if std::process::Command::new("gio")
+        .args(["trash"])
+        .arg(path)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
+        return Ok(());
+    }
+
+    // 2. Try trash-put
+    if std::process::Command::new("trash-put")
+        .arg(path)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
+        return Ok(());
+    }
+
+    // 3. Fallback: FreeDesktop standard ~/.local/share/Trash/files
+    if let Some(home) = dirs::home_dir() {
+        let trash_files = home.join(".local/share/Trash/files");
+        std::fs::create_dir_all(&trash_files)?;
+        let file_name = path.file_name().unwrap_or_default();
+        let target = trash_files.join(file_name);
+        if std::fs::rename(path, &target).is_ok() {
+            return Ok(());
+        }
+    }
+
+    // If trash fails, perform normal delete
+    delete_entry(path)
+}
+
 /// Copy a single file, never following symlinks blindly.
 pub fn copy_file(src: &Path, dst: &Path) -> Result<u64> {
     std::fs::copy(src, dst)

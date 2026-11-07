@@ -2,6 +2,10 @@
 
 use crate::config::Config;
 use crate::filesystem::browser::{DirEntry, SortOrder};
+use crate::git::GitRepoStatus;
+use crate::preview::{FullPreviewData, PreviewTab};
+use crate::ui::onboarding::OnboardingStep;
+use crate::workspace::Workspace;
 use std::path::PathBuf;
 
 /// Which panel currently has focus.
@@ -10,10 +14,18 @@ pub enum FocusedPanel {
     Sidebar,
     #[default]
     Explorer,
+    ExplorerSecondary,
     Preview,
     Terminal,
     Editor,
     Monitor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActivePane {
+    #[default]
+    Primary,
+    Secondary,
 }
 
 /// Top-level application mode.
@@ -30,6 +42,21 @@ pub enum AppMode {
     Search,
     /// The help screen is shown.
     Help,
+    /// Interactive Settings Studio is shown (F10).
+    SettingsStudio {
+        section_idx: usize,
+        item_idx: usize,
+        in_items: bool,
+    },
+    /// Floating Command Palette is open (Ctrl+Shift+P).
+    CommandPalette { query: String, selected_idx: usize },
+    /// Git Dashboard is shown.
+    GitDashboard { selected_idx: usize },
+    /// First-launch onboarding wizard.
+    Onboarding {
+        step: OnboardingStep,
+        selected_option: usize,
+    },
 }
 
 #[allow(dead_code)]
@@ -74,9 +101,12 @@ pub struct ExplorerState {
 #[derive(Debug, Clone, Default)]
 pub struct PreviewState {
     pub path: Option<PathBuf>,
+    pub active_tab: PreviewTab,
+    pub full_data: Option<FullPreviewData>,
     pub lines: Vec<String>,
     pub highlighted_spans: Vec<Vec<(u8, u8, u8, String)>>,
     pub scroll_offset: usize,
+    pub horizontal_offset: usize,
     pub total_lines: usize,
     pub file_size: u64,
     pub mime_type: String,
@@ -114,6 +144,11 @@ pub struct AppState {
     pub show_preview: bool,
     pub show_terminal: bool,
     pub show_monitor: bool,
+    pub dual_pane_enabled: bool,
+    pub active_pane: ActivePane,
+    pub explorer_secondary: ExplorerState,
+    pub git_status: GitRepoStatus,
+    pub workspace: Workspace,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,15 +168,26 @@ impl AppState {
         let start_dir = std::env::current_dir()
             .unwrap_or_else(|_| dirs::home_dir().unwrap_or_else(|| PathBuf::from("/")));
 
+        let workspace = Workspace::from_dir(&start_dir);
+        let git_status = GitRepoStatus::query(&start_dir);
+
         Self {
             config,
             mode: AppMode::default(),
             focused: FocusedPanel::default(),
             sidebar: SidebarState::default(),
             explorer: ExplorerState {
+                current_dir: start_dir.clone(),
+                ..Default::default()
+            },
+            dual_pane_enabled: false,
+            active_pane: ActivePane::Primary,
+            explorer_secondary: ExplorerState {
                 current_dir: start_dir,
                 ..Default::default()
             },
+            git_status,
+            workspace,
             preview: PreviewState::default(),
             recent_dirs: RecentDirs::default(),
             modal_input: String::new(),
@@ -163,14 +209,31 @@ impl AppState {
         self.status_message = None;
     }
 
+    pub fn active_explorer(&self) -> &ExplorerState {
+        if self.dual_pane_enabled && self.active_pane == ActivePane::Secondary {
+            &self.explorer_secondary
+        } else {
+            &self.explorer
+        }
+    }
+
+    pub fn active_explorer_mut(&mut self) -> &mut ExplorerState {
+        if self.dual_pane_enabled && self.active_pane == ActivePane::Secondary {
+            &mut self.explorer_secondary
+        } else {
+            &mut self.explorer
+        }
+    }
+
     /// Return the currently highlighted entry (if any).
     pub fn selected_entry(&self) -> Option<&crate::filesystem::browser::DirEntry> {
-        self.explorer.entries.get(self.explorer.selected_index)
+        let exp = self.active_explorer();
+        exp.entries.get(exp.selected_index)
     }
 
     /// Return the full path of the currently highlighted entry.
     pub fn selected_path(&self) -> Option<PathBuf> {
-        self.selected_entry()
-            .map(|e| self.explorer.current_dir.join(&e.name))
+        let exp = self.active_explorer();
+        self.selected_entry().map(|e| exp.current_dir.join(&e.name))
     }
 }

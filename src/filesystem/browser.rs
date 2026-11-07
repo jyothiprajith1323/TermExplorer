@@ -32,6 +32,10 @@ impl SortOrder {
         }
     }
 
+    pub fn next(self) -> Self {
+        self.cycle()
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             SortOrder::Name => "Name ▲",

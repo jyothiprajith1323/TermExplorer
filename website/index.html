@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TermExplorer — Modern Terminal-Based Developer Workspace in Rust</title>
+  <meta name="description" content="A blazing fast, keyboard-driven Linux developer environment combining a file explorer, code editor, embedded terminal, resource monitor, and multi-format preview engine in pure Rust.">
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <span>⚡</span> TermExplorer
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html" class="active">Overview</a></li>
+        <li><a href="features.html">Features</a></li>
+        <li><a href="docs.html">Documentation</a></li>
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="roadmap.html">Roadmap</a></li>
+        <li><a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-btn">GitHub ⭐</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero container">
+    <div class="badge">🚀 TermExplorer v0.1.0 Released — Native Ubuntu & Linux</div>
+    <h1>Your terminal. Your workspace.<br><span style="color: var(--accent-cyan);">Your rules.</span></h1>
+    <p>
+      A high-performance, keyboard-driven Linux developer environment written in pure Rust.
+      Combines a dual-pane file explorer, code editor, interactive PTY terminal, live system monitor,
+      and universal multi-format preview engine into one unified TUI.
+    </p>
+
+    <div class="hero-cta">
+      <a href="docs.html" class="btn-primary">Get Started &rarr;</a>
+      <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="btn-secondary">View on GitHub</a>
+    </div>
+
+    <!-- Quick Install Command -->
+    <div class="install-box">
+      <span class="prompt">$</span>
+      <span id="cargo-install-cmd">cargo install --git https://github.com/jyothiprajith1323/TermExplorer.git</span>
+      <button class="copy-btn" data-clipboard-target="cargo-install-cmd">Copy</button>
+    </div>
+
+    <!-- Live Terminal Simulation Preview -->
+    <div class="terminal-window">
+      <div class="terminal-header">
+        <div class="terminal-controls">
+          <div class="terminal-circle close-btn"></div>
+          <div class="terminal-circle min-btn"></div>
+          <div class="terminal-circle max-btn"></div>
+        </div>
+        <div class="terminal-title">TermExplorer v0.1.0 — ~/Projects/TermExplorer (master*)</div>
+        <div style="font-size: 0.75rem; color: #64748b;">CPU: 8% | RAM: 3.2G</div>
+      </div>
+      <div class="terminal-body"><span style="color: #6366f1;">┌── SIDEBAR [1] ────┐</span><span style="color: #38bdf8;">┌── FILE EXPLORER [2] ────────────┐</span><span style="color: #c084fc;">┌── PREVIEW [3] [Preview | Info | Hex | Actions] ─┐</span>
+│ <span style="color: #facc15;">★ BOOKMARKS</span>       │ <span style="color: #64748b;">Size</span>   <span style="color: #64748b;">Modified</span>   <span style="color: #64748b;">Name</span>          │ <span style="color: #34d399;">Type:</span> Rust Source File (14.2 KB)                 │
+│   <span style="color: #38bdf8;">~</span> Home          │ <span style="color: #64748b;">DIR</span>    <span style="color: #64748b;">10:14:02</span>   <span style="color: #38bdf8;">src/</span>          │ <span style="color: #6366f1;">1</span> <span style="color: #f87171;">use</span> anyhow::Result;                            │
+│   <span style="color: #38bdf8;">~/Projects</span>      │ <span style="color: #64748b;">DIR</span>    <span style="color: #64748b;">09:45:11</span>   <span style="color: #38bdf8;">tests/</span>        │ <span style="color: #6366f1;">2</span> <span style="color: #f87171;">use</span> ratatui::widgets::Paragraph;               │
+│ <span style="color: #38bdf8;">📁 WORKSPACES</span>     │ 2.4 KB <span style="color: #64748b;">11:02:30</span>   Cargo.toml    │ <span style="color: #6366f1;">3</span>                                                │
+│   TermExplorer    │ 12.1KB <span style="color: #64748b;">11:02:30</span>   README.md     │ <span style="color: #6366f1;">4</span> <span style="color: #fb923c;">#[derive(Debug, Clone)]</span>                        │
+│   IronKV          │<span style="background-color: #1e293b; color: #fff;"> 14.2KB 11:05:12 ▶ main.rs       </span>│ <span style="color: #6366f1;">5</span> <span style="color: #f87171;">pub struct</span> <span style="color: #facc15;">AppEngine</span> {                     │
+│ <span style="color: #34d399;">⚙ SETTINGS</span>        │  1.1KB <span style="color: #64748b;">08:12:00</span>   build.rs      │ <span style="color: #6366f1;">6</span>     <span style="color: #38bdf8;">pub terminal:</span> TerminalSession,             │
+│   F10 Studio      │                       │ <span style="color: #6366f1;">7</span> }                                              │
+├───────────────────┴───────────────────────┴──────────────────────────────────────────────────┤
+│ <span style="color: #38bdf8;">termexplorer:~/Projects/TermExplorer$</span> cargo test --all-targets                               │
+│    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.45s                      │
+│     Running 8 integration test suites: 42 passed, 0 failed, 0 warnings                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+ <span style="background-color: #38bdf8; color: #000; font-weight: bold;"> NORMAL </span> <span style="color: #cbd5e1;">~/Projects/TermExplorer/src/main.rs</span> | <span style="color: #34d399;">Git: master*</span> | <span style="color: #a855f7;">F1:Help</span> <span style="color: #38bdf8;">F7:Dual-Pane</span> <span style="color: #fb923c;">F10:Settings</span> <span style="color: #ef4444;">q:Quit</span></div>
+    </div>
+  </section>
+
+  <!-- Performance Stats -->
+  <section class="container">
+    <div class="stats-banner">
+      <div class="stat-item">
+        <h4>&lt; 15 ms</h4>
+        <p>Cold Startup Time</p>
+      </div>
+      <div class="stat-item">
+        <h4>12+ Formats</h4>
+        <p>Universal Previews</p>
+      </div>
+      <div class="stat-item">
+        <h4>12 Themes</h4>
+        <p>Built-in & Transparent</p>
+      </div>
+      <div class="stat-item">
+        <h4>100%</h4>
+        <p>Pure Safe Rust</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Pillars -->
+  <section class="container">
+    <h2 style="font-size: 2rem; text-align: center; margin-bottom: 0.5rem;">Engineered for Developer Productivity</h2>
+    <p style="text-align: center; color: var(--text-muted); margin-bottom: 2.5rem;">Everything you need to navigate, edit, execute, and monitor without leaving your terminal.</p>
+
+    <div class="features-grid">
+      <div class="card">
+        <span class="card-icon">👁️</span>
+        <h3>Universal Preview Engine</h3>
+        <p>Preview source code with syntax highlighting, Markdown with formatted tables, images with 24-bit half-blocks, videos with frame extract, PDFs, pure-Rust Office docs, CSV/TSV, and SQLite databases.</p>
+      </div>
+
+      <div class="card">
+        <span class="card-icon">⚡</span>
+        <h3>Dual-Pane Explorer & FreeDesktop Trash</h3>
+        <p>Side-by-side dual panes (<kbd>F7</kbd>) for seamless cross-pane transfers. Integrated with FreeDesktop Trash (<kbd>d</kbd>) to keep deletions reversible, plus bookmarks and bookmarks manager.</p>
+      </div>
+
+      <div class="card">
+        <span class="card-icon">💻</span>
+        <h3>Embedded Interactive PTY Terminal</h3>
+        <p>Real pseudo-terminal (<kbd>`</kbd>) powered by <code>portable-pty</code> with full ANSI support, terminal multiplexer compatibility, non-blocking I/O, and job control.</p>
+      </div>
+
+      <div class="card">
+        <span class="card-icon">🎛️</span>
+        <h3>Interactive Settings Studio</h3>
+        <p>Full-screen configuration studio (<kbd>F10</kbd>) with 15 sections, real-time preview, keybinding conflict detector, 6 pre-tuned profiles, and automatic backup recovery.</p>
+      </div>
+
+      <div class="card">
+        <span class="card-icon">🎨</span>
+        <h3>12 Built-in Themes & Transparency</h3>
+        <p>Catppuccin, Dracula, Nord, Gruvbox, Tokyo Night, Solarized, and more. Full terminal background inheritance support for seamless integration with your favorite terminal emulator.</p>
+      </div>
+
+      <div class="card">
+        <span class="card-icon">📊</span>
+        <h3>Live Resource Monitor & Git Dashboard</h3>
+        <p>Per-core CPU utilization, real-time memory usage, top process explorer, and Git integration (<kbd>g</kbd>) for staging, diffing, and commits right from your workspace.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div>
+        <strong>TermExplorer</strong> — Released under the MIT License.<br>
+        Crafted with modern Rust for the Linux developer community.
+      </div>
+      <div>
+        <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank">GitHub</a> &bull;
+        <a href="docs.html">Docs</a> &bull;
+        <a href="features.html">Features</a> &bull;
+        <a href="architecture.html">Architecture</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

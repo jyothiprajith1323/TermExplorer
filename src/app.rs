@@ -9,24 +9,28 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 use crate::{
+    commands::CommandRegistry,
     config::Config,
     editor::{auto_pair, buffer::Buffer},
     events::{start_event_loop, AppEvent},
-    filesystem::{
-        browser::list_dir,
-        metadata::{get_metadata, is_binary},
-        operations,
-    },
+    filesystem::{browser::list_dir, operations},
+    git::GitRepoStatus,
     monitor::{Monitor, MonitorSnapshot},
+    preview::{PreviewManager, PreviewTab},
+    settings::{get_section_items, ProfileKind, SettingsPersistence, SettingsSection},
     shell::{input::key_to_pty_bytes, TerminalSession},
-    state::{AppMode, AppState, FocusedPanel, ModalKind, SidebarSection, StatusKind},
+    state::{ActivePane, AppMode, AppState, FocusedPanel, ModalKind, SidebarSection, StatusKind},
     theme::Theme,
     ui::{
+        command_palette::render_command_palette,
         editor::render_editor,
-        file_explorer::render_file_explorer,
+        file_explorer::{render_file_explorer, render_secondary_explorer},
+        git_panel::render_git_panel,
         help::render_help,
         layout::{compute_layout, LayoutConfig},
+        onboarding::{render_onboarding, OnboardingStep},
         preview::render_preview,
+        settings::render_settings_studio,
         sidebar::render_sidebar,
         status_bar::render_status_bar,
         system_monitor::render_system_monitor,
@@ -39,6 +43,7 @@ use crate::{
 pub struct App {
     state: AppState,
     theme: Theme,
+    preview_manager: PreviewManager,
     editor_buf: Option<Buffer>,
     terminal_session: Option<TerminalSession>,
     monitor: Monitor,
@@ -52,7 +57,8 @@ pub struct App {
 
 impl App {
     pub async fn new(config: Config) -> Result<Self> {
-        let theme = Theme::dark();
+        let theme = Theme::from_name(&config.theme.name, config.theme.transparent_background);
+        let max_preview_bytes = config.max_preview_bytes;
         let mut state = AppState::new(config);
 
         // Initial directory load.
@@ -73,6 +79,7 @@ impl App {
         Ok(Self {
             state,
             theme,
+            preview_manager: PreviewManager::new(max_preview_bytes),
             editor_buf: None,
             terminal_session: None,
             monitor: Monitor::new(),
@@ -186,6 +193,7 @@ impl App {
                 show_sidebar: state.show_sidebar,
                 show_preview: state.show_preview,
                 show_bottom,
+                dual_pane: state.dual_pane_enabled,
                 sidebar_pct: state.config.sidebar_width,
                 preview_pct: state.config.preview_width,
                 bottom_height,
@@ -217,6 +225,11 @@ impl App {
             // ── File explorer ─────────────────────────────────────────────
             render_file_explorer(frame, areas.explorer, state, theme);
 
+            // ── Dual Pane Secondary Explorer ──────────────────────────────
+            if let Some(sec_area) = areas.explorer_secondary {
+                render_secondary_explorer(frame, sec_area, state, theme);
+            }
+
             // ── Preview ───────────────────────────────────────────────────
             if let Some(prev_area) = areas.preview {
                 render_preview(frame, prev_area, state, theme);
@@ -244,6 +257,40 @@ impl App {
             // ── Modal dialog ──────────────────────────────────────────────
             if let AppMode::Modal(kind) = &state.mode {
                 render_modal(frame, area, kind, &state.modal_input, theme);
+            }
+
+            // ── Interactive Settings Studio ───────────────────────────────
+            if let AppMode::SettingsStudio {
+                section_idx,
+                item_idx,
+                in_items,
+            } = state.mode
+            {
+                render_settings_studio(frame, area, state, theme, section_idx, item_idx, in_items);
+            }
+
+            // ── Floating Command Palette ──────────────────────────────────
+            if let AppMode::CommandPalette {
+                query,
+                selected_idx,
+            } = &state.mode
+            {
+                let items = CommandRegistry::search(query);
+                render_command_palette(frame, area, query, &items, *selected_idx, theme);
+            }
+
+            // ── Git Dashboard ─────────────────────────────────────────────
+            if let AppMode::GitDashboard { selected_idx } = state.mode {
+                render_git_panel(frame, area, &state.git_status, selected_idx, theme);
+            }
+
+            // ── Onboarding Wizard ─────────────────────────────────────────
+            if let AppMode::Onboarding {
+                step,
+                selected_option,
+            } = state.mode
+            {
+                render_onboarding(frame, area, step, selected_option, theme);
             }
         })?;
 
@@ -334,6 +381,7 @@ impl App {
             Some(p) => p,
             None => {
                 self.state.preview.path = None;
+                self.state.preview.full_data = None;
                 return;
             }
         };
@@ -345,58 +393,38 @@ impl App {
             self.state.preview.highlighted_spans.clear();
             self.state.preview.is_binary = false;
             self.state.preview.total_lines = 1;
+            self.state.preview.full_data = None;
             return;
         }
 
-        let max_bytes = self.state.config.max_preview_bytes;
+        let full_data =
+            self.preview_manager
+                .load_file(&path, self.state.preview.active_tab, 60, 30);
 
-        // Read file (with size limit).
-        let content = match std::fs::metadata(&path) {
-            Ok(meta) if meta.len() > max_bytes => {
-                let mut f = match std::fs::File::open(&path) {
-                    Ok(f) => f,
-                    Err(_) => {
-                        self.state.preview.is_binary = false;
-                        self.state.preview.lines = vec!["  (unreadable)".to_string()];
-                        return;
-                    }
-                };
-                let mut buf = vec![0u8; max_bytes as usize];
-                use std::io::Read;
-                let _ = f.read(&mut buf);
-                buf
-            }
-            Ok(_) => std::fs::read(&path).unwrap_or_default(),
-            Err(_) => {
-                self.state.preview.is_binary = false;
-                self.state.preview.lines = vec!["  (unreadable)".to_string()];
-                return;
-            }
-        };
+        self.state.preview.file_size = full_data
+            .metadata
+            .as_ref()
+            .map(|m| m.size_bytes)
+            .unwrap_or(0);
+        self.state.preview.mime_type = full_data.format_info.mime_type.clone();
+        self.state.preview.is_binary = full_data.format_info.is_binary;
 
-        // Check for binary.
-        if is_binary(&content) {
-            self.state.preview.is_binary = true;
+        if let Some(src) = &full_data.source {
+            self.state.preview.lines = src.lines.clone();
+            self.state.preview.highlighted_spans = src.highlighted_spans.clone();
+            self.state.preview.total_lines = src.total_lines;
+        } else if let Some(md) = &full_data.markdown {
+            self.state.preview.lines = md.formatted_lines.clone();
             self.state.preview.highlighted_spans.clear();
-            self.state.preview.file_size = content.len() as u64;
-            if let Ok(meta) = get_metadata(&path) {
-                self.state.preview.mime_type = meta.mime_guess;
-                self.state.preview.file_size = meta.size_bytes;
-            }
-            return;
+            self.state.preview.total_lines = md.total_lines;
+        } else {
+            self.state.preview.lines.clear();
+            self.state.preview.highlighted_spans.clear();
+            self.state.preview.total_lines = 0;
         }
 
-        self.state.preview.is_binary = false;
-        let text = String::from_utf8_lossy(&content).to_string();
-        self.state.preview.lines = text.lines().map(|l| l.to_string()).collect();
-        self.state.preview.highlighted_spans = crate::editor::syntax::highlight_file(&path, &text);
-        self.state.preview.total_lines = self.state.preview.lines.len();
+        self.state.preview.full_data = Some(full_data);
         self.state.preview.scroll_offset = 0;
-
-        if let Ok(meta) = get_metadata(&path) {
-            self.state.preview.mime_type = meta.mime_guess;
-            self.state.preview.file_size = meta.size_bytes;
-        }
     }
 
     // ── Terminal session ──────────────────────────────────────────────────────
@@ -449,6 +477,26 @@ impl App {
             return self.handle_search_key(key).await;
         }
 
+        // ── Interactive Settings Studio ───────────────────────────────────
+        if matches!(self.state.mode, AppMode::SettingsStudio { .. }) {
+            return self.handle_settings_key(key).await;
+        }
+
+        // ── Floating Command Palette ──────────────────────────────────────
+        if matches!(self.state.mode, AppMode::CommandPalette { .. }) {
+            return self.handle_command_palette_key(key).await;
+        }
+
+        // ── Git Dashboard ─────────────────────────────────────────────────
+        if matches!(self.state.mode, AppMode::GitDashboard { .. }) {
+            return self.handle_git_dashboard_key(key).await;
+        }
+
+        // ── Onboarding Wizard ─────────────────────────────────────────────
+        if matches!(self.state.mode, AppMode::Onboarding { .. }) {
+            return self.handle_onboarding_key(key).await;
+        }
+
         // ── Global shortcuts (always active) ──────────────────────────────
         match (key.modifiers, key.code) {
             (KeyModifiers::CONTROL, KeyCode::Char('q')) => return Ok(true),
@@ -456,11 +504,30 @@ impl App {
                 self.state.show_sidebar = !self.state.show_sidebar;
                 return Ok(false);
             }
-            (KeyModifiers::CONTROL, KeyCode::Char('`')) => {
+            (KeyModifiers::CONTROL, KeyCode::Char('`'))
+            | (KeyModifiers::CONTROL, KeyCode::Char('t')) => {
                 self.toggle_terminal();
                 return Ok(false);
             }
+            (KeyModifiers::CONTROL, KeyCode::Char('p')) => {
+                self.state.mode = AppMode::CommandPalette {
+                    query: String::new(),
+                    selected_idx: 0,
+                };
+                return Ok(false);
+            }
             _ => {}
+        }
+
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.modifiers.contains(KeyModifiers::SHIFT)
+            && key.code == KeyCode::Char('P')
+        {
+            self.state.mode = AppMode::CommandPalette {
+                query: String::new(),
+                selected_idx: 0,
+            };
+            return Ok(false);
         }
 
         match key.code {
@@ -472,6 +539,18 @@ impl App {
                 }
             }
             KeyCode::F(6) => self.toggle_monitor(),
+            KeyCode::F(7) => {
+                self.toggle_dual_pane().await;
+                return Ok(false);
+            }
+            KeyCode::F(10) => {
+                self.state.mode = AppMode::SettingsStudio {
+                    section_idx: 0,
+                    item_idx: 0,
+                    in_items: false,
+                };
+                return Ok(false);
+            }
             KeyCode::Esc => {
                 self.state.mode = AppMode::Browse;
                 self.state.search_query.clear();
@@ -486,7 +565,21 @@ impl App {
 
         // ── Focus switching with Tab / arrow keys ─────────────────────────
         match key.code {
-            KeyCode::Tab => self.cycle_focus(),
+            KeyCode::Tab => {
+                if self.state.dual_pane_enabled {
+                    if self.state.focused == FocusedPanel::Explorer {
+                        self.state.focused = FocusedPanel::ExplorerSecondary;
+                        self.state.active_pane = ActivePane::Secondary;
+                    } else if self.state.focused == FocusedPanel::ExplorerSecondary {
+                        self.state.focused = FocusedPanel::Explorer;
+                        self.state.active_pane = ActivePane::Primary;
+                    } else {
+                        self.cycle_focus();
+                    }
+                } else {
+                    self.cycle_focus();
+                }
+            }
             KeyCode::BackTab => self.cycle_focus_back(),
             _ => {}
         }
@@ -496,11 +589,11 @@ impl App {
             FocusedPanel::Sidebar => {
                 self.handle_sidebar_key(key).await?;
             }
-            FocusedPanel::Explorer => {
+            FocusedPanel::Explorer | FocusedPanel::ExplorerSecondary => {
                 self.handle_explorer_key(key).await?;
             }
             FocusedPanel::Preview => {
-                self.handle_preview_key(key);
+                self.handle_preview_key(key).await?;
             }
             _ => {}
         }
@@ -1036,14 +1129,14 @@ impl App {
         Ok(())
     }
 
-    fn handle_preview_key(&mut self, key: KeyEvent) {
+    async fn handle_preview_key(&mut self, key: KeyEvent) -> Result<()> {
         match key.code {
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 if self.state.preview.scroll_offset > 0 {
                     self.state.preview.scroll_offset -= 1;
                 }
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 let max = self.state.preview.total_lines.saturating_sub(1);
                 if self.state.preview.scroll_offset < max {
                     self.state.preview.scroll_offset += 1;
@@ -1057,8 +1150,581 @@ impl App {
                 let max = self.state.preview.total_lines.saturating_sub(1);
                 self.state.preview.scroll_offset = (self.state.preview.scroll_offset + 20).min(max);
             }
+            KeyCode::Char('[') | KeyCode::Left => {
+                self.state.preview.active_tab = match self.state.preview.active_tab {
+                    PreviewTab::Preview => PreviewTab::Actions,
+                    PreviewTab::Information => PreviewTab::Preview,
+                    PreviewTab::Hex => PreviewTab::Information,
+                    PreviewTab::Actions => PreviewTab::Hex,
+                };
+                self.update_preview().await;
+            }
+            KeyCode::Char(']') | KeyCode::Right => {
+                self.state.preview.active_tab = match self.state.preview.active_tab {
+                    PreviewTab::Preview => PreviewTab::Information,
+                    PreviewTab::Information => PreviewTab::Hex,
+                    PreviewTab::Hex => PreviewTab::Actions,
+                    PreviewTab::Actions => PreviewTab::Preview,
+                };
+                self.update_preview().await;
+            }
+            KeyCode::Char(c @ '1'..='9')
+                if self.state.preview.active_tab == PreviewTab::Actions =>
+            {
+                let idx = (c as u8 - b'1') as usize;
+                self.execute_preview_action(idx).await;
+            }
             _ => {}
         }
+        Ok(())
+    }
+
+    async fn execute_preview_action(&mut self, idx: usize) {
+        let Some(data) = &self.state.preview.full_data else {
+            return;
+        };
+        let Some(action) = data.actions.get(idx) else {
+            return;
+        };
+        let path = self.state.preview.path.clone();
+        let Some(path) = path else {
+            return;
+        };
+
+        match action.command {
+            "xdg-open" => {
+                let _ = std::process::Command::new("xdg-open").arg(&path).spawn();
+                self.state.set_status(
+                    format!("Launched xdg-open on {}", path.display()),
+                    StatusKind::Success,
+                );
+            }
+            "edit" => {
+                if path.is_file() {
+                    match Buffer::from_file(path) {
+                        Ok(buf) => {
+                            self.editor_buf = Some(buf);
+                            self.state.mode = AppMode::Edit;
+                            self.state.focused = FocusedPanel::Editor;
+                        }
+                        Err(e) => {
+                            self.state
+                                .set_status(format!("Cannot edit: {e}"), StatusKind::Error);
+                        }
+                    }
+                }
+            }
+            "copy_path" => {
+                self.state
+                    .set_status(format!("Path: {}", path.display()), StatusKind::Info);
+            }
+            "extract" => {
+                let target = path
+                    .parent()
+                    .unwrap_or(&path)
+                    .join(path.file_stem().unwrap_or_default());
+                if let Some(arch) = &data.archive {
+                    match arch.extract_all(&path, &target) {
+                        Ok(n) => self.state.set_status(
+                            format!("Extracted {} items to {}", n, target.display()),
+                            StatusKind::Success,
+                        ),
+                        Err(e) => self
+                            .state
+                            .set_status(format!("Extraction error: {}", e), StatusKind::Error),
+                    }
+                    self.refresh_dir().await;
+                }
+            }
+            "play_mpv" => {
+                let _ = std::process::Command::new("mpv")
+                    .arg("--no-video")
+                    .arg(&path)
+                    .spawn();
+                self.state.set_status(
+                    format!("Streaming audio with mpv: {}", path.display()),
+                    StatusKind::Success,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    async fn toggle_dual_pane(&mut self) {
+        self.state.dual_pane_enabled = !self.state.dual_pane_enabled;
+        if self.state.dual_pane_enabled {
+            if self.state.explorer_secondary.entries.is_empty() {
+                let entries = list_dir(
+                    &self.state.explorer_secondary.current_dir.clone(),
+                    self.state.config.show_hidden,
+                    self.state.explorer_secondary.sort_order,
+                )
+                .unwrap_or_default();
+                self.state.explorer_secondary.entries = entries;
+            }
+            self.state.set_status(
+                "Dual-Pane mode enabled (Tab switches active pane)",
+                StatusKind::Success,
+            );
+        } else {
+            self.state.active_pane = ActivePane::Primary;
+            self.state.focused = FocusedPanel::Explorer;
+            self.state
+                .set_status("Dual-Pane mode disabled", StatusKind::Info);
+        }
+    }
+
+    async fn handle_settings_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let (mut section_idx, mut item_idx, mut in_items) = match self.state.mode {
+            AppMode::SettingsStudio {
+                section_idx,
+                item_idx,
+                in_items,
+            } => (section_idx, item_idx, in_items),
+            _ => return Ok(false),
+        };
+
+        match key.code {
+            KeyCode::Esc | KeyCode::F(10) => {
+                let _ = SettingsPersistence::save_with_backup(&self.state.config);
+                self.state.mode = AppMode::Browse;
+                self.state
+                    .set_status("Settings saved successfully", StatusKind::Success);
+                return Ok(false);
+            }
+            KeyCode::Tab => {
+                in_items = !in_items;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if !in_items {
+                    if section_idx > 0 {
+                        section_idx -= 1;
+                        item_idx = 0;
+                    }
+                } else {
+                    item_idx = item_idx.saturating_sub(1);
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if !in_items {
+                    if section_idx + 1 < SettingsSection::ALL.len() {
+                        section_idx += 1;
+                        item_idx = 0;
+                    }
+                } else {
+                    let sec = SettingsSection::ALL[section_idx];
+                    let count = get_section_items(sec, &self.state.config).len();
+                    if item_idx + 1 < count {
+                        item_idx += 1;
+                    }
+                }
+            }
+            KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Left | KeyCode::Right => {
+                let sec = SettingsSection::ALL[section_idx];
+                let items = get_section_items(sec, &self.state.config);
+                if let Some(item) = items.get(item_idx) {
+                    match item.key {
+                        "transparent_bg" => {
+                            self.state.config.theme.transparent_background =
+                                !self.state.config.theme.transparent_background;
+                            self.theme = Theme::from_name(
+                                &self.state.config.theme.name,
+                                self.state.config.theme.transparent_background,
+                            );
+                        }
+                        "theme" => {
+                            let themes = Theme::list_themes();
+                            let curr = themes
+                                .iter()
+                                .position(|t| {
+                                    t.0.eq_ignore_ascii_case(&self.state.config.theme.name)
+                                })
+                                .unwrap_or(0);
+                            let next = if key.code == KeyCode::Left {
+                                if curr == 0 {
+                                    themes.len() - 1
+                                } else {
+                                    curr - 1
+                                }
+                            } else {
+                                (curr + 1) % themes.len()
+                            };
+                            let new_theme_name = themes[next].0;
+                            self.state.config.theme.name = new_theme_name.to_string();
+                            self.theme = Theme::from_name(
+                                new_theme_name,
+                                self.state.config.theme.transparent_background,
+                            );
+                        }
+                        "show_hidden" => {
+                            self.state.config.show_hidden = !self.state.config.show_hidden;
+                            self.refresh_dir().await;
+                        }
+                        "auto_pair" => {
+                            self.state.config.editor.auto_pair =
+                                !self.state.config.editor.auto_pair;
+                        }
+                        "line_numbers" => {
+                            self.state.config.editor.line_numbers =
+                                !self.state.config.editor.line_numbers;
+                        }
+                        "show_completion" => {
+                            self.state.config.editor.show_completion =
+                                !self.state.config.editor.show_completion;
+                        }
+                        "tab_width" => {
+                            self.state.config.editor.tab_width =
+                                match self.state.config.editor.tab_width {
+                                    2 => 4,
+                                    4 => 8,
+                                    _ => 2,
+                                };
+                        }
+                        "sidebar_width" => {
+                            if key.code == KeyCode::Left {
+                                self.state.config.sidebar_width =
+                                    self.state.config.sidebar_width.saturating_sub(2).max(12);
+                            } else {
+                                self.state.config.sidebar_width =
+                                    (self.state.config.sidebar_width + 2).min(40);
+                            }
+                        }
+                        "preview_width" => {
+                            if key.code == KeyCode::Left {
+                                self.state.config.preview_width =
+                                    self.state.config.preview_width.saturating_sub(5).max(20);
+                            } else {
+                                self.state.config.preview_width =
+                                    (self.state.config.preview_width + 5).min(60);
+                            }
+                        }
+                        "profile_preset" => {
+                            let profiles = ProfileKind::ALL;
+                            let next = (item_idx + 1) % profiles.len();
+                            profiles[next].apply_to_config(&mut self.state.config);
+                            self.state.show_sidebar = self.state.config.show_sidebar;
+                            self.state.show_preview = self.state.config.show_preview;
+                            self.state.show_terminal = self.state.config.show_terminal;
+                            self.state.show_monitor = self.state.config.show_monitor;
+                        }
+                        _ => {}
+                    }
+                    let _ = self.state.config.save();
+                }
+            }
+            _ => {}
+        }
+
+        self.state.mode = AppMode::SettingsStudio {
+            section_idx,
+            item_idx,
+            in_items,
+        };
+        Ok(false)
+    }
+
+    async fn handle_command_palette_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let (mut query, mut selected_idx) = match &self.state.mode {
+            AppMode::CommandPalette {
+                query,
+                selected_idx,
+            } => (query.clone(), *selected_idx),
+            _ => return Ok(false),
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.state.mode = AppMode::Browse;
+                return Ok(false);
+            }
+            KeyCode::Enter => {
+                let items = CommandRegistry::search(&query);
+                if let Some(cmd) = items.get(selected_idx) {
+                    let id = cmd.id;
+                    self.state.mode = AppMode::Browse;
+                    self.execute_palette_command(id).await;
+                    return Ok(false);
+                }
+                self.state.mode = AppMode::Browse;
+                return Ok(false);
+            }
+            KeyCode::Up => {
+                selected_idx = selected_idx.saturating_sub(1);
+            }
+            KeyCode::Down => {
+                let count = CommandRegistry::search(&query).len();
+                if selected_idx + 1 < count {
+                    selected_idx += 1;
+                }
+            }
+            KeyCode::Backspace => {
+                query.pop();
+                selected_idx = 0;
+            }
+            KeyCode::Char(c) => {
+                query.push(c);
+                selected_idx = 0;
+            }
+            _ => {}
+        }
+
+        self.state.mode = AppMode::CommandPalette {
+            query,
+            selected_idx,
+        };
+        Ok(false)
+    }
+
+    async fn execute_palette_command(&mut self, id: &str) {
+        match id {
+            "toggle_dual_pane" => self.toggle_dual_pane().await,
+            "open_settings" => {
+                self.state.mode = AppMode::SettingsStudio {
+                    section_idx: 0,
+                    item_idx: 0,
+                    in_items: false,
+                };
+            }
+            "open_help" => self.state.mode = AppMode::Help,
+            "toggle_hidden" => {
+                self.state.config.show_hidden = !self.state.config.show_hidden;
+                self.refresh_dir().await;
+            }
+            "cycle_sort" => {
+                self.state.explorer.sort_order = self.state.explorer.sort_order.next();
+                self.refresh_dir().await;
+            }
+            "new_file" => {
+                self.state.mode = AppMode::Modal(ModalKind::NewFile);
+                self.state.modal_input.clear();
+            }
+            "new_dir" => {
+                self.state.mode = AppMode::Modal(ModalKind::NewDir);
+                self.state.modal_input.clear();
+            }
+            "refresh_view" => self.refresh_dir().await,
+            "toggle_terminal" => self.toggle_terminal(),
+            "toggle_monitor" => self.toggle_monitor(),
+            "toggle_sidebar" => self.state.show_sidebar = !self.state.show_sidebar,
+            "toggle_preview" => self.state.show_preview = !self.state.show_preview,
+            id if id.starts_with("theme_") => {
+                let theme_name = match id {
+                    "theme_catppuccin_mocha" => "Catppuccin Mocha",
+                    "theme_catppuccin_macchiato" => "Catppuccin Macchiato",
+                    "theme_dracula" => "Dracula",
+                    "theme_nord" => "Nord",
+                    "theme_gruvbox" => "Gruvbox",
+                    "theme_tokyo_night" => "Tokyo Night",
+                    "theme_one_dark" => "One Dark",
+                    "theme_solarized_dark" => "Solarized Dark",
+                    "theme_solarized_light" => "Solarized Light",
+                    "theme_monokai" => "Monokai",
+                    "theme_default_light" => "Default Light",
+                    _ => "Default Dark",
+                };
+                self.theme =
+                    Theme::from_name(theme_name, self.state.config.theme.transparent_background);
+                self.state.config.theme.name = theme_name.to_string();
+                let _ = self.state.config.save();
+                self.state.set_status(
+                    format!("Theme switched to {}", theme_name),
+                    StatusKind::Success,
+                );
+            }
+            id if id.starts_with("profile_") => {
+                let profile = match id {
+                    "profile_developer" => ProfileKind::Developer,
+                    "profile_minimal" => ProfileKind::Minimal,
+                    "profile_terminal" => ProfileKind::TerminalPowerUser,
+                    "profile_monitor" => ProfileKind::Monitoring,
+                    _ => ProfileKind::Default,
+                };
+                profile.apply_to_config(&mut self.state.config);
+                self.state.show_sidebar = self.state.config.show_sidebar;
+                self.state.show_preview = self.state.config.show_preview;
+                self.state.show_terminal = self.state.config.show_terminal;
+                self.state.show_monitor = self.state.config.show_monitor;
+                if self.state.show_terminal {
+                    self.start_terminal_session();
+                }
+                let _ = self.state.config.save();
+                self.state.set_status(
+                    format!("Applied profile: {}", profile.name()),
+                    StatusKind::Success,
+                );
+            }
+            "git_panel" => {
+                self.state.git_status = GitRepoStatus::query(&self.state.explorer.current_dir);
+                self.state.mode = AppMode::GitDashboard { selected_idx: 0 };
+            }
+            "git_status" => {
+                self.state.git_status = GitRepoStatus::query(&self.state.explorer.current_dir);
+                let msg = if self.state.git_status.is_dirty {
+                    format!(
+                        "Git ({}): Working directory has unstaged/modified changes",
+                        self.state.git_status.branch
+                    )
+                } else {
+                    format!("Git ({}): Clean working tree", self.state.git_status.branch)
+                };
+                self.state.set_status(msg, StatusKind::Info);
+            }
+            "action_vscode" => {
+                let _ = std::process::Command::new("code")
+                    .arg(&self.state.explorer.current_dir)
+                    .spawn();
+                self.state
+                    .set_status("Launched VS Code", StatusKind::Success);
+            }
+            "action_cargo_test" => {
+                if let Some(session) = &mut self.terminal_session {
+                    let _ = session.send_input(b"cargo test\n");
+                    self.state.show_terminal = true;
+                    self.state.focused = FocusedPanel::Terminal;
+                }
+            }
+            "action_cargo_build" => {
+                if let Some(session) = &mut self.terminal_session {
+                    let _ = session.send_input(b"cargo build\n");
+                    self.state.show_terminal = true;
+                    self.state.focused = FocusedPanel::Terminal;
+                }
+            }
+            "action_open_terminal" => {
+                let _ = std::process::Command::new("x-terminal-emulator")
+                    .current_dir(&self.state.explorer.current_dir)
+                    .spawn();
+                self.state
+                    .set_status("Launched external terminal", StatusKind::Success);
+            }
+            _ => {}
+        }
+    }
+
+    async fn handle_git_dashboard_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let mut selected_idx = match self.state.mode {
+            AppMode::GitDashboard { selected_idx } => selected_idx,
+            _ => return Ok(false),
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.state.mode = AppMode::Browse;
+            }
+            KeyCode::Up => {
+                selected_idx = selected_idx.saturating_sub(1);
+            }
+            KeyCode::Down => {
+                let count = self.state.git_status.staged_files.len().max(1);
+                if selected_idx + 1 < count {
+                    selected_idx += 1;
+                }
+            }
+            KeyCode::Char('s') => {
+                if let Some(f) = self.state.git_status.unstaged_files.first().or(self
+                    .state
+                    .git_status
+                    .untracked_files
+                    .first())
+                {
+                    let path = f.path.clone();
+                    crate::git::GitRepoStatus::stage_file(&self.state.explorer.current_dir, &path);
+                    self.state.git_status = GitRepoStatus::query(&self.state.explorer.current_dir);
+                    self.state
+                        .set_status(format!("Staged: {}", path), StatusKind::Success);
+                }
+            }
+            KeyCode::Char('u') => {
+                if let Some(f) = self.state.git_status.staged_files.get(selected_idx) {
+                    let path = f.path.clone();
+                    crate::git::GitRepoStatus::unstage_file(
+                        &self.state.explorer.current_dir,
+                        &path,
+                    );
+                    self.state.git_status = GitRepoStatus::query(&self.state.explorer.current_dir);
+                    self.state
+                        .set_status(format!("Unstaged: {}", path), StatusKind::Info);
+                }
+            }
+            KeyCode::Char('c') => {
+                self.state.mode =
+                    AppMode::Modal(ModalKind::Message("Enter commit message:".into()));
+            }
+            _ => {}
+        }
+
+        if matches!(self.state.mode, AppMode::GitDashboard { .. }) {
+            self.state.mode = AppMode::GitDashboard { selected_idx };
+        }
+        Ok(false)
+    }
+
+    async fn handle_onboarding_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let (step, mut selected_option) = match self.state.mode {
+            AppMode::Onboarding {
+                step,
+                selected_option,
+            } => (step, selected_option),
+            _ => return Ok(false),
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.state.mode = AppMode::Browse;
+                return Ok(false);
+            }
+            KeyCode::Up => {
+                selected_option = selected_option.saturating_sub(1);
+            }
+            KeyCode::Down => {
+                selected_option += 1;
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                let next_step = match step {
+                    OnboardingStep::Welcome => OnboardingStep::ThemeSelection,
+                    OnboardingStep::ThemeSelection => {
+                        let themes = Theme::list_themes();
+                        if let Some(t) = themes.get(selected_option) {
+                            self.state.config.theme.name = t.0.to_string();
+                            self.theme = Theme::from_name(
+                                t.0,
+                                self.state.config.theme.transparent_background,
+                            );
+                        }
+                        OnboardingStep::LayoutSelection
+                    }
+                    OnboardingStep::LayoutSelection => {
+                        let profiles = ProfileKind::ALL;
+                        if let Some(p) = profiles.get(selected_option) {
+                            p.apply_to_config(&mut self.state.config);
+                            self.state.show_sidebar = self.state.config.show_sidebar;
+                            self.state.show_preview = self.state.config.show_preview;
+                            self.state.show_terminal = self.state.config.show_terminal;
+                            self.state.show_monitor = self.state.config.show_monitor;
+                        }
+                        OnboardingStep::IntegrationsScan
+                    }
+                    OnboardingStep::IntegrationsScan => OnboardingStep::Complete,
+                    OnboardingStep::Complete => {
+                        let _ = self.state.config.save();
+                        self.state.mode = AppMode::Browse;
+                        return Ok(false);
+                    }
+                };
+                self.state.mode = AppMode::Onboarding {
+                    step: next_step,
+                    selected_option: 0,
+                };
+                return Ok(false);
+            }
+            _ => {}
+        }
+
+        self.state.mode = AppMode::Onboarding {
+            step,
+            selected_option,
+        };
+        Ok(false)
     }
 
     // ── Focus cycling ────────────────────────────────────────────────────────
@@ -1067,6 +1733,17 @@ impl App {
         self.state.focused = match self.state.focused {
             FocusedPanel::Sidebar => FocusedPanel::Explorer,
             FocusedPanel::Explorer => {
+                if self.state.dual_pane_enabled {
+                    FocusedPanel::ExplorerSecondary
+                } else if self.state.show_preview {
+                    FocusedPanel::Preview
+                } else if self.state.show_terminal {
+                    FocusedPanel::Terminal
+                } else {
+                    FocusedPanel::Sidebar
+                }
+            }
+            FocusedPanel::ExplorerSecondary => {
                 if self.state.show_preview {
                     FocusedPanel::Preview
                 } else if self.state.show_terminal {
@@ -1095,12 +1772,21 @@ impl App {
                     FocusedPanel::Terminal
                 } else if self.state.show_preview {
                     FocusedPanel::Preview
+                } else if self.state.dual_pane_enabled {
+                    FocusedPanel::ExplorerSecondary
                 } else {
                     FocusedPanel::Explorer
                 }
             }
             FocusedPanel::Explorer => FocusedPanel::Sidebar,
-            FocusedPanel::Preview => FocusedPanel::Explorer,
+            FocusedPanel::ExplorerSecondary => FocusedPanel::Explorer,
+            FocusedPanel::Preview => {
+                if self.state.dual_pane_enabled {
+                    FocusedPanel::ExplorerSecondary
+                } else {
+                    FocusedPanel::Explorer
+                }
+            }
             FocusedPanel::Terminal => FocusedPanel::Preview,
             FocusedPanel::Editor => FocusedPanel::Editor,
             FocusedPanel::Monitor => FocusedPanel::Explorer,

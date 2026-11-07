@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation & User Guide — TermExplorer</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <span>⚡</span> TermExplorer
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="features.html">Features</a></li>
+        <li><a href="docs.html" class="active">Documentation</a></li>
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="roadmap.html">Roadmap</a></li>
+        <li><a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-btn">GitHub ⭐</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="container">
+    <div style="margin-bottom: 3rem;">
+      <div class="badge">User Manual & Reference</div>
+      <h1 style="font-size: 2.75rem; margin-bottom: 0.5rem;">Documentation</h1>
+      <p style="color: var(--text-muted); font-size: 1.1rem;">
+        Everything you need to install, configure, customize, and navigate TermExplorer.
+      </p>
+    </div>
+
+    <!-- Quick Navigation Index -->
+    <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 3rem;">
+      <strong>Table of Contents:</strong>
+      <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.5rem; font-size: 0.95rem;">
+        <a href="#installation">&bull; Installation</a>
+        <a href="#keybindings">&bull; Keybinding Cheatsheet</a>
+        <a href="#configuration">&bull; Configuration File</a>
+        <a href="#profiles">&bull; Profiles & Themes</a>
+        <a href="#optional-tools">&bull; External Tools</a>
+      </div>
+    </div>
+
+    <!-- Section: Installation -->
+    <section id="installation" style="margin-bottom: 4rem;">
+      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-cyan);">Installation</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1rem;">
+        TermExplorer requires a stable Rust toolchain (1.80+) or can be installed directly from pre-built binary releases.
+      </p>
+
+      <h3 style="font-size: 1.2rem; margin: 1.5rem 0 0.5rem;">Option 1: From Source via Cargo (Recommended)</h3>
+      <div class="install-box" style="width: 100%; margin-bottom: 1.5rem;">
+        <span class="prompt">$</span>
+        <span id="cmd-cargo">cargo install --git https://github.com/jyothiprajith1323/TermExplorer.git</span>
+        <button class="copy-btn" data-clipboard-target="cmd-cargo">Copy</button>
+      </div>
+
+      <h3 style="font-size: 1.2rem; margin: 1.5rem 0 0.5rem;">Option 2: Build Locally</h3>
+      <div class="install-box" style="width: 100%; margin-bottom: 1.5rem;">
+        <span class="prompt">$</span>
+        <span id="cmd-build">git clone https://github.com/jyothiprajith1323/TermExplorer.git &amp;&amp; cd TermExplorer &amp;&amp; cargo build --release</span>
+        <button class="copy-btn" data-clipboard-target="cmd-build">Copy</button>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">
+        The compiled binary will be placed at <code>target/release/termexplorer</code>. Move it into your <code>$PATH</code> (e.g. <code>~/.local/bin</code>).
+      </p>
+    </section>
+
+    <!-- Section: Keybindings Cheatsheet -->
+    <section id="keybindings" style="margin-bottom: 4rem;">
+      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-blue);">Keybinding Cheatsheet</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        TermExplorer uses Vim-inspired keybindings for ergonomic navigation with zero mouse dependency:
+      </p>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Shortcut</th>
+              <th>Context</th>
+              <th>Action Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><kbd>Tab</kbd></td>
+              <td>Global</td>
+              <td>Cycle focus between active panels (Sidebar &rarr; Explorer &rarr; Terminal &rarr; Monitor)</td>
+            </tr>
+            <tr>
+              <td><kbd>Shift+Tab</kbd></td>
+              <td>Global</td>
+              <td>Cycle focus backwards through active panels</td>
+            </tr>
+            <tr>
+              <td><kbd>Ctrl+Shift+P</kbd> / <kbd>P</kbd></td>
+              <td>Global</td>
+              <td>Open the fuzzy-search Command Palette</td>
+            </tr>
+            <tr>
+              <td><kbd>F1</kbd></td>
+              <td>Global</td>
+              <td>Open the First-Launch Onboarding Wizard</td>
+            </tr>
+            <tr>
+              <td><kbd>F7</kbd></td>
+              <td>Global</td>
+              <td>Toggle Dual-Pane side-by-side file explorer view</td>
+            </tr>
+            <tr>
+              <td><kbd>F10</kbd></td>
+              <td>Global</td>
+              <td>Open the Interactive Settings Studio</td>
+            </tr>
+            <tr>
+              <td><kbd>`</kbd> (Backtick)</td>
+              <td>Global</td>
+              <td>Toggle integrated PTY terminal drawer</td>
+            </tr>
+            <tr>
+              <td><kbd>m</kbd></td>
+              <td>Global</td>
+              <td>Toggle live system resource monitor panel</td>
+            </tr>
+            <tr>
+              <td><kbd>j</kbd> / <kbd>&darr;</kbd></td>
+              <td>Explorer</td>
+              <td>Move selection down</td>
+            </tr>
+            <tr>
+              <td><kbd>k</kbd> / <kbd>&uarr;</kbd></td>
+              <td>Explorer</td>
+              <td>Move selection up</td>
+            </tr>
+            <tr>
+              <td><kbd>Enter</kbd> / <kbd>l</kbd></td>
+              <td>Explorer</td>
+              <td>Enter directory or open file in embedded editor</td>
+            </tr>
+            <tr>
+              <td><kbd>h</kbd> / <kbd>Backspace</kbd></td>
+              <td>Explorer</td>
+              <td>Navigate up to parent directory</td>
+            </tr>
+            <tr>
+              <td><kbd>/</kbd></td>
+              <td>Explorer</td>
+              <td>Start live fuzzy filename filter</td>
+            </tr>
+            <tr>
+              <td><kbd>.</kbd></td>
+              <td>Explorer</td>
+              <td>Toggle display of hidden (dot) files</td>
+            </tr>
+            <tr>
+              <td><kbd>s</kbd></td>
+              <td>Explorer</td>
+              <td>Cycle sorting criteria (Name, Size, Modified Date, Extension)</td>
+            </tr>
+            <tr>
+              <td><kbd>a</kbd></td>
+              <td>Explorer</td>
+              <td>Create a new file in current directory</td>
+            </tr>
+            <tr>
+              <td><kbd>A</kbd></td>
+              <td>Explorer</td>
+              <td>Create a new directory in current directory</td>
+            </tr>
+            <tr>
+              <td><kbd>r</kbd></td>
+              <td>Explorer</td>
+              <td>Rename selected file or directory</td>
+            </tr>
+            <tr>
+              <td><kbd>d</kbd></td>
+              <td>Explorer</td>
+              <td>Move selected item to FreeDesktop Trash</td>
+            </tr>
+            <tr>
+              <td><kbd>D</kbd></td>
+              <td>Explorer</td>
+              <td>Permanently delete selected item (with confirmation)</td>
+            </tr>
+            <tr>
+              <td><kbd>c</kbd></td>
+              <td>Explorer</td>
+              <td>Copy item (or copy to opposing pane in Dual-Pane mode)</td>
+            </tr>
+            <tr>
+              <td><kbd>m</kbd></td>
+              <td>Dual-Pane</td>
+              <td>Move item to opposing pane</td>
+            </tr>
+            <tr>
+              <td><kbd>[</kbd> / <kbd>]</kbd></td>
+              <td>Preview</td>
+              <td>Switch preview tabs (<code>[Preview]</code>, <code>[Info]</code>, <code>[Hex]</code>, <code>[Actions]</code>)</td>
+            </tr>
+            <tr>
+              <td><kbd>g</kbd></td>
+              <td>Global</td>
+              <td>Open Git status and commit history overlay panel</td>
+            </tr>
+            <tr>
+              <td><kbd>Ctrl+S</kbd></td>
+              <td>Editor</td>
+              <td>Save current buffer to disk</td>
+            </tr>
+            <tr>
+              <td><kbd>Esc</kbd></td>
+              <td>Editor / Modal</td>
+              <td>Exit editor, dismiss overlay, or return to File Explorer</td>
+            </tr>
+            <tr>
+              <td><kbd>q</kbd></td>
+              <td>Global</td>
+              <td>Exit TermExplorer safely (restores terminal state)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section: Configuration File -->
+    <section id="configuration" style="margin-bottom: 4rem;">
+      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-orange);">Configuration File</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1rem;">
+        TermExplorer reads its configuration from <code>~/.config/termexplorer/config.toml</code>. If missing, it generates a well-documented default file automatically.
+      </p>
+
+      <div class="terminal-window">
+        <div class="terminal-header">
+          <div class="terminal-title">~/.config/termexplorer/config.toml</div>
+        </div>
+        <div class="terminal-body"><span style="color: #64748b;"># TermExplorer Configuration File</span>
+<span style="color: #fb923c;">[theme]</span>
+name = <span style="color: #a855f7;">"catppuccin_mocha"</span>
+transparent_background = <span style="color: #f87171;">true</span>
+
+<span style="color: #fb923c;">[general]</span>
+sidebar_width = <span style="color: #38bdf8;">20</span>
+preview_width = <span style="color: #38bdf8;">45</span>
+show_hidden = <span style="color: #f87171;">false</span>
+show_monitor = <span style="color: #f87171;">false</span>
+dual_pane = <span style="color: #f87171;">false</span>
+confirm_delete = <span style="color: #34d399;">true</span>
+
+<span style="color: #fb923c;">[editor]</span>
+tab_size = <span style="color: #38bdf8;">4</span>
+auto_pairing = <span style="color: #34d399;">true</span>
+word_completion = <span style="color: #34d399;">true</span>
+line_numbers = <span style="color: #34d399;">true</span>
+
+<span style="color: #fb923c;">[preview]</span>
+max_file_size_mb = <span style="color: #38bdf8;">10</span>
+image_rendering = <span style="color: #a855f7;">"halfblock"</span>
+enable_video_thumbnails = <span style="color: #34d399;">true</span></div>
+      </div>
+    </section>
+
+    <!-- Section: Profiles & Themes -->
+    <section id="profiles" style="margin-bottom: 4rem;">
+      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-purple);">Profiles &amp; Themes</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1rem;">
+        TermExplorer includes 6 pre-configured layout profiles accessible via <kbd>F10</kbd> &rarr; Profiles:
+      </p>
+      <ul style="color: var(--text-muted); margin-left: 1.5rem; line-height: 2;">
+        <li><strong>Developer:</strong> 35% preview width, terminal open at 35% height, system monitor visible.</li>
+        <li><strong>Minimal:</strong> Hidden sidebar, hidden terminal and monitor, maximizing the file explorer area.</li>
+        <li><strong>TerminalPowerUser:</strong> Expanded 50% bottom terminal for heavy CLI workflows.</li>
+        <li><strong>EditorFocus:</strong> Full focus on source code buffer and preview.</li>
+        <li><strong>Monitoring:</strong> System monitor pinned with high-frequency CPU/process telemetry.</li>
+        <li><strong>Default:</strong> Balanced 4-panel developer environment.</li>
+      </ul>
+    </section>
+
+    <!-- Section: Optional Tools -->
+    <section id="optional-tools" style="margin-bottom: 4rem;">
+      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-green);">Optional Linux CLI Utilities</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1rem;">
+        To unlock advanced multimedia previews, install the following packages using <code>apt</code>:
+      </p>
+      <div class="install-box" style="width: 100%;">
+        <span class="prompt">$</span>
+        <span id="cmd-apt">sudo apt install -y ffmpeg poppler-utils gio trash-cli</span>
+        <button class="copy-btn" data-clipboard-target="cmd-apt">Copy</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div><strong>TermExplorer</strong> &bull; Complete Product Documentation</div>
+      <div>
+        <a href="index.html">Home</a> &bull;
+        <a href="features.html">Features</a> &bull;
+        <a href="architecture.html">Architecture</a> &bull;
+        <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

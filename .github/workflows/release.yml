@@ -1,0 +1,42 @@
+name: Release Build & Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Linux Release Binary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Package release archive
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          ARCH="x86_64-unknown-linux-gnu"
+          DIST="termexplorer-${VERSION}-${ARCH}"
+          mkdir "${DIST}"
+          cp target/release/termexplorer "${DIST}/"
+          cp README.md LICENSE CHANGELOG.md "${DIST}/"
+          tar -czvf "${DIST}.tar.gz" "${DIST}"
+          sha256sum "${DIST}.tar.gz" > "${DIST}.tar.gz.sha256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            termexplorer-*.tar.gz
+            termexplorer-*.tar.gz.sha256
+          generate_release_notes: true

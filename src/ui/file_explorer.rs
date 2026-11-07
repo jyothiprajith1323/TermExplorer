@@ -178,3 +178,64 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
         );
     }
 }
+
+pub fn render_secondary_explorer(frame: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
+    let focused = state.focused == FocusedPanel::ExplorerSecondary;
+    let border_style = if focused {
+        theme.border_focused_style()
+    } else {
+        theme.border_style()
+    };
+
+    let dir_str = state.explorer_secondary.current_dir.to_string_lossy();
+    let title = format!(" 󰝰 [Pane 2] {} ", dir_str);
+
+    let block = Block::default()
+        .title(Span::styled(title, theme.header_style()))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(border_style);
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if inner.width < 10 || inner.height < 3 {
+        return;
+    }
+
+    let entries = &state.explorer_secondary.entries;
+    let rows: Vec<Row> = entries
+        .iter()
+        .enumerate()
+        .map(|(i, entry)| {
+            let is_sel = i == state.explorer_secondary.selected_index;
+            let icon = entry.icon();
+            let style = if is_sel {
+                theme.selection_style()
+            } else if entry.kind == EntryKind::Directory {
+                Style::default().fg(theme.dir_color)
+            } else {
+                theme.normal_style()
+            };
+            let size_str = if entry.kind == EntryKind::Directory {
+                "--".to_string()
+            } else {
+                ByteSize(entry.size).to_string()
+            };
+
+            Row::new(vec![
+                Cell::from(format!("{}{}", icon, entry.name)).style(style),
+                Cell::from(size_str).style(Style::default().fg(theme.size_color)),
+            ])
+        })
+        .collect();
+
+    let table = Table::new(
+        rows,
+        [Constraint::Percentage(70), Constraint::Percentage(30)],
+    );
+
+    let mut table_state = TableState::default();
+    table_state.select(Some(state.explorer_secondary.selected_index));
+    frame.render_stateful_widget(table, inner, &mut table_state);
+}

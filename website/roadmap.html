@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roadmap & Future Horizons — TermExplorer</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <span>⚡</span> TermExplorer
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="features.html">Features</a></li>
+        <li><a href="docs.html">Documentation</a></li>
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="roadmap.html" class="active">Roadmap</a></li>
+        <li><a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-btn">GitHub ⭐</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="container">
+    <div style="margin-bottom: 3rem;">
+      <div class="badge">Development Milestones & Vision</div>
+      <h1 style="font-size: 2.75rem; margin-bottom: 0.5rem;">Product Roadmap</h1>
+      <p style="color: var(--text-muted); font-size: 1.1rem;">
+        TermExplorer is built for the long term. Here is our transparent development trajectory.
+      </p>
+    </div>
+
+    <!-- Milestones -->
+    <div style="display: flex; flex-direction: column; gap: 2rem;">
+      <!-- v0.1.0 Current -->
+      <div class="card" style="border-left: 4px solid var(--accent-green);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h3 style="color: var(--accent-green); margin-bottom: 0;">v0.1.0 — Foundation & Universal Previews</h3>
+          <span class="badge" style="background: rgba(52, 211, 153, 0.15); color: var(--accent-green); border-color: rgba(52, 211, 153, 0.3);">Shipped</span>
+        </div>
+        <p style="margin-bottom: 1rem;">The initial release establishing the complete developer terminal environment:</p>
+        <ul style="color: var(--text-muted); margin-left: 1.5rem; line-height: 1.8;">
+          <li>Universal 12+ format preview engine with 4 inspector tabs (<code>[Preview]</code>, <code>[Info]</code>, <code>[Hex]</code>, <code>[Actions]</code>).</li>
+          <li>Dual-pane file management (<kbd>F7</kbd>) with FreeDesktop Trash integration.</li>
+          <li>Interactive Settings Studio (<kbd>F10</kbd>) with 15 sections and keybinding conflict detector.</li>
+          <li>12 built-in themes with transparent terminal background inheritance.</li>
+          <li>Embedded interactive PTY terminal drawer and live system resource monitor.</li>
+          <li>Fuzzy-search command palette (<kbd>Ctrl+Shift+P</kbd>) and Git status dashboard (<kbd>g</kbd>).</li>
+        </ul>
+      </div>
+
+      <!-- v0.2.0 Next -->
+      <div class="card" style="border-left: 4px solid var(--accent-cyan);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h3 style="color: var(--accent-cyan); margin-bottom: 0;">v0.2.0 — Kitty Graphics & LSP Language Server</h3>
+          <span class="badge">In Active Development</span>
+        </div>
+        <p style="margin-bottom: 1rem;">Expanding terminal graphics and intelligent code navigation:</p>
+        <ul style="color: var(--text-muted); margin-left: 1.5rem; line-height: 1.8;">
+          <li>Native Kitty graphics protocol & Sixel protocol passthrough for ultra-high-resolution image rendering.</li>
+          <li>Embedded Language Server Protocol (LSP) client support for go-to-definition and inline diagnostics.</li>
+          <li>Remote SSH / SFTP virtual filesystem integration for browsing remote servers seamlessly.</li>
+          <li>Split terminal tabs and multiple PTY multiplexing.</li>
+        </ul>
+      </div>
+
+      <!-- v0.3.0 Horizon -->
+      <div class="card" style="border-left: 4px solid var(--accent-purple);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h3 style="color: var(--accent-purple); margin-bottom: 0;">v0.3.0 — WebAssembly Plugins & Cloud Sync</h3>
+          <span class="badge" style="background: rgba(192, 132, 252, 0.15); color: var(--accent-purple); border-color: rgba(192, 132, 252, 0.3);">Planned</span>
+        </div>
+        <p style="margin-bottom: 1rem;">Extensibility and ecosystem tooling:</p>
+        <ul style="color: var(--text-muted); margin-left: 1.5rem; line-height: 1.8;">
+          <li>Wasm-based plugin sandbox enabling third-party file previews, custom commands, and linters.</li>
+          <li>Encrypted dotfiles and configuration sync across developer workstations.</li>
+          <li>Collaborative terminal pair-programming sessions with zero latency.</li>
+        </ul>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div><strong>TermExplorer</strong> &bull; Roadmap & Evolution</div>
+      <div>
+        <a href="index.html">Home</a> &bull;
+        <a href="features.html">Features</a> &bull;
+        <a href="docs.html">Docs</a> &bull;
+        <a href="architecture.html">Architecture</a> &bull;
+        <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

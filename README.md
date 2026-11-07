@@ -1,278 +1,189 @@
 # 🚀 TermExplorer
 
-**A Modern, Keyboard-Driven Terminal File Explorer, Integrated Code Editor, Embedded Shell, and System Telemetry Dashboard in Rust.**
+**Your terminal. Your workspace. Your rules.**
 
-[![Rust](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
+A high-performance, keyboard-driven Linux developer environment written in pure Rust. Combines a dual-pane file explorer, code editor, interactive PTY terminal, live system monitor, Git dashboard, and universal multi-format preview engine into one unified TUI.
+
+[![Continuous Integration](https://github.com/jyothiprajith1323/TermExplorer/actions/workflows/ci.yml/badge.svg)](https://github.com/jyothiprajith1323/TermExplorer/actions/workflows/ci.yml)
+[![GitHub Pages](https://github.com/jyothiprajith1323/TermExplorer/actions/workflows/pages.yml/badge.svg)](https://jyothiprajith1323.github.io/TermExplorer/)
+[![Rust](https://img.shields.io/badge/rust-1.80%2B%20stable-brightgreen.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Ubuntu-orange.svg)]()
+[![Clippy: Clean](https://img.shields.io/badge/clippy-0%20warnings-brightgreen.svg)]()
 
-TermExplorer is a fast, keyboard-driven terminal developer environment that combines the convenience of a graphical file manager, the speed of an embedded code editor with syntax highlighting and auto-pairing, a real interactive Linux pseudo-terminal (PTY) with full native shell completion, and a live system monitoring dashboard — completely inside your Ubuntu terminal.
+🌐 **Official Website & Docs:** [https://jyothiprajith1323.github.io/TermExplorer/](https://jyothiprajith1323.github.io/TermExplorer/)
 
 ---
 
-## 📸 Interface Layout
+## 📸 Interface Overview
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  TERMEXPLORER                             Current Path      System Status     │
-├───────────────┬──────────────────────────────┬───────────────────────────────┤
-│               │                              │                               │
-│  SIDEBAR      │       FILE EXPLORER          │        FILE PREVIEW           │
-│               │                              │                               │
-│  Pinned       │  Name              Size      │                               │
-│  ├ Projects   │  📁 IronKV         --        │  Selected file preview        │
-│  ├ Rust       │  📁 Documents      --        │                               │
-│  └ Workspace  │  📄 Cargo.toml    1.2 KB     │  Syntax highlighting           │
-│               │  📄 README.md     4.5 KB     │  File information              │
-│  Shortcuts    │  📄 main.rs       2.1 KB     │                               │
-│  ├ Home       │                              │                               │
-│  ├ Downloads  │                              │                               │
-│  ├ Documents  │                              │                               │
-│  ├ Root       │                              │                               │
-│  └ /etc       │                              │                               │
-│               │                              │                               │
-├───────────────┴──────────────────────────────┴───────────────────────────────┤
-│  TERMINAL / SYSTEM MONITOR                                      [F6 Toggle]  │
-├──────────────────────────────────────────────────────────────────────────────┤
-│  user@ubuntu:~/workspace$ cargo test --all                                   │
-├──────────────────────────────────────────────────────────────────────────────┤
-│  F1 Help | F2 Edit | F3 Preview | F4 New | F5 Refresh | F6 Monitor | Ctrl+Q │
-└──────────────────────────────────────────────────────────────────────────────┘
+┌── SIDEBAR [1] ────┐┌── FILE EXPLORER [2] ────────────┐┌── PREVIEW [3] [Preview | Info | Hex | Actions] ─┐
+│ ★ BOOKMARKS       │ Size   Modified   Name          │ Type: Rust Source File (14.2 KB)                 │
+│   ~ Home          │ DIR    10:14:02   src/          │ 1 use anyhow::Result;                            │
+│   ~/Projects      │ DIR    09:45:11   tests/        │ 2 use ratatui::widgets::Paragraph;               │
+│ 📁 WORKSPACES     │ 2.4 KB 11:02:30   Cargo.toml    │ 3                                                │
+│   TermExplorer    │ 12.1KB 11:02:30   README.md     │ 4 #[derive(Debug, Clone)]                        │
+│   IronKV          │ 14.2KB 11:05:12 ▶ main.rs       │ 5 pub struct AppEngine {                         │
+│ ⚙ SETTINGS        │  1.1KB 08:12:00   build.rs      │ 6     pub terminal: TerminalSession,             │
+│   F10 Studio      │                                 │ 7 }                                              │
+├───────────────────┴─────────────────────────────────┴──────────────────────────────────────────────────┤
+│ termexplorer:~/Projects/TermExplorer$ cargo test                                                       │
+│    Finished `test` profile in 0.45s — 42 passed; 0 failed                                              │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ NORMAL  ~/Projects/TermExplorer/src/main.rs | Git: master* | F1:Help F7:Dual-Pane F10:Settings q:Quit
 ```
 
 ---
 
-## ✨ Features
+## ✨ Key Subsystems & Features
 
-- **⚡ Fast, Keyboard-Driven Navigation:**
-  - Intuitive arrow-key and shortcut navigation.
-  - Interactive left sidebar with Pinned folders and Linux standard shortcuts (`Home`, `Documents`, `Downloads`, `Root`, `/etc`, `/var`, `/tmp`, etc.).
-  - Pinned folders persist automatically across application restarts in `~/.config/termexplorer/config.toml`.
-  - In-place directory search with fuzzy matching (`fuzzy-matcher` Skim algorithm).
-  - Dynamic sort cycling by Name (▲/▼), Size (▲/▼), Modification Date (▲/▼), and Extension (`s`).
-  - Native file operations: Create (`F4`), Delete (`F8`), Rename (`r`), Copy (`c`/`y`), Cut (`x`), Paste (`p`/`v`), Refresh (`F5`).
-  - Real-time inotify filesystem watching via `notify` — updates immediately when files are changed outside.
+### 1. 👁️ Universal Multi-Format Preview Engine (`src/preview/`)
+- **4 Dedicated Inspector Tabs:** `[Preview]`, `[Information]`, `[Hex]`, and `[Actions]`.
+- **Magic-Byte Sniffer:** Sniffs file signatures directly to prevent incorrect MIME mapping.
+- **Source Code:** Full syntax highlighting via `syntect` with line numbers and bounded memory reads.
+- **Markdown:** Renders headers, lists, code fences, blockquotes, checklists, and auto-extracted Table of Contents.
+- **Images:** 24-bit Truecolor half-block (`▀`) pixel rendering for PNG, JPEG, GIF, WebP, BMP, and dimension parsing for SVG.
+- **Video Containers:** Extracts duration, resolution, codecs, bitrate via `ffprobe`, and first-frame thumbnails via `ffmpeg`.
+- **Audio Media:** Inspects sample rate, duration, channels, ID3 tags (artist, title, album), and detects CLI audio players.
+- **PDF Documents:** Pure-Rust catalog header parser (page count, title, author) & extracted text stream via `pdftotext`.
+- **Pure-Rust Office Documents:** Direct XML parsing from ZIP packages for `.docx` paragraphs, `.xlsx` shared strings/cells, and `.pptx` slide counts (no LibreOffice required).
+- **Tabular Data:** Delimiter sniffer for CSV/TSV with column alignments, and JSON pretty-printer with syntax error indicators.
+- **Archives:** Nested index table for `.zip`, `.tar`, and `.tar.gz` with compression ratios and path traversal safety checks.
+- **SQLite 3 Databases:** Header decoding (page size, version, change count), `sqlite_master` schema browser, and row sampler.
+- **Canonical Hex Viewer:** 16-byte hex dump with memory offset, hex byte pairs, and printable ASCII pane.
+- **LRU Cache:** Bounded in-memory preview cache (max 64 MB / 100 entries) preventing repeated disk reads.
 
-- **🎨 Syntax-Highlighted File Preview:**
-  - Instant live preview of selected files as you navigate.
-  - Multi-language syntax highlighting powered by `syntect` (Rust, Python, C, C++, Java, JavaScript, TypeScript, Markdown, HTML, CSS, JSON, TOML, YAML, Shell).
-  - Line numbers, scrollable viewport, formatted file sizes, and MIME type deductions.
-  - Automatic binary file heuristic detection preventing garbled binary dumps.
-  - Safe memory bounds for large files.
+### 2. ⚡ Dual-Pane Explorer & FreeDesktop Trash
+- **Dual-Pane View (`F7`):** Side-by-side file managers with independent navigation, selections, and sorting.
+- **Cross-Pane Transfers:** Copy files to the opposing pane with `c`, move with `m`.
+- **FreeDesktop Trash (`d`):** Safely moves deleted items to FreeDesktop Trash (`gio trash` / `trash-put`) before permanent deletion (`D`).
+- **Sidebar & Bookmarks (`b` / `p`):** Pin folders, access Linux shortcuts (`Home`, `Root`, `Downloads`, `/etc`), and manage workspaces.
 
-- **🖥 Embedded Interactive Linux Terminal (PTY):**
-  - Real pseudo-terminal powered by `portable-pty` executing your configured `$SHELL` (or Bash fallback).
-  - Preserves user aliases, environment variables, command history, and custom prompt formatting.
-  - Full native shell autocompletion (Tab completion for commands, files, flags, and arguments).
-  - Interactive process support (`htop`, `git`, `ssh`, `nano`, `python`, etc.).
-  - Clean process lifecycle management with guaranteed child termination on exit.
-  - Dynamic panel resizing and quick toggling (`Ctrl+` `).
+### 3. 🎛️ Interactive Settings Studio (`F10`)
+- **15 Configuration Sections:** General, Appearance, Keybindings, Explorer, Preview, Editor, Terminal, System Monitor, Git, Bookmarks, Profiles, Performance, Plugins, Advanced, About.
+- **Keybinding Conflict Detection:** Scoped key action registry flags clashing shortcuts automatically.
+- **6 Built-in Profiles:** `Default`, `Developer`, `Minimal`, `TerminalPowerUser`, `EditorFocus`, and `Monitoring`.
+- **Resilient Persistence:** Configuration boundary clamping and atomic `.toml.bak` backup recovery.
 
-- **✏ Integrated In-Terminal Code Editor (`F2`):**
-  - Edit and save files without switching out to an external editor.
-  - Multi-level Undo (`Ctrl+Z`) and Redo (`Ctrl+Y`).
-  - Atomic, safe file writes eliminating corruption (`tempfile` + persist).
-  - Intelligent auto-pairing for `( )`, `[ ]`, `{ }`, `" "`, `' '`, and `` ` ``.
-  - Closing character skip-over and pair backspace deletion.
-  - Contextual word autocompletion with a floating popup suggestion list.
-  - Built-in Language Server Protocol (LSP) prober for `rust-analyzer`, `clangd`, `pyright`, and `typescript-language-server`.
+### 4. 🎨 12 Built-in Themes & Transparency
+- **Included Themes:** Catppuccin Mocha, Catppuccin Macchiato, Dracula, Nord, Gruvbox, Tokyo Night, One Dark, Solarized Dark, Solarized Light, Monokai, Default Dark, Default Light.
+- **Terminal Transparency:** Seamless inheritance of your terminal emulator's background and blur settings (`bg: None`).
 
-- **📊 Live System Telemetry Dashboard (`F6`):**
-  - One-touch system monitoring panel without blocking file browsing or terminal tasks.
-  - CPU: Model, global usage %, load averages (1/5/15 min), and per-core utilization bars.
-  - Memory: Total, used, and free RAM, utilization %, and Swap telemetry.
-  - Disks: Mounted devices, available space, total capacity, and usage ratios.
-  - Processes: Live top processes sorted by CPU utilization or memory footprint.
+### 5. 💻 Embedded Interactive PTY Terminal
+- Real pseudo-terminal powered by `portable-pty` spawning `$SHELL` (or Bash).
+- Preserves native shell completions, aliases, prompts, and job control.
+- Non-blocking channel I/O eliminates rendering locks.
 
-- **💎 Clean, Transparent Terminal UI:**
-  - Transparent-friendly rendering inheriting terminal emulator transparency and blur settings.
-  - Sleek dark theme with One Dark / Catppuccin accents.
-  - Responsive layouts adapting to small and large terminal window dimensions.
+### 6. ✏️ Lightweight Code Editor
+- Auto-pairing for `( )`, `[ ]`, `{ }`, `" "`, `' '`, and `` ` ``.
+- Multi-level Undo/Redo, word autocompletion popup, line numbers, and atomic writes via `tempfile`.
+
+### 7. 📊 System Monitor & Git Dashboard
+- **System Monitor (`m`):** Per-core CPU load, memory utilization, swap, disk capacity, and live top processes.
+- **Git Dashboard (`g`):** Branch tracking, staged/unstaged views, recent commit history, and inline staging (`s`).
+- **Command Palette (`Ctrl+Shift+P` / `P`):** Fuzzy-search internal actions, panel toggles, and bookmarks.
+- **Onboarding Wizard (`F1`):** Interactive 5-step walkthrough on first launch.
 
 ---
 
-## 🛠 Technology Stack
+## ⌨️ Essential Keyboard Shortcuts
 
-| Component | Library / Crate | Purpose |
+| Shortcut | Context | Action |
 |---|---|---|
-| **Language** | Rust 2021 (Stable 1.80+) | Core systems implementation |
-| **TUI Engine** | `ratatui` (v0.29) | Modern terminal UI widgets & layout engine |
-| **Terminal I/O** | `crossterm` (v0.28) | Raw mode, ANSI rendering, and key events |
-| **Async Runtime** | `tokio` (v1) | Non-blocking concurrent event loop |
-| **Pseudo-Terminal** | `portable-pty` (v0.8) | Real Linux PTY master/slave shell session |
-| **System Telemetry** | `sysinfo` (v0.33) | Real-time CPU, RAM, disk, and process telemetry |
-| **Syntax Highlighter** | `syntect` (v5) | High-speed multi-language syntax highlighting |
-| **Filesystem Watcher** | `notify` (v7) | Linux inotify directory monitoring |
-| **Fuzzy Matcher** | `fuzzy-matcher` (v0.3) | Real-time fuzzy file searching |
-| **Serialization** | `serde` + `toml` | Configuration persistence |
-| **Error Handling** | `anyhow` + `thiserror` | Robust context-aware error handling |
+| <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> | Global | Cycle focus between active panels |
+| <kbd>Ctrl+Shift+P</kbd> / <kbd>P</kbd> | Global | Open fuzzy-search Command Palette |
+| <kbd>F1</kbd> | Global | Open Onboarding Wizard / Help |
+| <kbd>F7</kbd> | Global | Toggle Dual-Pane side-by-side explorer |
+| <kbd>F10</kbd> | Global | Open Interactive Settings Studio |
+| <kbd>`</kbd> (Backtick) | Global | Toggle embedded PTY terminal drawer |
+| <kbd>m</kbd> | Global | Toggle system resource monitor |
+| <kbd>g</kbd> | Global | Toggle Git dashboard overlay |
+| <kbd>j</kbd> / <kbd>k</kbd> | Explorer | Move selection down / up |
+| <kbd>Enter</kbd> / <kbd>l</kbd> | Explorer | Open directory or edit file |
+| <kbd>h</kbd> / <kbd>Backspace</kbd> | Explorer | Navigate to parent directory |
+| <kbd>/</kbd> | Explorer | Real-time fuzzy filter files |
+| <kbd>.</kbd> | Explorer | Toggle hidden dotfiles |
+| <kbd>s</kbd> | Explorer | Cycle sort order (Name, Size, Modified, Type) |
+| <kbd>a</kbd> / <kbd>A</kbd> | Explorer | Create new file / new directory |
+| <kbd>r</kbd> | Explorer | Rename selected file or directory |
+| <kbd>d</kbd> | Explorer | Move selected item to FreeDesktop Trash |
+| <kbd>D</kbd> | Explorer | Permanently delete selected item |
+| <kbd>c</kbd> / <kbd>m</kbd> | Explorer | Copy / Move item (or across panes in Dual-Pane) |
+| <kbd>[</kbd> / <kbd>]</kbd> | Preview | Cycle preview tabs (`[Preview]`, `[Info]`, `[Hex]`, `[Actions]`) |
+| <kbd>Ctrl+S</kbd> | Editor | Save buffer to disk atomically |
+| <kbd>Esc</kbd> | Editor / Modal | Close modal / return focus to File Explorer |
+| <kbd>q</kbd> | Global | Exit TermExplorer safely |
+
+*For the complete keybinding matrix, see [KEYBINDINGS.md](docs/KEYBINDINGS.md).*
 
 ---
 
-## 📦 Prerequisites & Ubuntu Installation
+## 📦 Installation & Getting Started
 
-### Prerequisites
-- Ubuntu Linux 20.04 LTS, 22.04 LTS, 24.04 LTS (or Debian / WSL2).
-- Standard C library and POSIX PTY support (default on all Ubuntu systems).
-
-### 1. Install Rust
-If Rust is not already installed:
+### Prerequisites (Ubuntu / Linux)
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source $HOME/.cargo/env
+sudo apt update
+sudo apt install -y build-essential pkg-config libasound2-dev libxcb1-dev
 ```
 
-Verify your installation:
+### Optional Multimedia Preview Utilities
 ```bash
-rustc --version
-cargo --version
+sudo apt install -y ffmpeg poppler-utils gio trash-cli
 ```
 
-### 2. Clone and Build TermExplorer
+### Option 1: Install via Cargo
+```bash
+cargo install --git https://github.com/jyothiprajith1323/TermExplorer.git
+```
+
+### Option 2: Build from Source
 ```bash
 git clone https://github.com/jyothiprajith1323/TermExplorer.git
-cd termexplorer
+cd TermExplorer
 cargo build --release
 ```
-
-### 3. Install Globally
+The compiled binary will be placed at `target/release/termexplorer`. Move it into your `$PATH`:
 ```bash
-cargo install --path .
+cp target/release/termexplorer ~/.local/bin/
 ```
-The executable `termexplorer` is now available directly in your `$PATH`.
 
----
-
-## 🚀 Usage
-
-Launch TermExplorer in your current directory:
+### Run
 ```bash
 termexplorer
 ```
 
-Or run from the project source:
+---
+
+## 🧪 Verification & Testing
+
+TermExplorer is tested thoroughly under strict systems safety criteria:
 ```bash
-cargo run --release
-```
+# Run all 42 automated unit and integration tests across 8 test suites
+cargo test --all-targets --all-features
 
----
-
-## ⌨ Complete Keyboard Shortcuts
-
-### Global Navigation
-- `Ctrl+Q`: Exit TermExplorer and restore terminal.
-- `Ctrl+` `: Toggle embedded terminal panel.
-- `Ctrl+B`: Toggle left sidebar visibility.
-- `F1`: Open / close the interactive help overlay.
-- `F6`: Toggle system resource monitor.
-- `Tab` / `Shift+Tab`: Cycle active focus across panels.
-- `Esc`: Cancel search / close popup / return to browse mode.
-
-### File Explorer
-- `↑` / `↓`: Move selection in directory list.
-- `Enter`: Open selected folder / preview file.
-- `Backspace`: Navigate to parent directory.
-- `F2`: Edit selected file in integrated text editor.
-- `F4`: Create a new file.
-- `F5`: Refresh current directory.
-- `F7`: Create a new directory.
-- `F8`: Delete selected item (prompts for confirmation).
-- `r`: Rename selected item.
-- `s`: Cycle sort order (`Name`, `Size`, `Date`, `Type`).
-- `c` or `y`: Copy selected item.
-- `x`: Cut selected item.
-- `p` or `v`: Paste item into current directory.
-- `h`: Toggle hidden files (`.dotfiles`).
-- `Ctrl+F` or `/`: In-directory fuzzy search.
-- `Alt+P`: Pin current directory to sidebar.
-
-### Sidebar (when focused)
-- `↑` / `↓`: Navigate pinned folders and shortcuts.
-- `Enter`: Navigate explorer into highlighted location.
-- `d` or `Delete`: Unpin selected pinned folder.
-
-### Integrated Text Editor
-- `Ctrl+S`: Save file atomically.
-- `Ctrl+Z`: Undo.
-- `Ctrl+Y`: Redo.
-- `Ctrl+C` / `Ctrl+X` / `Ctrl+V`: Copy / Cut / Paste line.
-- `Tab`: Indent (or accept autocompletion suggestion).
-- `Enter`: Newline with auto-indent.
-- `Esc`: Close editor (prompts if unsaved changes exist).
-- Auto-pairing: Type `(`, `[`, `{`, `"`, `'`, ```` to auto-close; Backspace between deletes both.
-
----
-
-## ⚙ Configuration (`config.toml`)
-
-TermExplorer automatically generates its configuration at:
-```text
-~/.config/termexplorer/config.toml
-```
-
-Example configuration:
-```toml
-show_sidebar = true
-show_preview = true
-show_terminal = false
-show_monitor = false
-sidebar_width = 20
-preview_width = 35
-terminal_height = 12
-monitor_height = 14
-show_hidden = false
-max_preview_bytes = 524288
-
-[theme]
-name = "dark"
-accent = "#61AFEF"
-transparent_background = true
-
-[editor]
-tab_width = 4
-auto_pair = true
-line_numbers = true
-syntax_highlight = true
-show_completion = true
-
-[monitor]
-refresh_ms = 1000
-
-[[pinned_folders]]
-name = "Projects"
-path = "/home/user/projects"
-```
-
----
-
-## 🧪 Testing and Verification
-
-TermExplorer includes comprehensive test suites verifying filesystem operations, buffer mechanics, auto-pairing, autocompletion, configuration roundtrips, PTY life-cycle, and system monitoring:
-
-```bash
-# Run all unit and integration tests
-cargo test
-
-# Run formatting checks
-cargo fmt --all -- --check
-
-# Run compilation checks across all targets
-cargo check --all-targets
-
-# Run Clippy lints with strict warnings
+# Verify strict Clippy compliance (0 warnings allowed)
 cargo clippy --all-targets --all-features -- -D warnings
+
+# Check code formatting
+cargo fmt --all -- --check
 ```
 
 ---
 
-## 🔧 Architecture
+## 📚 Documentation & Specifications
 
-For in-depth architectural details, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-For a full keybinding reference, see [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md).
-For contributor setup instructions, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+- [Architecture & Design Guide](docs/ARCHITECTURE.md)
+- [Complete Keybindings Reference](docs/KEYBINDINGS.md)
+- [Developer & Contributing Guide](docs/DEVELOPMENT.md)
+- [Release Changelog](CHANGELOG.md)
+- [Contributing Guidelines](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ---
 
-## 🛡 License
+## 🛡️ License
 
 This project is licensed under the [MIT License](LICENSE).
+TermExplorer &copy; 2026 Jyothi Prajith and contributors.

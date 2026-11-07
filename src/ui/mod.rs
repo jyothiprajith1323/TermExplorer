@@ -1,10 +1,14 @@
 //! UI module — all Ratatui rendering lives here.
 
+pub mod command_palette;
 pub mod editor;
 pub mod file_explorer;
+pub mod git_panel;
 pub mod help;
 pub mod layout;
+pub mod onboarding;
 pub mod preview;
+pub mod settings;
 pub mod sidebar;
 pub mod status_bar;
 pub mod system_monitor;

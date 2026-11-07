@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Features — TermExplorer</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <span>⚡</span> TermExplorer
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="features.html" class="active">Features</a></li>
+        <li><a href="docs.html">Documentation</a></li>
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="roadmap.html">Roadmap</a></li>
+        <li><a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-btn">GitHub ⭐</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="container">
+    <div style="text-align: center; margin-bottom: 3rem;">
+      <div class="badge">Comprehensive Feature Breakdown</div>
+      <h1 style="font-size: 2.75rem; margin-bottom: 1rem;">Engineered for Precision & Flow</h1>
+      <p style="color: var(--text-muted); max-width: 700px; margin: 0 auto;">
+        Explore the deep capabilities of TermExplorer: from universal multi-format file inspection to dual-pane file management and real-time PTY terminal emulation.
+      </p>
+    </div>
+
+    <!-- Section 1: Universal Preview Subsystem -->
+    <section style="margin-bottom: 4rem;">
+      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-cyan);">1. Universal Multi-Format Preview Engine</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        TermExplorer includes a dedicated <code>src/preview/</code> subsystem with 4 active inspector tabs: <code>[Preview]</code>, <code>[Information]</code>, <code>[Hex]</code>, and <code>[Actions]</code>. File type detection is powered by a magic-bytes detector that inspects file signatures before falling back to extensions.
+      </p>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Format Category</th>
+              <th>Extensions & Magic Bytes</th>
+              <th>Preview Capabilities</th>
+              <th>Fallback / Tools</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Source Code</strong></td>
+              <td><code>.rs, .py, .js, .ts, .go, .c, .cpp, .sh</code></td>
+              <td>Syntax highlighting via <code>syntect</code>, line numbers, bounded read buffers.</td>
+              <td>Plain text stream</td>
+            </tr>
+            <tr>
+              <td><strong>Markdown</strong></td>
+              <td><code>.md, .markdown</code></td>
+              <td>Headers, bold/italic, code blocks, checklists, extracted Table of Contents.</td>
+              <td>Source preview</td>
+            </tr>
+            <tr>
+              <td><strong>Images & Vector</strong></td>
+              <td><code>PNG, JPG, GIF, WebP, BMP, SVG</code></td>
+              <td>24-bit Truecolor half-block (<code>▀</code>) pixel rendering, dimensions, aspect ratio.</td>
+              <td>Image metadata</td>
+            </tr>
+            <tr>
+              <td><strong>Video Containers</strong></td>
+              <td><code>MP4, MKV, AVI, WebM, MOV</code></td>
+              <td>Duration, resolution, video/audio codecs, bitrate; first-frame thumbnail extraction.</td>
+              <td><code>ffprobe</code> / <code>ffmpeg</code></td>
+            </tr>
+            <tr>
+              <td><strong>Audio Media</strong></td>
+              <td><code>MP3, FLAC, WAV, OGG, M4A</code></td>
+              <td>Duration, sample rate, channels, ID3 tags (artist, album, title), player detection.</td>
+              <td><code>mpv</code> / <code>ffplay</code></td>
+            </tr>
+            <tr>
+              <td><strong>PDF Documents</strong></td>
+              <td><code>PDF</code> (<code>%PDF-</code> magic)</td>
+              <td>Pure-Rust PDF catalog parser (page count, title, author) & extracted text stream.</td>
+              <td><code>pdftotext</code> / <code>pdfinfo</code></td>
+            </tr>
+            <tr>
+              <td><strong>Office Documents</strong></td>
+              <td><code>DOCX, XLSX, PPTX</code></td>
+              <td>Pure-Rust ZIP XML extraction for word text, spreadsheet cells, and slide counts.</td>
+              <td>No LibreOffice required</td>
+            </tr>
+            <tr>
+              <td><strong>Tabular Data</strong></td>
+              <td><code>CSV, TSV, JSON, JSONL</code></td>
+              <td>Auto-delimiter sniffer, formatted column tables, JSON validation with syntax error offsets.</td>
+              <td>Raw text</td>
+            </tr>
+            <tr>
+              <td><strong>Archives</strong></td>
+              <td><code>ZIP, TAR, TGZ, TAR.GZ</code></td>
+              <td>Archive table listing files, sizes, ratios, and path traversal vulnerability auditing.</td>
+              <td>In-memory index</td>
+            </tr>
+            <tr>
+              <td><strong>SQLite Databases</strong></td>
+              <td><code>DB, SQLITE, SQLITE3</code></td>
+              <td>Header parsing (page size, change count), <code>sqlite_master</code> schemas, row sampling.</td>
+              <td>Hex inspection</td>
+            </tr>
+            <tr>
+              <td><strong>Hex Inspection</strong></td>
+              <td>All binary files</td>
+              <td>16-byte canonical hex dump with memory offsets, hex pairs, and printable ASCII.</td>
+              <td>Built-in</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 2: Dual Pane Explorer -->
+    <section style="margin-bottom: 4rem;">
+      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-blue);">2. Dual-Pane File Management</h2>
+      <div class="features-grid">
+        <div class="card">
+          <h3>Dual-Pane Split (<kbd>F7</kbd>)</h3>
+          <p>Split your file explorer into primary and secondary panes side-by-side. Navigate both independently and transfer files across panes with single keystrokes (<kbd>c</kbd> for copy, <kbd>m</kbd> for move).</p>
+        </div>
+        <div class="card">
+          <h3>FreeDesktop Trash (<kbd>d</kbd>)</h3>
+          <p>Accidental deletions are a thing of the past. TermExplorer prioritizes <code>gio trash</code> and <code>trash-put</code> to move files safely to your OS desktop trash before asking for permanent removal (<kbd>D</kbd>).</p>
+        </div>
+        <div class="card">
+          <h3>Bookmarks & Workspaces</h3>
+          <p>Pin frequently used folders (<kbd>p</kbd>) or jump to your home directory, root, or project workspaces (<kbd>b</kbd>) via the unified sidebar.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Interactive Settings Studio -->
+    <section style="margin-bottom: 4rem;">
+      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-orange);">3. Interactive Settings Studio (<kbd>F10</kbd>)</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        Configure every aspect of your developer environment through a dedicated full-screen TUI modal covering 15 distinct sections:
+      </p>
+
+      <div class="features-grid">
+        <div class="card">
+          <h3>15 Config Sections</h3>
+          <p>General, Appearance, Keybindings, Explorer, Preview, Editor, Terminal, System Monitor, Git, Bookmarks, Profiles, Performance, Plugins, Advanced, and About.</p>
+        </div>
+        <div class="card">
+          <h3>Keybinding Conflict Detection</h3>
+          <p>Interactive key action registry with scope isolation (Global, Explorer, Editor, Terminal, Preview, Git). Automatically flags colliding keystrokes before they cause issues.</p>
+        </div>
+        <div class="card">
+          <h3>6 Built-in Profiles</h3>
+          <p>Switch instantly between <code>Default</code>, <code>Developer</code>, <code>Minimal</code>, <code>TerminalPowerUser</code>, <code>EditorFocus</code>, and <code>Monitoring</code> with full persistence to <code>config.toml</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Productivity Engine -->
+    <section style="margin-bottom: 4rem;">
+      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-purple);">4. Developer Command Center</h2>
+      <div class="features-grid">
+        <div class="card">
+          <h3>Command Palette (<kbd>Ctrl+Shift+P</kbd>)</h3>
+          <p>Fuzzy-search across all internal commands, toggle views, jump to bookmarks, reload configuration, or launch workspace tasks with a modern floating modal.</p>
+        </div>
+        <div class="card">
+          <h3>Git Integration (<kbd>g</kbd>)</h3>
+          <p>Inspect repository status, branches, staged vs. unstaged files, and recent commit history without switching windows. Stage files with <kbd>s</kbd> directly from the overlay.</p>
+        </div>
+        <div class="card">
+          <h3>Smart Workspace Detection</h3>
+          <p>Automatically detects Cargo (Rust), Python, Node.js, Go, C/C++, Java, and Makefile projects. Provides quick actions to build, test, and run your project.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div><strong>TermExplorer</strong> &bull; The Terminal Developer Environment</div>
+      <div>
+        <a href="index.html">Home</a> &bull;
+        <a href="docs.html">Docs</a> &bull;
+        <a href="architecture.html">Architecture</a> &bull;
+        <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

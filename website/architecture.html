@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture & Engineering Design — TermExplorer</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <span>⚡</span> TermExplorer
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="features.html">Features</a></li>
+        <li><a href="docs.html">Documentation</a></li>
+        <li><a href="architecture.html" class="active">Architecture</a></li>
+        <li><a href="roadmap.html">Roadmap</a></li>
+        <li><a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-btn">GitHub ⭐</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="container">
+    <div style="margin-bottom: 3rem;">
+      <div class="badge">Systems Engineering & Internals</div>
+      <h1 style="font-size: 2.75rem; margin-bottom: 0.5rem;">Architecture</h1>
+      <p style="color: var(--text-muted); font-size: 1.1rem;">
+        An in-depth look at how TermExplorer combines high-performance rendering, non-blocking I/O, pseudo-terminals, and safe Rust abstractions.
+      </p>
+    </div>
+
+    <!-- Architecture Diagram -->
+    <div class="terminal-window" style="margin-bottom: 3.5rem;">
+      <div class="terminal-header">
+        <div class="terminal-title">Subsystem Architecture &amp; Dataflow</div>
+      </div>
+      <div class="terminal-body"><span style="color: #6366f1;">┌────────────────────────────────────────────────────────────────────────┐</span>
+│                       <span style="color: #38bdf8; font-weight: bold;">Crossterm Event Stream</span>                           │
+│              (Keyboard, Mouse, Window Resize, Focus Events)            │
+<span style="color: #6366f1;">└──────────────────────────────────┬─────────────────────────────────────┘</span>
+                                   │
+                                   ▼
+<span style="color: #fb923c;">┌────────────────────────────────────────────────────────────────────────┐</span>
+│                  <span style="color: #38bdf8; font-weight: bold;">App Event Loop (tokio::select!)</span>                       │
+│  - 60 FPS Event Dispatcher                                            │
+│  - System Resource Polling (sysinfo)                                   │
+│  - PTY Reader Channel Receiver                                         │
+│  - State Synchronization & Mode Switching                              │
+<span style="color: #fb923c;">└──────┬─────────────────┬──────────────────┬─────────────────┬──────────┘</span>
+       │                 │                  │                 │
+       ▼                 ▼                  ▼                 ▼
+<span style="color: #34d399;">┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐</span>
+│ <span style="font-weight: bold;">File Browser</span> │  │ <span style="font-weight: bold;">Code Editor</span>  │  │ <span style="font-weight: bold;">Terminal PTY</span> │  │ <span style="font-weight: bold;">Universal Preview</span> │
+│ - Dual-Pane  │  │ - Syntect    │  │ - Master PTY │  │ - Magic Detector │
+│ - Trash I/O  │  │ - Undo/Redo  │  │ - Non-block  │  │ - Capability Reg │
+│ - Sort/Filter│  │ - Completion │  │ - VT Parsing │  │ - LRU Cache (64M)│
+<span style="color: #34d399;">└──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘</span>
+       │                 │                  │                 │
+       └─────────────────┴────────┬─────────┴─────────────────┘
+                                  │
+                                  ▼
+<span style="color: #c084fc;">┌────────────────────────────────────────────────────────────────────────┐</span>
+│                     <span style="color: #38bdf8; font-weight: bold;">Ratatui Terminal Renderer</span>                          │
+│  - 24-bit Truecolor Half-Block Engine (▀)                              │
+│  - Transparent Background Inheritance (bg: None)                       │
+│  - Responsive 5-Panel Layout Engine                                    │
+<span style="color: #c084fc;">└────────────────────────────────────────────────────────────────────────┘</span></div>
+    </div>
+
+    <!-- Core Systems Breakdown -->
+    <div class="features-grid">
+      <div class="card">
+        <h3>Universal Preview Pipeline</h3>
+        <p>The preview engine implements a multi-stage pipeline: Magic Bytes Sniffer &rarr; Category Dispatcher &rarr; Format-Specific Parser (pure Rust for DOCX/XLSX/SQLite/Hex) &rarr; LRU Cache &rarr; Ratatui spans. If a file is repeated, preview is rendered in 0ms directly from cache.</p>
+      </div>
+
+      <div class="card">
+        <h3>Pseudo-Terminal Subsystem</h3>
+        <p>Powered by <code>portable-pty</code>, the terminal spawns the user's default shell (<code>$SHELL</code>) inside a virtual slave PTY. Master reads execute on a dedicated background thread pumping bytes into a non-blocking channel to prevent TUI rendering locks.</p>
+      </div>
+
+      <div class="card">
+        <h3>Dual-Pane Explorer Architecture</h3>
+        <p>Both primary and secondary panes maintain independent <code>BrowserState</code> structs tracking their current working directories, sort orders, selections, and filters. File operations (copy, move) bridge the source and target paths synchronously with status reporting.</p>
+      </div>
+
+      <div class="card">
+        <h3>Keybinding Conflict Detection</h3>
+        <p>Every keystroke action is defined as a scoped enum (<code>Global</code>, <code>Explorer</code>, <code>Editor</code>, <code>Terminal</code>, <code>Preview</code>, <code>Git</code>). The Keybindings Manager runs an overlap-matrix conflict detector to ensure actions within the same scope never clash.</p>
+      </div>
+
+      <div class="card">
+        <h3>Resilient Settings Persistence</h3>
+        <p>Before any configuration write occurs, the serializer creates an atomic <code>.toml.bak</code> backup of the previous configuration. Boundary clamping verifies widths, timeouts, and limits so invalid configs never brick the application.</p>
+      </div>
+
+      <div class="card">
+        <h3>Zero-Panic Systems Safety</h3>
+        <p>Following strict systems engineering practices, all I/O errors, archive corruptions, and invalid image formats are trapped into typed <code>Result</code> enums and presented cleanly on the UI without causing application aborts.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div><strong>TermExplorer</strong> &bull; Systems Architecture & Design</div>
+      <div>
+        <a href="index.html">Home</a> &bull;
+        <a href="features.html">Features</a> &bull;
+        <a href="docs.html">Docs</a> &bull;
+        <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

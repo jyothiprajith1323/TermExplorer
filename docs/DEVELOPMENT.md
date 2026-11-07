@@ -1,6 +1,6 @@
 # TermExplorer Development Guide
 
-This guide covers building, running, testing, and developing TermExplorer on Ubuntu Linux and compatible Unix environments.
+This guide covers building, running, testing, and developing **TermExplorer** on Ubuntu Linux and compatible Unix environments.
 
 ---
 
@@ -16,34 +16,68 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source $HOME/.cargo/env
 ```
 
+Install optional multimedia tools for expanded preview support:
+```bash
+sudo apt update && sudo apt install -y build-essential pkg-config ffmpeg poppler-utils gio trash-cli
+```
+
 ---
 
 ## 2. Repository Structure
 
 ```text
 termexplorer/
-├── Cargo.toml          # Package configuration & dependencies
-├── rustfmt.toml        # Formatting rules
+├── .github/
+│   ├── workflows/          # CI, GitHub Pages & Release workflows
+│   │   ├── ci.yml
+│   │   ├── pages.yml
+│   │   └── release.yml
+│   ├── ISSUE_TEMPLATE/     # Bug report & feature request templates
+│   └── pull_request_template.md
+├── website/                # GitHub Pages static documentation website
+│   ├── index.html
+│   ├── features.html
+│   ├── docs.html
+│   ├── architecture.html
+│   ├── roadmap.html
+│   └── assets/ (style.css, app.js)
 ├── src/
-│   ├── main.rs         # Application entry point & terminal restoration
-│   ├── lib.rs          # Exported library interface
-│   ├── app.rs          # Core event loop, state machine & input routing
-│   ├── config.rs       # TOML configuration loading & persistence
-│   ├── state.rs        # Centralized application state
-│   ├── events.rs       # Crossterm & async event streaming
-│   ├── theme.rs        # Transparent styling & color palettes
-│   ├── filesystem/     # Directory listing, operations, metadata, search & watcher
-│   ├── editor/         # Buffer, auto-pairing, autocompletion, syntect syntax & LSP
-│   ├── shell/          # PTY spawning, session management & key translation
-│   ├── monitor/        # CPU, memory, disk, and process telemetry
-│   └── ui/             # Ratatui UI components & layouts
-├── tests/              # Comprehensive test suites
-│   ├── filesystem_tests.rs
-│   ├── editor_tests.rs
+│   ├── main.rs             # Application entry point & terminal restoration
+│   ├── lib.rs              # Exported library interface
+│   ├── app.rs              # Core event loop, state machine & input routing
+│   ├── config.rs           # TOML configuration loading & persistence
+│   ├── state.rs            # Centralized application state
+│   ├── events.rs           # Crossterm & async event streaming
+│   ├── theme.rs            # 12 themes & transparent styling
+│   ├── filesystem/         # Directory listing, FreeDesktop trash, operations, metadata
+│   ├── preview/            # Universal multi-format preview engine
+│   │   ├── detector.rs     # Magic bytes format classifier
+│   │   ├── registry.rs     # CLI tool & capability detector
+│   │   ├── rendering.rs    # Half-block Truecolor renderer
+│   │   ├── cache.rs        # Bounded LRU cache
+│   │   └── [format handlers: source, markdown, image, video, audio, pdf, office, data, archive, database, hex]
+│   ├── settings/           # Settings Studio engine
+│   │   ├── schema.rs       # 15 typed settings sections
+│   │   ├── keybindings.rs  # Scoped action registry & conflict detector
+│   │   ├── profiles.rs     # 6 layout presets
+│   │   └── persistence.rs  # Validation, clamping & .toml.bak backups
+│   ├── commands/           # Command Palette engine & registry
+│   ├── git/                # Git CLI status & commit tracker
+│   ├── workspace/          # Project kind detector & actions
+│   ├── editor/             # Buffer, auto-pairing, autocompletion & syntect syntax
+│   ├── shell/              # PTY spawning, session management & key translation
+│   ├── monitor/            # CPU, memory, disk, and process telemetry
+│   └── ui/                 # Ratatui UI components & modal overlays
+├── tests/                  # 8 integration test suites (42 tests)
 │   ├── config_tests.rs
+│   ├── editor_tests.rs
+│   ├── filesystem_tests.rs
+│   ├── git_and_workspace_tests.rs
 │   ├── monitor_tests.rs
+│   ├── preview_tests.rs
+│   ├── settings_tests.rs
 │   └── terminal_tests.rs
-└── docs/               # Technical documentation
+└── docs/                   # Architectural & user manuals
     ├── ARCHITECTURE.md
     ├── KEYBINDINGS.md
     └── DEVELOPMENT.md
@@ -58,54 +92,34 @@ termexplorer/
 cargo build
 ```
 
-### Run TermExplorer:
+### Run Locally:
 ```bash
 cargo run
 ```
 
-### Optimized Release Build:
+### Run with Debug Logging:
+```bash
+RUST_LOG=debug cargo run
+```
+
+### Production Release Build:
 ```bash
 cargo build --release
 ```
-The compiled binary will be placed at `target/release/termexplorer`.
-
-### Install to User Bin:
-```bash
-cargo install --path .
-```
-Now `termexplorer` can be executed directly from anywhere in your terminal.
 
 ---
 
-## 4. Quality Verification & Testing
+## 4. Testing & Verification
 
-Always verify all code quality checks before submitting changes:
+TermExplorer enforces strict test coverage and zero Clippy warnings:
 
-### 1. Formatting Check:
 ```bash
+# Run all 42 automated tests across 8 suites
+cargo test --all-targets --all-features
+
+# Check formatting compliance
 cargo fmt --all -- --check
-```
 
-### 2. Compilation & Target Check:
-```bash
-cargo check --all-targets
-```
-
-### 3. Automated Test Suite:
-```bash
-cargo test
-```
-
-### 4. Clippy Linter Check:
-```bash
+# Deny all Clippy warnings
 cargo clippy --all-targets --all-features -- -D warnings
 ```
-
----
-
-## 5. Adding New Features
-
-- **New Shortcuts or Keys:** Define key routing in `src/app.rs` under `handle_key` or panel-specific handlers.
-- **New Syntax Highlight Languages:** `syntect` includes default Sublime packages. Add mappings in `src/editor/syntax.rs` if needed.
-- **New System Metrics:** Extend `src/monitor/` and add fields to `MonitorSnapshot`.
-- **UI Customization:** Adjust themes in `src/theme.rs` or components under `src/ui/`.

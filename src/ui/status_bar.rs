@@ -51,29 +51,68 @@ fn build_left<'a>(state: &'a AppState, theme: &'a Theme) -> Vec<Span<'a>> {
         AppMode::Search => " SEARCH ",
         AppMode::Help => " HELP ",
         AppMode::Modal(_) => " DIALOG ",
+        AppMode::SettingsStudio { .. } => " SETTINGS ",
+        AppMode::CommandPalette { .. } => " PALETTE ",
+        AppMode::GitDashboard { .. } => " GIT ",
+        AppMode::Onboarding { .. } => " SETUP ",
     };
 
     let focused_str = match state.focused {
         FocusedPanel::Sidebar => "Sidebar",
-        FocusedPanel::Explorer => "Explorer",
+        FocusedPanel::Explorer => {
+            if state.dual_pane_enabled {
+                "Explorer (Left)"
+            } else {
+                "Explorer"
+            }
+        }
+        FocusedPanel::ExplorerSecondary => "Explorer (Right)",
         FocusedPanel::Preview => "Preview",
         FocusedPanel::Terminal => "Terminal",
         FocusedPanel::Editor => "Editor",
         FocusedPanel::Monitor => "Monitor",
     };
 
-    vec![
+    let mut spans = vec![
         Span::styled(mode_str, theme.accent_style()),
         Span::raw(" "),
         Span::styled(focused_str, theme.normal_style()),
-    ]
+        Span::raw(" │ "),
+        Span::styled(
+            format!("󰲋 {} ", state.workspace.name),
+            Style::default().fg(theme.accent),
+        ),
+        Span::styled(
+            format!("({})", state.workspace.project_kind.badge()),
+            Style::default().fg(Color::DarkGray),
+        ),
+    ];
+
+    if state.git_status.is_repo {
+        let git_color = if state.git_status.is_dirty {
+            theme.warning
+        } else {
+            theme.success
+        };
+        spans.push(Span::raw(" │ "));
+        spans.push(Span::styled(
+            format!(
+                "󰊢 {}{}",
+                state.git_status.branch,
+                if state.git_status.is_dirty { "*" } else { "" }
+            ),
+            Style::default().fg(git_color),
+        ));
+    }
+
+    spans
 }
 
 fn build_right(state: &AppState) -> Vec<String> {
-    let entry_count = state.explorer.entries.len();
-    let idx = state.explorer.selected_index;
+    let entry_count = state.active_explorer().entries.len();
+    let idx = state.active_explorer().selected_index;
     vec![
-        "F1 Help │ F2 Edit │ F6 Monitor │ Ctrl+` Term │ Ctrl+Q Quit".to_string(),
-        format!("{}/{}", idx + 1, entry_count),
+        "F1 Help │ F2 Edit │ F6 Monitor │ F7 Dual │ F10 Settings │ Ctrl+Shift+P Palette │ Ctrl+Q Quit".to_string(),
+        format!("{}/{}", if entry_count > 0 { idx + 1 } else { 0 }, entry_count),
     ]
 }
