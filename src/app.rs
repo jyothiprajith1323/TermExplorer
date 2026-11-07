@@ -92,6 +92,14 @@ impl App {
         })
     }
 
+    pub fn state(&self) -> &AppState {
+        &self.state
+    }
+
+    pub fn state_mut(&mut self) -> &mut AppState {
+        &mut self.state
+    }
+
     // ── Main event loop ──────────────────────────────────────────────────────
 
     pub async fn run(
@@ -325,18 +333,28 @@ impl App {
     // ── Directory loading ────────────────────────────────────────────────────
 
     async fn refresh_dir(&mut self) {
-        let dir = self.state.explorer.current_dir.clone();
+        let is_secondary =
+            self.state.dual_pane_enabled && self.state.active_pane == ActivePane::Secondary;
+        let (dir, sort) = if is_secondary {
+            (
+                self.state.explorer_secondary.current_dir.clone(),
+                self.state.explorer_secondary.sort_order,
+            )
+        } else {
+            (
+                self.state.explorer.current_dir.clone(),
+                self.state.explorer.sort_order,
+            )
+        };
         let show_hidden = self.state.config.show_hidden;
-        let sort = self.state.explorer.sort_order;
 
         match list_dir(&dir, show_hidden, sort) {
             Ok(entries) => {
-                self.state.explorer.entries = entries;
-                self.state.explorer.selected_index = self
-                    .state
-                    .explorer
+                let exp = self.state.active_explorer_mut();
+                exp.entries = entries;
+                exp.selected_index = exp
                     .selected_index
-                    .min(self.state.explorer.entries.len().saturating_sub(1));
+                    .min(exp.entries.len().saturating_sub(1));
                 self.update_preview().await;
             }
             Err(e) => {
@@ -346,31 +364,52 @@ impl App {
         }
     }
 
-    async fn navigate_into(&mut self, dir: PathBuf) {
-        self.state
-            .recent_dirs
-            .push(self.state.explorer.current_dir.clone());
-        self.state.explorer.current_dir = dir.clone();
-        self.state.explorer.selected_index = 0;
-        self.state.explorer.scroll_offset = 0;
-        if let Ok((w, rx)) = crate::filesystem::watcher::watch_directory(&dir) {
-            self._watcher = Some(w);
-            self.fs_rx = Some(rx);
+    pub async fn navigate_into(&mut self, dir: PathBuf) {
+        let is_secondary =
+            self.state.dual_pane_enabled && self.state.active_pane == ActivePane::Secondary;
+        if is_secondary {
+            self.state.explorer_secondary.current_dir = dir.clone();
+            self.state.explorer_secondary.selected_index = 0;
+            self.state.explorer_secondary.scroll_offset = 0;
+            self.refresh_dir().await;
+        } else {
+            self.state
+                .recent_dirs
+                .push(self.state.explorer.current_dir.clone());
+            self.state.explorer.current_dir = dir.clone();
+            self.state.explorer.selected_index = 0;
+            self.state.explorer.scroll_offset = 0;
+            if let Ok((w, rx)) = crate::filesystem::watcher::watch_directory(&dir) {
+                self._watcher = Some(w);
+                self.fs_rx = Some(rx);
+            }
+            self.refresh_dir().await;
         }
-        self.refresh_dir().await;
         self.state
             .set_status(format!("→ {}", dir.display()), StatusKind::Info);
     }
 
-    async fn navigate_up(&mut self) {
-        if let Some(parent) = self
-            .state
-            .explorer
-            .current_dir
-            .parent()
-            .map(|p| p.to_path_buf())
-        {
+    pub async fn navigate_up(&mut self) {
+        let is_secondary =
+            self.state.dual_pane_enabled && self.state.active_pane == ActivePane::Secondary;
+        let current = if is_secondary {
+            self.state.explorer_secondary.current_dir.clone()
+        } else {
+            self.state.explorer.current_dir.clone()
+        };
+
+        if let Some(parent) = current.parent().map(|p| p.to_path_buf()) {
+            let prev_name = current.file_name().map(|n| n.to_string_lossy().to_string());
             self.navigate_into(parent).await;
+            if let Some(name) = prev_name {
+                let exp = self.state.active_explorer_mut();
+                if let Some(idx) = exp.entries.iter().position(|e| e.name == name) {
+                    exp.selected_index = idx;
+                }
+            }
+            self.update_preview().await;
+        } else {
+            self.state.set_status("At filesystem root", StatusKind::Info);
         }
     }
 
@@ -554,6 +593,15 @@ impl App {
             KeyCode::Esc => {
                 self.state.mode = AppMode::Browse;
                 self.state.search_query.clear();
+                if self.state.focused == FocusedPanel::Preview {
+                    self.state.focused = if self.state.dual_pane_enabled
+                        && self.state.active_pane == ActivePane::Secondary
+                    {
+                        FocusedPanel::ExplorerSecondary
+                    } else {
+                        FocusedPanel::Explorer
+                    };
+                }
             }
             _ => {}
         }
@@ -875,23 +923,41 @@ impl App {
     async fn handle_explorer_key(&mut self, key: KeyEvent) -> Result<()> {
         match (key.modifiers, key.code) {
             // ── Navigation ────────────────────────────────────────────────
-            (KeyModifiers::NONE, KeyCode::Up) => {
-                if self.state.explorer.selected_index > 0 {
-                    self.state.explorer.selected_index -= 1;
+            (KeyModifiers::NONE, KeyCode::Up) | (KeyModifiers::NONE, KeyCode::Char('k')) => {
+                let moved = {
+                    let exp = self.state.active_explorer_mut();
+                    if exp.selected_index > 0 {
+                        exp.selected_index -= 1;
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if moved {
                     self.update_preview().await;
                 }
             }
-            (KeyModifiers::NONE, KeyCode::Down) => {
-                let max = self.state.explorer.entries.len().saturating_sub(1);
-                if self.state.explorer.selected_index < max {
-                    self.state.explorer.selected_index += 1;
+            (KeyModifiers::NONE, KeyCode::Down) | (KeyModifiers::NONE, KeyCode::Char('j')) => {
+                let max = self.state.active_explorer().entries.len().saturating_sub(1);
+                let moved = {
+                    let exp = self.state.active_explorer_mut();
+                    if exp.selected_index < max {
+                        exp.selected_index += 1;
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if moved {
                     self.update_preview().await;
                 }
             }
-            (KeyModifiers::NONE, KeyCode::Enter) => {
+            (KeyModifiers::NONE, KeyCode::Enter)
+            | (KeyModifiers::NONE, KeyCode::Right)
+            | (KeyModifiers::NONE, KeyCode::Char('l')) => {
                 if let Some(entry) = self.state.selected_entry() {
                     if entry.is_dir() {
-                        let dir = self.state.explorer.current_dir.join(&entry.name);
+                        let dir = self.state.active_explorer().current_dir.join(&entry.name);
                         self.navigate_into(dir).await;
                     } else {
                         // Open in preview.
@@ -899,7 +965,9 @@ impl App {
                     }
                 }
             }
-            (KeyModifiers::NONE, KeyCode::Backspace) => {
+            (KeyModifiers::NONE, KeyCode::Backspace)
+            | (KeyModifiers::NONE, KeyCode::Left)
+            | (KeyModifiers::NONE, KeyCode::Char('h')) => {
                 self.navigate_up().await;
             }
 
@@ -947,9 +1015,21 @@ impl App {
                 self.state.mode = AppMode::Modal(ModalKind::Rename);
                 self.state.modal_input.clear();
             }
-            (KeyModifiers::NONE, KeyCode::Char('h')) => {
+            (KeyModifiers::NONE, KeyCode::Char('.'))
+            | (KeyModifiers::CONTROL, KeyCode::Char('h')) => {
                 self.state.config.show_hidden = !self.state.config.show_hidden;
                 self.refresh_dir().await;
+                self.state.set_status(
+                    format!(
+                        "Hidden files: {}",
+                        if self.state.config.show_hidden {
+                            "shown"
+                        } else {
+                            "hidden"
+                        }
+                    ),
+                    StatusKind::Info,
+                );
             }
 
             // ── Search / filter ───────────────────────────────────────────
@@ -1088,7 +1168,7 @@ impl App {
                     }
                 }
             },
-            KeyCode::Enter => {
+            KeyCode::Enter | KeyCode::Right => {
                 let target_dir = match self.state.sidebar.section {
                     SidebarSection::Pinned => self
                         .state
@@ -1150,7 +1230,16 @@ impl App {
                 let max = self.state.preview.total_lines.saturating_sub(1);
                 self.state.preview.scroll_offset = (self.state.preview.scroll_offset + 20).min(max);
             }
-            KeyCode::Char('[') | KeyCode::Left => {
+            KeyCode::Esc | KeyCode::Backspace => {
+                self.state.focused = if self.state.dual_pane_enabled
+                    && self.state.active_pane == ActivePane::Secondary
+                {
+                    FocusedPanel::ExplorerSecondary
+                } else {
+                    FocusedPanel::Explorer
+                };
+            }
+            KeyCode::Char('[') => {
                 self.state.preview.active_tab = match self.state.preview.active_tab {
                     PreviewTab::Preview => PreviewTab::Actions,
                     PreviewTab::Information => PreviewTab::Preview,
@@ -1158,6 +1247,25 @@ impl App {
                     PreviewTab::Actions => PreviewTab::Hex,
                 };
                 self.update_preview().await;
+            }
+            KeyCode::Left | KeyCode::Char('h') => {
+                if self.state.preview.active_tab == PreviewTab::Preview {
+                    self.state.focused = if self.state.dual_pane_enabled
+                        && self.state.active_pane == ActivePane::Secondary
+                    {
+                        FocusedPanel::ExplorerSecondary
+                    } else {
+                        FocusedPanel::Explorer
+                    };
+                } else {
+                    self.state.preview.active_tab = match self.state.preview.active_tab {
+                        PreviewTab::Information => PreviewTab::Preview,
+                        PreviewTab::Hex => PreviewTab::Information,
+                        PreviewTab::Actions => PreviewTab::Hex,
+                        PreviewTab::Preview => PreviewTab::Preview,
+                    };
+                    self.update_preview().await;
+                }
             }
             KeyCode::Char(']') | KeyCode::Right => {
                 self.state.preview.active_tab = match self.state.preview.active_tab {
@@ -1254,6 +1362,8 @@ impl App {
         self.state.dual_pane_enabled = !self.state.dual_pane_enabled;
         if self.state.dual_pane_enabled {
             if self.state.explorer_secondary.entries.is_empty() {
+                self.state.explorer_secondary.current_dir =
+                    self.state.explorer.current_dir.clone();
                 let entries = list_dir(
                     &self.state.explorer_secondary.current_dir.clone(),
                     self.state.config.show_hidden,

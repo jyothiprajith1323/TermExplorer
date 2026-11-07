@@ -103,9 +103,9 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 | <kbd>`</kbd> (Backtick) | Global | Toggle embedded PTY terminal drawer |
 | <kbd>m</kbd> | Global | Toggle system resource monitor |
 | <kbd>g</kbd> | Global | Toggle Git dashboard overlay |
-| <kbd>j</kbd> / <kbd>k</kbd> | Explorer | Move selection down / up |
-| <kbd>Enter</kbd> / <kbd>l</kbd> | Explorer | Open directory or edit file |
-| <kbd>h</kbd> / <kbd>Backspace</kbd> | Explorer | Navigate to parent directory |
+| <kbd>↓</kbd> / <kbd>↑</kbd> (or <kbd>j</kbd>/<kbd>k</kbd>) | Explorer | Move selection down / up in directory |
+| <kbd>→</kbd> / <kbd>Enter</kbd> / <kbd>l</kbd> | Explorer | Navigate into directory (or preview file) |
+| <kbd>←</kbd> / <kbd>Backspace</kbd> / <kbd>h</kbd> | Explorer | Navigate out to parent directory |
 | <kbd>/</kbd> | Explorer | Real-time fuzzy filter files |
 | <kbd>.</kbd> | Explorer | Toggle hidden dotfiles |
 | <kbd>s</kbd> | Explorer | Cycle sort order (Name, Size, Modified, Type) |

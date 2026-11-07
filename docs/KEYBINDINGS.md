@@ -27,12 +27,12 @@
 
 | Key | Action |
 |---|---|
-| `j` / `↓` | Move selection down |
-| `k` / `↑` | Move selection up |
-| `Enter` / `l` | Open selected directory (or open file in editor) |
-| `h` / `Backspace` | Navigate to parent directory |
+| `↓` / `j` | Move selection down in directory |
+| `↑` / `k` | Move selection up in directory |
+| `→` / `Enter` / `l` | Navigate into selected directory (or preview file) |
+| `←` / `Backspace` / `h` | Navigate out to parent directory |
 | `/` or `Ctrl+F` | Open in-directory live fuzzy search bar |
-| `.` or `h` | Toggle display of hidden files (`.dotfiles`) |
+| `.` or `Ctrl+H` | Toggle display of hidden files (`.dotfiles`) |
 | `s` | Cycle sort order (Name, Size, Modified Date, Extension) |
 | `a` | Create a new file in current directory |
 | `A` | Create a new directory in current directory |
