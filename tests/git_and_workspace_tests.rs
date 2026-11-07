@@ -59,11 +59,25 @@ fn test_command_palette_search() {
 
 #[test]
 fn test_git_repo_query() {
-    // Current workspace /home/prajith/TermExplorer is a valid git repository
-    let curr_dir = std::path::Path::new("/home/prajith/TermExplorer");
-    let status = GitRepoStatus::query(curr_dir);
+    // Current working directory is always the repository root in both local and CI environments
+    let curr_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let status = GitRepoStatus::query(&curr_dir);
 
-    assert!(status.is_repo);
-    assert!(!status.branch.is_empty());
-    assert!(status.repo_root.is_some());
+    assert!(
+        status.is_repo,
+        "Repository query should succeed in current workspace"
+    );
+    assert!(!status.branch.is_empty(), "Branch name should be present");
+    assert!(
+        status.repo_root.is_some(),
+        "Repository root should be resolved"
+    );
+
+    // Also verify non-git directories return is_repo: false
+    let temp_dir = tempfile::tempdir().unwrap();
+    let empty_status = GitRepoStatus::query(temp_dir.path());
+    assert!(
+        !empty_status.is_repo,
+        "Empty tempdir without .git should not be a repo"
+    );
 }
