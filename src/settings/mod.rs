@@ -44,20 +44,55 @@ pub fn get_section_items(section: SettingsSection, config: &Config) -> Vec<Setti
                 .position(|t| t.eq_ignore_ascii_case(&config.theme.name))
                 .unwrap_or(0);
 
+            let icon_packs: Vec<String> = crate::icons::IconPack::all()
+                .iter()
+                .map(|p| p.display_name().to_string())
+                .collect();
+            let current_pack = crate::icons::IconPack::parse(&config.icon_pack);
+            let pack_idx = crate::icons::IconPack::all()
+                .iter()
+                .position(|&p| p == current_pack)
+                .unwrap_or(0);
+
+            let font_status = crate::fonts::FontStatus::detect();
+
             vec![
                 SettingItem {
                     key: "theme",
                     label: "Color Theme",
-                    description: "Select one of 12 built-in themes (Catppuccin, Dracula, Nord, Gruvbox, etc.)",
+                    description: "Select one of 14 canonical themes (Catppuccin Mocha/Macchiato/Frappé/Latte, Dracula, etc.)",
                     value: SettingValue::Choice {
                         current: current_idx,
                         options: themes,
                     },
                 },
                 SettingItem {
+                    key: "icon_pack",
+                    label: "File & Folder Icon Pack",
+                    description: "Icon styling: Catppuccin Nerd Font, Monochrome Nerd Font, Unicode, ASCII, or None",
+                    value: SettingValue::Choice {
+                        current: pack_idx,
+                        options: icon_packs,
+                    },
+                },
+                SettingItem {
+                    key: "font_status",
+                    label: "Host Font Detection",
+                    description: "Status of JetBrains Mono font detection on the host system via fontconfig",
+                    value: SettingValue::ReadOnly(font_status.status_summary()),
+                },
+                SettingItem {
+                    key: "font_guide",
+                    label: "Terminal Font Configuration",
+                    description: "Guide for configuring Kitty, Alacritty, WezTerm, or GNOME Terminal with JetBrains Mono",
+                    value: SettingValue::ReadOnly(
+                        "Set emulator font to 'JetBrainsMono Nerd Font Mono 12'. Run installer or check docs/FONTS.md.".to_string(),
+                    ),
+                },
+                SettingItem {
                     key: "transparent_bg",
                     label: "Inherit Terminal Transparency",
-                    description: "Use terminal default background color (bg: None) instead of opaque black",
+                    description: "Use terminal default background color (bg: None) instead of opaque background",
                     value: SettingValue::Bool(config.theme.transparent_background),
                 },
                 SettingItem {

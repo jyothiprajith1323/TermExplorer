@@ -1,6 +1,6 @@
 [package]
 name = "termexplorer"
-version = "0.1.0"
+version = "1.1.0"
 edition = "2021"
 authors = ["TermExplorer Contributors"]
 description = "A modern, keyboard-driven terminal file explorer with embedded terminal, editor, and system monitor"
@@ -21,6 +21,10 @@ path = "src/main.rs"
 # TUI
 ratatui = { version = "0.29", features = ["all-widgets"] }
 crossterm = { version = "0.28", features = ["event-stream"] }
+
+# WebAssembly Plugin Runtime & Hashing
+wasmi = "0.36"
+sha2 = "0.10"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

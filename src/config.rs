@@ -14,7 +14,10 @@ fn default_false() -> bool {
     false
 }
 fn default_theme() -> String {
-    "dark".to_string()
+    "Catppuccin Mocha".to_string()
+}
+fn default_icon_pack() -> String {
+    "catppuccin".to_string()
 }
 fn default_accent() -> String {
     "#61AFEF".to_string()
@@ -197,6 +200,9 @@ pub struct Config {
     #[serde(default = "default_max_preview_bytes")]
     pub max_preview_bytes: u64,
 
+    #[serde(default = "default_icon_pack")]
+    pub icon_pack: String,
+
     #[serde(default)]
     pub theme: ThemeConfig,
 
@@ -225,6 +231,7 @@ impl Default for Config {
             monitor_height: default_monitor_height(),
             show_hidden: false,
             max_preview_bytes: default_max_preview_bytes(),
+            icon_pack: default_icon_pack(),
             theme: ThemeConfig::default(),
             editor: EditorConfig::default(),
             monitor: MonitorConfig::default(),

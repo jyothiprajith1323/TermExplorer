@@ -100,6 +100,48 @@ impl DirEntry {
         }
     }
 
+    /// Return icon string and color based on icon pack and Catppuccin palette.
+    pub fn icon_styled(
+        &self,
+        pack: crate::icons::IconPack,
+        palette: &crate::theme::CatppuccinPalette,
+    ) -> (String, ratatui::style::Color) {
+        match &self.kind {
+            EntryKind::Directory => {
+                crate::icons::mappings::resolve_folder_icon(&self.name, false, pack, palette)
+            }
+            EntryKind::Symlink { broken, .. } => {
+                let symbol = match pack {
+                    crate::icons::IconPack::Catppuccin | crate::icons::IconPack::NerdFont => {
+                        crate::icons::glyphs::FILE_SYMLINK.nerd
+                    }
+                    crate::icons::IconPack::Unicode => crate::icons::glyphs::FILE_SYMLINK.unicode,
+                    crate::icons::IconPack::Ascii => crate::icons::glyphs::FILE_SYMLINK.ascii,
+                    crate::icons::IconPack::None => "",
+                };
+                let col = if *broken { palette.red } else { palette.teal };
+                (format!("{} ", symbol.trim()), col)
+            }
+            EntryKind::Special => {
+                let symbol = match pack {
+                    crate::icons::IconPack::Catppuccin | crate::icons::IconPack::NerdFont => {
+                        crate::icons::glyphs::FILE_SPECIAL.nerd
+                    }
+                    crate::icons::IconPack::Unicode => crate::icons::glyphs::FILE_SPECIAL.unicode,
+                    crate::icons::IconPack::Ascii => crate::icons::glyphs::FILE_SPECIAL.ascii,
+                    crate::icons::IconPack::None => "",
+                };
+                (format!("{} ", symbol.trim()), palette.yellow)
+            }
+            EntryKind::File => crate::icons::mappings::resolve_file_icon(
+                &self.name,
+                self.extension.as_deref(),
+                pack,
+                palette,
+            ),
+        }
+    }
+
     pub fn is_dir(&self) -> bool {
         matches!(self.kind, EntryKind::Directory)
     }

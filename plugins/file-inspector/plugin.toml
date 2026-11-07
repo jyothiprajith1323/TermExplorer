@@ -1,0 +1,8 @@
+id = "file-inspector"
+name = "File Inspector"
+version = "0.1.0"
+author = "TermExplorer Core Team"
+description = "Fast file size, extension, and binary heuristic telemetry inspector"
+entrypoint = "plugin.wasm"
+permissions = ["file_metadata", "status_text", "commands"]
+sha256 = "9a89d0c9588b9a9c7ec18cac26a8cc9e65818e709ce6b45a99050821a8abebcd"

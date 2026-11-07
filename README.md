@@ -163,7 +163,7 @@ termexplorer
 
 TermExplorer is tested thoroughly under strict systems safety criteria:
 ```bash
-# Run all 42 automated unit and integration tests across 8 test suites
+# Run all 70 automated unit and integration tests across 14 test suites
 cargo test --all-targets --all-features
 
 # Verify strict Clippy compliance (0 warnings allowed)
@@ -178,6 +178,13 @@ cargo fmt --all -- --check
 ## 📚 Documentation & Specifications
 
 - [Architecture & Design Guide](docs/ARCHITECTURE.md)
+- [Theme Ecosystem & Catppuccin Palette](docs/THEMES.md)
+- [Icon Engine & Pack Mappings](docs/ICONS.md)
+- [Typography & JetBrains Mono Guide](docs/FONTS.md)
+- [WebAssembly Plugins & Sandboxing](docs/PLUGINS.md)
+- [Plugin Host-Guest API Reference](docs/PLUGIN_API.md)
+- [Master Customization Guide](docs/CUSTOMIZATION.md)
+- [V1.1.0 Release Notes](docs/V1.1_RELEASE_NOTES.md)
 - [Complete Keybindings Reference](docs/KEYBINDINGS.md)
 - [Developer & Contributing Guide](docs/DEVELOPMENT.md)
 - [Release Changelog](CHANGELOG.md)

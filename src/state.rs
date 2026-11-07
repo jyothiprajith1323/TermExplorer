@@ -149,6 +149,10 @@ pub struct AppState {
     pub explorer_secondary: ExplorerState,
     pub git_status: GitRepoStatus,
     pub workspace: Workspace,
+    pub icon_manager: crate::icons::IconManager,
+    pub font_status: crate::fonts::FontStatus,
+    pub plugin_manager: crate::plugins::PluginManager,
+    pub theme_registry: crate::theme::ThemeRegistry,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -171,6 +175,27 @@ impl AppState {
         let workspace = Workspace::from_dir(&start_dir);
         let git_status = GitRepoStatus::query(&start_dir);
 
+        let mut icon_manager =
+            crate::icons::IconManager::new(crate::icons::IconPack::parse(&config.icon_pack));
+        icon_manager.load_from_file(&crate::icons::IconManager::default_config_path());
+
+        let font_status = crate::fonts::FontStatus::detect();
+
+        let mut theme_registry = crate::theme::ThemeRegistry::new();
+        theme_registry.load_from_dir(&crate::theme::ThemeRegistry::user_themes_dir());
+
+        let mut plugin_manager = crate::plugins::PluginManager::new();
+        plugin_manager.discover_and_load(
+            &crate::plugins::PluginManager::user_plugins_dir(),
+            &start_dir.to_string_lossy(),
+        );
+        if plugin_manager.plugins.is_empty() {
+            let local_plugins = std::path::PathBuf::from("plugins");
+            if local_plugins.exists() {
+                plugin_manager.discover_and_load(&local_plugins, &start_dir.to_string_lossy());
+            }
+        }
+
         Self {
             config,
             mode: AppMode::default(),
@@ -188,6 +213,10 @@ impl AppState {
             },
             git_status,
             workspace,
+            icon_manager,
+            font_status,
+            plugin_manager,
+            theme_registry,
             preview: PreviewState::default(),
             recent_dirs: RecentDirs::default(),
             modal_input: String::new(),

@@ -1,4 +1,13 @@
-//! Theme — colours, borders, and 12 built-in designer color schemes.
+//! Theme — colours, borders, Catppuccin palette, and built-in designer color schemes.
+
+pub mod palette;
+pub mod presets;
+pub mod registry;
+pub mod tokens;
+
+pub use palette::{CatppuccinFlavor, CatppuccinPalette};
+pub use registry::{CustomThemeDef, ThemeRegistry};
+pub use tokens::ThemeTokens;
 
 use ratatui::style::{Color, Modifier, Style};
 
@@ -26,14 +35,22 @@ pub struct Theme {
     pub date_color: Color,
     pub header_fg: Color,
     pub header_bg: Option<Color>,
+    /// Catppuccin design tokens (if available)
+    pub tokens: Option<ThemeTokens>,
 }
 
 impl Theme {
     /// Return theme matching name, with transparent background toggle.
     pub fn from_name(name: &str, transparent: bool) -> Self {
         let mut t = match name.to_ascii_lowercase().as_str() {
-            "catppuccin mocha" | "mocha" => Self::catppuccin_mocha(),
-            "catppuccin macchiato" | "macchiato" => Self::catppuccin_macchiato(),
+            "catppuccin mocha" | "mocha" => presets::catppuccin_mocha::theme(transparent),
+            "catppuccin macchiato" | "macchiato" => {
+                presets::catppuccin_macchiato::theme(transparent)
+            }
+            "catppuccin frappe" | "catppuccin frappé" | "frappe" | "frappé" => {
+                presets::catppuccin_frappe::theme(transparent)
+            }
+            "catppuccin latte" | "latte" => presets::catppuccin_latte::theme(transparent),
             "dracula" => Self::dracula(),
             "nord" => Self::nord(),
             "gruvbox" => Self::gruvbox(),
@@ -43,32 +60,43 @@ impl Theme {
             "solarized light" => Self::solarized_light(),
             "monokai" => Self::monokai(),
             "default light" | "light" => Self::default_light(),
-            _ => Self::default_dark(),
+            _ => presets::catppuccin_mocha::theme(transparent),
         };
 
         if transparent {
             t.bg = None;
             t.header_bg = None;
+            if let Some(tok) = &mut t.tokens {
+                tok.bg_primary = None;
+            }
         }
         t
     }
 
-    /// List all 12 built-in themes with descriptions.
+    /// List all built-in themes with descriptions.
     pub fn list_themes() -> &'static [(&'static str, &'static str)] {
         &[
+            (
+                "Catppuccin Mocha",
+                "Flagship soothing pastel dark theme (Mocha canonical palette)",
+            ),
+            (
+                "Catppuccin Macchiato",
+                "Medium-contrast soothing pastel dark palette",
+            ),
+            (
+                "Catppuccin Frappé",
+                "Low-contrast soothing pastel muted dark palette",
+            ),
+            (
+                "Catppuccin Latte",
+                "Crisp, soothing daylight pastel light palette",
+            ),
             (
                 "Default Dark",
                 "Modern sleek dark theme with One Dark accents",
             ),
             ("Default Light", "Clean readable daylight theme"),
-            (
-                "Catppuccin Mocha",
-                "Soothing pastel dark theme (Mocha palette)",
-            ),
-            (
-                "Catppuccin Macchiato",
-                "Medium-contrast pastel dark palette",
-            ),
             (
                 "Dracula",
                 "Famous vampire dark theme with vibrant purples & pinks",
@@ -96,7 +124,7 @@ impl Theme {
     }
 
     pub fn dark() -> Self {
-        Self::default_dark()
+        presets::catppuccin_mocha::theme(false)
     }
 
     pub fn default_dark() -> Self {
@@ -121,6 +149,7 @@ impl Theme {
             date_color: Color::Rgb(120, 130, 150),
             header_fg: Color::Rgb(240, 245, 255),
             header_bg: None,
+            tokens: None,
         }
     }
 
@@ -146,57 +175,24 @@ impl Theme {
             date_color: Color::Rgb(100, 105, 115),
             header_fg: Color::Rgb(20, 20, 20),
             header_bg: Some(Color::Rgb(235, 238, 242)),
+            tokens: None,
         }
     }
 
     pub fn catppuccin_mocha() -> Self {
-        Self {
-            name: "Catppuccin Mocha",
-            bg: Some(Color::Rgb(30, 30, 46)),
-            fg: Color::Rgb(205, 214, 244),
-            accent: Color::Rgb(137, 180, 250),
-            selection_bg: Color::Rgb(88, 91, 112),
-            selection_fg: Color::Rgb(245, 224, 220),
-            border: Color::Rgb(69, 71, 90),
-            border_focused: Color::Rgb(203, 166, 247),
-            status_fg: Color::Rgb(166, 173, 200),
-            error: Color::Rgb(243, 139, 168),
-            warning: Color::Rgb(249, 226, 175),
-            success: Color::Rgb(166, 227, 161),
-            dir_color: Color::Rgb(137, 180, 250),
-            file_color: Color::Rgb(205, 214, 244),
-            symlink_color: Color::Rgb(148, 226, 213),
-            hidden_color: Color::Rgb(108, 112, 134),
-            size_color: Color::Rgb(166, 173, 200),
-            date_color: Color::Rgb(166, 173, 200),
-            header_fg: Color::Rgb(245, 224, 220),
-            header_bg: None,
-        }
+        presets::catppuccin_mocha::theme(false)
     }
 
     pub fn catppuccin_macchiato() -> Self {
-        Self {
-            name: "Catppuccin Macchiato",
-            bg: Some(Color::Rgb(36, 39, 58)),
-            fg: Color::Rgb(202, 211, 245),
-            accent: Color::Rgb(138, 173, 244),
-            selection_bg: Color::Rgb(91, 96, 120),
-            selection_fg: Color::Rgb(244, 219, 214),
-            border: Color::Rgb(73, 77, 100),
-            border_focused: Color::Rgb(198, 160, 246),
-            status_fg: Color::Rgb(165, 173, 203),
-            error: Color::Rgb(237, 135, 150),
-            warning: Color::Rgb(238, 212, 159),
-            success: Color::Rgb(166, 218, 149),
-            dir_color: Color::Rgb(138, 173, 244),
-            file_color: Color::Rgb(202, 211, 245),
-            symlink_color: Color::Rgb(139, 213, 202),
-            hidden_color: Color::Rgb(110, 115, 141),
-            size_color: Color::Rgb(165, 173, 203),
-            date_color: Color::Rgb(165, 173, 203),
-            header_fg: Color::Rgb(244, 219, 214),
-            header_bg: None,
-        }
+        presets::catppuccin_macchiato::theme(false)
+    }
+
+    pub fn catppuccin_frappe() -> Self {
+        presets::catppuccin_frappe::theme(false)
+    }
+
+    pub fn catppuccin_latte() -> Self {
+        presets::catppuccin_latte::theme(false)
     }
 
     pub fn dracula() -> Self {
@@ -221,6 +217,7 @@ impl Theme {
             date_color: Color::Rgb(98, 114, 164),
             header_fg: Color::Rgb(255, 121, 198),
             header_bg: None,
+            tokens: None,
         }
     }
 
@@ -246,6 +243,7 @@ impl Theme {
             date_color: Color::Rgb(216, 222, 233),
             header_fg: Color::Rgb(236, 239, 244),
             header_bg: None,
+            tokens: None,
         }
     }
 
@@ -271,6 +269,7 @@ impl Theme {
             date_color: Color::Rgb(168, 153, 132),
             header_fg: Color::Rgb(251, 241, 199),
             header_bg: None,
+            tokens: None,
         }
     }
 
@@ -296,6 +295,7 @@ impl Theme {
             date_color: Color::Rgb(86, 95, 137),
             header_fg: Color::Rgb(192, 202, 245),
             header_bg: None,
+            tokens: None,
         }
     }
 
@@ -325,6 +325,7 @@ impl Theme {
             date_color: Color::Rgb(88, 110, 117),
             header_fg: Color::Rgb(147, 161, 161),
             header_bg: None,
+            tokens: None,
         }
     }
 
@@ -350,6 +351,7 @@ impl Theme {
             date_color: Color::Rgb(147, 161, 161),
             header_fg: Color::Rgb(7, 54, 66),
             header_bg: Some(Color::Rgb(238, 232, 213)),
+            tokens: None,
         }
     }
 
@@ -375,6 +377,7 @@ impl Theme {
             date_color: Color::Rgb(117, 113, 94),
             header_fg: Color::Rgb(248, 248, 242),
             header_bg: None,
+            tokens: None,
         }
     }
 

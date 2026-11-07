@@ -78,7 +78,10 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
             let entry = &entries[i];
             let is_selected = i == state.explorer.selected_index;
 
-            let icon = entry.icon();
+            let (icon_str, icon_color) = entry.icon_styled(
+                state.icon_manager.pack,
+                &crate::theme::CatppuccinPalette::mocha(),
+            );
             let name_style = if entry.is_hidden {
                 Style::default().fg(theme.hidden_color)
             } else {
@@ -145,7 +148,7 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
             };
 
             let mut name_spans = vec![
-                Span::raw(format!("{} ", icon)),
+                Span::styled(icon_str, Style::default().fg(icon_color)),
                 Span::styled(&entry.name, name_style),
             ];
 
@@ -262,7 +265,10 @@ pub fn render_secondary_explorer(frame: &mut Frame, area: Rect, state: &AppState
         .enumerate()
         .map(|(i, entry)| {
             let is_sel = i == state.explorer_secondary.selected_index;
-            let icon = entry.icon();
+            let (icon_str, icon_color) = entry.icon_styled(
+                state.icon_manager.pack,
+                &crate::theme::CatppuccinPalette::mocha(),
+            );
             let style = if is_sel {
                 theme.selection_style()
             } else if entry.kind == EntryKind::Directory {
@@ -277,7 +283,10 @@ pub fn render_secondary_explorer(frame: &mut Frame, area: Rect, state: &AppState
             };
 
             Row::new(vec![
-                Cell::from(format!("{} {}", icon, entry.name)).style(style),
+                Cell::from(ratatui::text::Line::from(vec![
+                    Span::styled(icon_str, Style::default().fg(icon_color)),
+                    Span::styled(&entry.name, style),
+                ])),
                 Cell::from(size_str).style(Style::default().fg(theme.size_color)),
             ])
         })

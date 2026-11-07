@@ -93,6 +93,16 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState, theme:
         ));
     }
 
+    // ── 3b. Active Plugin Status Telemetry ───────────────────────────────────
+    if let Some((pname, pstatus)) = state.plugin_manager.first_active_status_text() {
+        spans.push(Span::styled(
+            format!(" 󰡨 [{}: {}] ", pname, pstatus),
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+
     // ── 4. Right: Quick Navigation Keybinding Cheat-sheet ────────────────────
     let right_text = if width >= 120 {
         "? Help │ / Search │ F2 Edit │ F6 Monitor │ F7 Dual │ Ctrl+` Terminal │ F10 Settings"

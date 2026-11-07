@@ -23,7 +23,10 @@ fn test_all_15_settings_sections() {
 #[test]
 fn test_12_themes_palette_and_transparency() {
     let theme_names = Theme::list_themes();
-    assert_eq!(theme_names.len(), 12);
+    assert!(
+        theme_names.len() >= 12,
+        "Should contain at least 12 themes (now 14 with full Catppuccin suite)"
+    );
 
     for &(name, _desc) in theme_names {
         // Transparent enabled

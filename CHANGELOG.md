@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-11-07
+
+### Added
+- **Catppuccin Theme Ecosystem**:
+  - Full canonical 26-color system across all 4 official flavors: **Mocha** (default dark), **Macchiato**, **Frappé**, and **Latte** (light).
+  - Strongly-typed `ThemeTokens` mapping background, text, accent, border, status, filesystem, and syntax tokens directly from the palette.
+  - Custom TOML theme loader from `~/.config/termexplorer/themes/*.toml` with hex validation and graceful fallback.
+  - Transparent terminal background toggle (`bg: None`) across all themes.
+
+- **File and Folder Icon Ecosystem**:
+  - 5 switchable icon modes: `Catppuccin` (Nerd Font v3 + palette colors), `NerdFont` (monochrome), `Unicode` (emojis & symbols), `Ascii` (bracketed text tags), and `None`.
+  - Comprehensive associations covering 40+ programming languages, 15+ special project files (`Cargo.toml`, `package.json`, `Dockerfile`, etc.), and folder categories (`src/`, `tests/`, `docs/`, `target/`, etc.).
+  - Custom overrides and glyph associations via `~/.config/termexplorer/icons.toml`.
+
+- **Typography & Font Support (JetBrains Mono)**:
+  - Automated inspection using `fontconfig` (`fc-list` and `fc-match`) to detect `JetBrains Mono` and `JetBrainsMono Nerd Font Mono`.
+  - Terminal emulator configuration snippets and guides for Kitty, Alacritty, WezTerm, and GNOME Terminal.
+  - User-space non-root font installation script targeting `~/.local/share/fonts/`.
+
+- **WebAssembly Sandboxed Plugin Engine**:
+  - Pure-Rust sandboxed plugin runtime powered by `wasmi` (v0.36) and `sha2` (v0.10).
+  - Explicit capability boundaries: `commands`, `workspace_actions`, `file_metadata`, `context_actions`, `preview_provider`, and `status_text`.
+  - Bounded instruction fuel limits (`5,000,000` steps) preventing infinite loops.
+  - Panic and memory crash isolation ensuring guest traps never crash the host application.
+  - Cryptographic SHA-256 integrity verification against manifest declarations.
+  - Two working example plugins: `plugins/workspace-tools` and `plugins/file-inspector`.
+  - Live status bar telemetry display for active plugins.
+
+- **Interactive Personalization & Command Palette**:
+  - Real-time theme, icon pack, and font settings in Settings Studio (`F10`).
+  - Command Palette shortcuts for instant theme switching, icon packs, font guides, and plugin discovery (`Ctrl+Shift+P` / `Space`).
+
+- **Testing & Quality Metrics**:
+  - Expanded test suite to **70 automated integration tests** across 14 test suites with 100% pass rate.
+  - Zero clippy warnings under strict `-D warnings` on all targets and features.
+  - Full documentation suite in `docs/`: `THEMES.md`, `ICONS.md`, `FONTS.md`, `PLUGINS.md`, `PLUGIN_API.md`, `CUSTOMIZATION.md`, and `V1.1_RELEASE_NOTES.md`.
+
+---
+
 ## [0.1.0] - 2026-11-07
 
 ### Added

@@ -1466,6 +1466,25 @@ impl App {
                                 self.state.config.theme.transparent_background,
                             );
                         }
+                        "icon_pack" => {
+                            let packs = crate::icons::IconPack::all();
+                            let curr = packs
+                                .iter()
+                                .position(|&p| p == self.state.icon_manager.pack)
+                                .unwrap_or(0);
+                            let next = if key.code == KeyCode::Left {
+                                if curr == 0 {
+                                    packs.len() - 1
+                                } else {
+                                    curr - 1
+                                }
+                            } else {
+                                (curr + 1) % packs.len()
+                            };
+                            let new_pack = packs[next];
+                            self.state.icon_manager.pack = new_pack;
+                            self.state.config.icon_pack = new_pack.as_str().to_string();
+                        }
                         "show_hidden" => {
                             self.state.config.show_hidden = !self.state.config.show_hidden;
                             self.refresh_dir().await;
@@ -1621,6 +1640,8 @@ impl App {
                 let theme_name = match id {
                     "theme_catppuccin_mocha" => "Catppuccin Mocha",
                     "theme_catppuccin_macchiato" => "Catppuccin Macchiato",
+                    "theme_catppuccin_frappe" => "Catppuccin Frappé",
+                    "theme_catppuccin_latte" => "Catppuccin Latte",
                     "theme_dracula" => "Dracula",
                     "theme_nord" => "Nord",
                     "theme_gruvbox" => "Gruvbox",
@@ -1661,6 +1682,49 @@ impl App {
                 self.state.set_status(
                     format!("Applied profile: {}", profile.name()),
                     StatusKind::Success,
+                );
+            }
+            id if id.starts_with("icons_") => {
+                let pack = match id {
+                    "icons_catppuccin" => crate::icons::IconPack::Catppuccin,
+                    "icons_nerd_font" => crate::icons::IconPack::NerdFont,
+                    "icons_unicode" => crate::icons::IconPack::Unicode,
+                    "icons_ascii" => crate::icons::IconPack::Ascii,
+                    "icons_none" => crate::icons::IconPack::None,
+                    _ => crate::icons::IconPack::Catppuccin,
+                };
+                self.state.icon_manager.pack = pack;
+                self.state.config.icon_pack = pack.as_str().to_string();
+                let _ = self.state.config.save();
+                self.state.set_status(
+                    format!("Icon pack switched to {}", pack.display_name()),
+                    StatusKind::Success,
+                );
+            }
+            "fonts_setup_guide" => {
+                self.state.mode = AppMode::SettingsStudio {
+                    section_idx: 1,
+                    item_idx: 2,
+                    in_items: true,
+                };
+            }
+            "plugins_reload" => {
+                let dir = self
+                    .state
+                    .explorer
+                    .current_dir
+                    .to_string_lossy()
+                    .to_string();
+                self.state.plugin_manager = crate::plugins::PluginManager::new();
+                self.state
+                    .plugin_manager
+                    .discover_and_load(&crate::plugins::PluginManager::user_plugins_dir(), &dir);
+                self.state.set_status(
+                    format!(
+                        "Plugins reloaded ({} found in ~/.local/share/termexplorer/plugins)",
+                        self.state.plugin_manager.plugins.len()
+                    ),
+                    StatusKind::Info,
                 );
             }
             "git_panel" => {
