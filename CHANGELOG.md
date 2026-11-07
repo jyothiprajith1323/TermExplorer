@@ -7,6 +7,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0-RC2] - 2026-11-07
+
+### Approved Product Layout Architecture
+- **25% Explorer / 75% Preview Workspace**:
+  - Affirmed 25% File Explorer and 75% Contextual Preview as the approved product layout standard.
+  - Terminal visibility set to OFF by default on fresh installations (`show_terminal = false`).
+  - Terminal drawer compact 15% height when active (`terminal_height_percent = 15`).
+  - Main workspace automatically expands to full vertical height (38 of 40 rows, 95% screen real-estate) when terminal is closed.
+  - Added native `[layout]` configuration table in `config.toml` with backward compatibility and synchronization with legacy top-level keys.
+
+### Filesystem Durability & Data Safety Audit
+- **Storage Synchronization**:
+  - Enhanced `save_file_atomic` with `tmp.as_file().sync_all()` to flush physical storage media prior to atomic rename.
+  - Added parent directory metadata synchronization (`dir_file.sync_all()`) to ensure atomic directory entry commitment on POSIX filesystems.
+  - Clarified distinction between atomic replacement and power-loss durability.
+
+### WebAssembly Security Enforcement
+- **Native Runtime Memory Interception**:
+  - Implemented `wasmi::ResourceLimiter` on `HostState` to intercept `memory.grow` instructions during guest execution.
+  - Enforced strict 16 MiB linear memory ceiling across initial module instantiation and runtime heap expansion.
+  - Added `tests/adversarial_plugin_tests.rs` with 5 automated adversarial tests validating fuel limits, loop traps, memory bounds, and capability permissions.
+
+### Performance Validation Suite
+- **Comprehensive Benchmarks (`tests/performance_benchmarks.rs`)**:
+  - Added reproducible automated benchmark suite measuring 10 key performance indicators across debug and release profiles.
+  - Verified 41.25 ms startup time, 5.13 MB base RSS, 0.36 µs typing latency, and ~3,597 FPS TUI redraw capability.
+
+### User-Friendly Keybindings & Workstation Ergonomics
+- **Intuitive Panel Routing & Collision Elimination**:
+  - Unlocked panel resizing up to 85% width via `Ctrl+Right` / `Alt+]` and `Ctrl+Left` / `Alt+[` with synchronized `config.layout` ratios.
+  - Resolved panel resize collision: `[` and `]` cycle preview tabs when Preview is active, without triggering unintended resizing.
+  - Direct preview tab jumping with `1` (Preview), `2` (Info), `3` (Hex/Metadata), and `4` (Actions).
+  - Quick focus transfer: `Space` moves focus from Explorer directly into Contextual Preview; `Esc` or `h` returns to Explorer.
+  - Full Git Workbench integration: `Ctrl+G` and `g` open the Git overlay with Vim `j`/`k` navigation and staging actions (`s`, `u`, `c`).
+  - System Telemetry access: `F6` and `Ctrl+M` toggle the live hardware monitor.
+  - Added Explorer shortcuts: `a` (New File), `A` (New Directory), `d` / `Del` (Delete to Trash), `r` (Rename), `c`/`y` (Copy), `x` (Cut), `p`/`v` (Paste).
+  - Added dedicated test suite `tests/keybinding_and_panel_verification_tests.rs` (9 automated tests).
+  - Total automated test inventory expanded to **114 tests across 24 test suites** with 100% pass rate.
+
+---
+
+## [1.1.0-RC1] - 2026-11-07
+
+### Architectural & UI Redesign
+- **Two-Column Workstation Layout**:
+  - Completely eliminated the permanent left workspace panel (bookmarks, pinned directories, disk locations) from default screen real-estate to maximize productivity space.
+  - New default horizontal proportions: **25% File Explorer** and **75% Preview/Inspector**.
+  - Pinned folders and locations remain accessible via Command Palette (`Ctrl+Shift+P`), Quick Jump (`Ctrl+P`), and Breadcrumbs.
+  - Multi-tier adaptive responsive layout: gracefully collapses or expands across 6 terminal width tiers (from 60 columns to 160+ columns).
+- **Integrated Terminal Drawer**:
+  - Reduced default vertical height to a compact 15% drawer (or hidden by default).
+  - Terminal does not auto-open on startup; opens cleanly on hotkey (`Ctrl+T` or backtick).
+  - Compact terminal header controls with exact hit-testing: session title, shell name, CWD, new session, close, maximize, minimize, and resize handle.
+- **Redesigned Help Menu Modal**:
+  - Structured 6-category navigation (`[1] Global`, `[2] Navigation`, `[3] File Ops`, `[4] Editor`, `[5] Terminal`, `[6] Plugins`).
+  - GitHub-style `<kbd>` key badges, workflow pro-tips, category tabs, and scroll indicators.
+  - Full mouse hit-testing support for tab switching and dismissal.
+
+### Reliability & Data Safety Guarantees
+- **Zero Silent Data Loss Filesystem Architecture**:
+  - Atomic file saving (`save_file_atomic`) via temporary files with POSIX permission preservation.
+  - Concurrent modification protection: editor buffer tracks `loaded_mtime` and rejects silent overwrites if a file changes externally.
+  - Unsaved buffer crash recovery snapshots automatically persisted to `~/.local/share/termexplorer/recovery/`.
+  - Name collision policies (`CollisionPolicy::{Fail, Overwrite, AutoRename}`) with deterministic `file (1).ext` auto-renaming.
+  - Cross-filesystem move support handling `EXDEV` (errno 18) via verified copy-verify-unlink with automatic rollback on error.
+  - FreeDesktop `.trashinfo` metadata compliance (`[Trash Info]` headers) with bidirectional restore support (`restore_from_trash`).
+- **Configuration Resilience & Self-Healing**:
+  - Atomic configuration saving with automated `.bak` backup generation.
+  - Corrupted configuration recovery: falls back to `.bak` if primary is malformed, moves corrupt file to timestamped quarantine archive, and regenerates safe defaults.
+  - Added schema-validated export (`export_to_file`) and import (`import_from_file`).
+
+### Systems Stability & Sandboxing
+- **Terminal Raw Mode & Panic Recovery**:
+  - Installed emergency panic hook restoring terminal raw mode, leaving alternate screens, and disabling mouse capture if an unhandled panic occurs.
+  - Guaranteed child process tree termination on terminal session drop.
+- **WebAssembly Security Enforcement**:
+  - Enforced a hard 16 MiB linear memory ceiling per WASM plugin instance in `wasmi` (v0.36).
+  - Metered execution fuel (`5,000,000` steps) preventing infinite loops.
+  - Strict capability verification rejecting undeclared syscalls.
+
+### Distribution & Packaging
+- **Automated POSIX Shell Installer (`install.sh`)**: Rust toolchain verification, optimized release compilation, and user-space binary placement.
+- **Arch Linux / AUR Packaging**: Created `packaging/aur/PKGBUILD` for automated Makepkg builds.
+- **Website Modernization**: Overhauled website design with Catppuccin Mocha tokens, ambient mesh lighting, responsive CSS grid, interactive multi-tab installation widget, and updated SVG UI diagram reflecting the 25/75 workspace split.
+
+---
+
 ## [1.1.0] - 2026-11-07
 
 ### Added

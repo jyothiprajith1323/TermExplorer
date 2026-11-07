@@ -4,6 +4,7 @@ use crate::preview::data::DataPreviewKind;
 use crate::preview::manager::PreviewTab;
 use crate::state::{AppState, FocusedPanel};
 use crate::theme::Theme;
+use crate::ui::hit_test::{AppAction, HitRegistry, WidgetId};
 use bytesize::ByteSize;
 use ratatui::{
     layout::Rect,
@@ -13,13 +14,21 @@ use ratatui::{
     Frame,
 };
 
-pub fn render_preview(frame: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
+pub fn render_preview(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+    theme: &Theme,
+    hit_registry: &mut HitRegistry,
+) {
     let focused = state.focused == FocusedPanel::Preview;
     let border_style = if focused {
         theme.border_focused_style()
     } else {
         theme.border_style()
     };
+
+    hit_registry.register_button(WidgetId::PreviewPanel, area, AppAction::FocusPreview, 1);
 
     let preview = &state.preview;
     let file_name = preview
@@ -29,42 +38,165 @@ pub fn render_preview(frame: &mut Frame, area: Rect, state: &AppState, theme: &T
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "Inspector".to_string());
 
-    // Modern styled tab pills
+    // Modern styled tab pills with adaptive formatting to prevent clipping
     let tabs = [
-        (PreviewTab::Preview, "󰈈 Preview"),
-        (PreviewTab::Information, "󰋽 Info"),
-        (PreviewTab::Hex, "󰆦 Hex"),
-        (PreviewTab::Actions, "󰌒 Actions"),
+        (PreviewTab::Preview, "󰈈 Preview", "󰈈"),
+        (PreviewTab::Information, "󰋽 Info", "󰋽"),
+        (PreviewTab::Hex, "󰘳 Metadata", "󰘳"),
+        (PreviewTab::Actions, "󰌒 Actions", "󰌒"),
     ];
 
-    let mut title_spans = vec![
-        Span::styled(format!(" 󰍉 {} ", file_name), theme.header_style()),
-        Span::styled("─ ", Style::default().fg(theme.border)),
-    ];
+    let mut title_spans = Vec::new();
+    let mut cur_x = area.x + 1;
 
-    for (t, label) in tabs {
-        let is_active = preview.active_tab == t;
-        if is_active {
+    if let Some(path) = &preview.path {
+        let (icon_str, icon_color) = if path.is_dir() {
+            crate::icons::mappings::resolve_folder_icon(
+                &file_name,
+                false,
+                state.icon_manager.pack,
+                &crate::theme::CatppuccinPalette::mocha(),
+            )
+        } else {
+            let ext = path.extension().and_then(|s| s.to_str());
+            crate::icons::mappings::resolve_file_icon(
+                &file_name,
+                ext,
+                state.icon_manager.pack,
+                &crate::theme::CatppuccinPalette::mocha(),
+            )
+        };
+
+        let type_badge = if path.is_dir() {
+            "[DIR]"
+        } else if let Some(d) = &preview.full_data {
+            match d.format_info.category {
+                crate::preview::detector::FileCategory::SourceCode => "[CODE]",
+                crate::preview::detector::FileCategory::Markdown => "[MD]",
+                crate::preview::detector::FileCategory::Image => "[IMG]",
+                crate::preview::detector::FileCategory::Video => "[VID]",
+                crate::preview::detector::FileCategory::Audio => "[AUDIO]",
+                crate::preview::detector::FileCategory::Pdf => "[PDF]",
+                crate::preview::detector::FileCategory::Office => "[DOC]",
+                crate::preview::detector::FileCategory::Data => "[DATA]",
+                crate::preview::detector::FileCategory::Archive => "[ZIP]",
+                crate::preview::detector::FileCategory::Database => "[DB]",
+                crate::preview::detector::FileCategory::BinaryHex => "[BIN]",
+                crate::preview::detector::FileCategory::Other => "[FILE]",
+            }
+        } else {
+            "[FILE]"
+        };
+
+        if area.width >= 50 {
+            let icon_span = format!(" {} ", icon_str);
+            let icon_w = icon_span.chars().count() as u16;
+            title_spans.push(Span::styled(icon_span, Style::default().fg(icon_color)));
+            cur_x += icon_w;
+
+            let max_fn_w = (area.width.saturating_sub(50) as usize).clamp(10, 40);
+            let display_fn = if file_name.len() > max_fn_w {
+                format!("{}… ", &file_name[..max_fn_w.saturating_sub(1)])
+            } else {
+                format!("{} ", file_name)
+            };
+            let fn_w = display_fn.chars().count() as u16;
+            title_spans.push(Span::styled(display_fn, theme.header_style()));
+            cur_x += fn_w;
+
+            let badge_span = format!("{} ", type_badge);
+            let badge_w = badge_span.chars().count() as u16;
             title_spans.push(Span::styled(
-                format!(" [{}] ", label),
+                badge_span,
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            ));
+            cur_x += badge_w;
+
+            title_spans.push(Span::styled("│ ", Style::default().fg(theme.border)));
+            cur_x += 2;
+        }
+    }
+
+    for (idx, (t, label, icon)) in tabs.iter().enumerate() {
+        let is_active = preview.active_tab == *t;
+        let display_label = if area.width >= 54 {
+            *label
+        } else if area.width >= 42 {
+            if *t == PreviewTab::Hex {
+                "󰘳 Meta"
+            } else {
+                *label
+            }
+        } else if is_active {
+            *label
+        } else {
+            *icon
+        };
+
+        let span = if is_active {
+            Span::styled(
+                format!(" [{}] ", display_label),
                 Style::default()
                     .fg(Color::Black)
                     .bg(theme.accent)
                     .add_modifier(Modifier::BOLD),
-            ));
+            )
         } else {
-            title_spans.push(Span::styled(
-                format!(" {} ", label),
+            Span::styled(
+                format!(" {} ", display_label),
                 Style::default().fg(theme.size_color),
-            ));
-        }
+            )
+        };
+
+        let tab_w = (display_label.chars().count() + if is_active { 4 } else { 2 }) as u16;
+        let tab_rect = Rect {
+            x: cur_x,
+            y: area.y,
+            width: tab_w,
+            height: 1,
+        };
+        hit_registry.register_button(
+            WidgetId::PreviewTab(idx),
+            tab_rect,
+            AppAction::SelectPreviewTab(idx),
+            5,
+        );
+        cur_x += tab_w;
+        title_spans.push(span);
     }
 
-    let block = Block::default()
+    let visible_height = area.height.saturating_sub(2) as usize;
+    let offset = preview.scroll_offset;
+
+    let start_line = if preview.total_lines > 0 {
+        offset + 1
+    } else {
+        0
+    };
+    let end_line = (offset + visible_height).min(preview.total_lines);
+    let footer_text = if preview.total_lines > 0 && preview.active_tab == PreviewTab::Preview {
+        format!(
+            " Lines {}-{} of {} ",
+            start_line, end_line, preview.total_lines
+        )
+    } else {
+        String::new()
+    };
+
+    let mut block = Block::default()
         .title(Line::from(title_spans))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(border_style);
+
+    if !footer_text.is_empty() && area.width >= 40 {
+        block = block.title_bottom(Line::from(Span::styled(
+            footer_text,
+            Style::default().fg(theme.size_color),
+        )));
+    }
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -74,25 +206,87 @@ pub fn render_preview(frame: &mut Frame, area: Rect, state: &AppState, theme: &T
     }
 
     let Some(path) = &preview.path else {
-        let hint = Paragraph::new(
-            "\n  Select a file or folder to preview\n\n  Tabs: [ / ] or h / l switch tabs",
-        )
-        .style(Style::default().fg(Color::DarkGray));
-        frame.render_widget(hint, inner);
+        let top_padding = (inner.height.saturating_sub(9)) / 2;
+        let mut empty_lines = Vec::new();
+        for _ in 0..top_padding {
+            empty_lines.push(Line::raw(""));
+        }
+        empty_lines.push(Line::from(vec![
+            Span::styled(
+                "  󰍉 ",
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Select a file to preview",
+                Style::default()
+                    .fg(theme.header_fg)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        empty_lines.push(Line::raw(""));
+        empty_lines.push(Line::from(Span::styled(
+            "  Choose an item in the explorer to inspect its content.",
+            Style::default().fg(theme.size_color),
+        )));
+        empty_lines.push(Line::raw(""));
+        empty_lines.push(Line::from(vec![
+            Span::styled("  [↑ / ↓]  ", Style::default().fg(theme.accent)),
+            Span::styled("Navigate entries", Style::default().fg(Color::DarkGray)),
+        ]));
+        empty_lines.push(Line::from(vec![
+            Span::styled("  [← / →]  ", Style::default().fg(theme.accent)),
+            Span::styled("Open / Exit folders", Style::default().fg(Color::DarkGray)),
+        ]));
+        empty_lines.push(Line::from(vec![
+            Span::styled("  [Tab]    ", Style::default().fg(theme.accent)),
+            Span::styled("Switch panel focus", Style::default().fg(Color::DarkGray)),
+        ]));
+        empty_lines.push(Line::from(vec![
+            Span::styled("  [/]      ", Style::default().fg(theme.accent)),
+            Span::styled("Fuzzy filter entries", Style::default().fg(Color::DarkGray)),
+        ]));
+
+        let p = Paragraph::new(empty_lines);
+        frame.render_widget(p, inner);
         return;
     };
 
     if path.is_dir() {
-        render_directory_preview(frame, inner, path, theme);
+        render_directory_preview(frame, inner, path, theme, preview.dir_data.as_ref());
         return;
     }
 
     let full_data = match &preview.full_data {
         Some(d) => d,
         None => {
-            let hint = Paragraph::new("\n  Select a file to preview")
-                .style(Style::default().fg(Color::DarkGray));
-            frame.render_widget(hint, inner);
+            let top_padding = (inner.height.saturating_sub(6)) / 2;
+            let mut empty_lines = Vec::new();
+            for _ in 0..top_padding {
+                empty_lines.push(Line::raw(""));
+            }
+            empty_lines.push(Line::from(vec![
+                Span::styled(
+                    "  󰍉 ",
+                    Style::default()
+                        .fg(theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "Select a file to preview",
+                    Style::default()
+                        .fg(theme.header_fg)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]));
+            empty_lines.push(Line::raw(""));
+            empty_lines.push(Line::from(Span::styled(
+                "  Choose an item in the explorer to inspect its content.",
+                Style::default().fg(theme.size_color),
+            )));
+            let p = Paragraph::new(empty_lines);
+            frame.render_widget(p, inner);
             return;
         }
     };
@@ -147,20 +341,31 @@ fn render_content_preview(
                     "{} × {} px  ({})",
                     img.width, img.height, img.aspect_ratio
                 )),
+                Span::styled("  •  ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("{} | {}", img.format_name, img.color_type),
+                    Style::default().fg(theme.size_color),
+                ),
             ]),
             Line::from(vec![
-                Span::styled("  Format:     ", Style::default().fg(theme.accent)),
-                Span::raw(format!("{}  |  {}", img.format_name, img.color_type)),
+                Span::styled("  Hints:      ", Style::default().fg(theme.accent)),
+                Span::styled(
+                    "[f] Fullscreen  •  [+] Zoom In  •  [-] Zoom Out",
+                    Style::default().fg(theme.status_fg),
+                ),
             ]),
             Line::raw(""),
         ];
 
-        // Render halfblock image pixels if available (using static "▀" to avoid thousands of per-frame String allocations)
+        let img_w = img.halfblock_grid.first().map(|r| r.len()).unwrap_or(0);
+        let left_pad = (area.width as usize).saturating_sub(img_w) / 2;
+        let pad_span = Span::raw(" ".repeat(left_pad));
+
         for row in &img.halfblock_grid {
-            let spans: Vec<Span> = row
-                .iter()
-                .map(|&(fg, bg, _ch)| Span::styled("▀", Style::default().fg(fg).bg(bg)))
-                .collect();
+            let mut spans = vec![pad_span.clone()];
+            for &(fg, bg, _ch) in row {
+                spans.push(Span::styled("▀", Style::default().fg(fg).bg(bg)));
+            }
             lines.push(Line::from(spans));
         }
 
@@ -194,19 +399,32 @@ fn render_content_preview(
                     vid.duration_seconds.unwrap_or(0.0)
                 )),
             ]),
+            Line::from(vec![
+                Span::styled("  Controls: ", Style::default().fg(theme.accent)),
+                Span::styled(
+                    "[Space] Play/Pause  •  [←/→] ±5s Seek  •  [m] Mute",
+                    Style::default().fg(theme.status_fg),
+                ),
+            ]),
             Line::raw(""),
         ];
 
         if !vid.thumbnail_grid.is_empty() {
+            let thumb_w = vid.thumbnail_grid.first().map(|r| r.len()).unwrap_or(0);
+            let left_pad = (area.width as usize).saturating_sub(thumb_w) / 2;
+            let pad_span = Span::raw(" ".repeat(left_pad));
+
             lines.push(Line::from(Span::styled(
                 "  [Extracted First Frame]",
-                Style::default().fg(theme.success),
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD),
             )));
             for row in &vid.thumbnail_grid {
-                let spans: Vec<Span> = row
-                    .iter()
-                    .map(|&(fg, bg, _ch)| Span::styled("▀", Style::default().fg(fg).bg(bg)))
-                    .collect();
+                let mut spans = vec![pad_span.clone()];
+                for &(fg, bg, _ch) in row {
+                    spans.push(Span::styled("▀", Style::default().fg(fg).bg(bg)));
+                }
                 lines.push(Line::from(spans));
             }
         } else {
@@ -290,12 +508,19 @@ fn render_content_preview(
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(&pdf.pdf_version),
+                Span::styled("  •  Pages: ", Style::default().fg(theme.accent)),
+                Span::raw(format!("{}", pdf.page_count.unwrap_or(1))),
             ]),
             Line::from(vec![
-                Span::styled("  Pages: ", Style::default().fg(theme.accent)),
-                Span::raw(format!("{}", pdf.page_count.unwrap_or(1))),
-                Span::raw("  |  Title: "),
+                Span::styled("  Title: ", Style::default().fg(theme.accent)),
                 Span::raw(pdf.title.as_deref().unwrap_or("Untitled")),
+            ]),
+            Line::from(vec![
+                Span::styled("  Navigation: ", Style::default().fg(theme.accent)),
+                Span::styled(
+                    "[n] Next Page  •  [p] Prev Page  •  [+] Zoom In  •  [-] Zoom Out",
+                    Style::default().fg(theme.status_fg),
+                ),
             ]),
             Line::raw(""),
         ];
@@ -309,7 +534,7 @@ fn render_content_preview(
                 .extracted_text
                 .iter()
                 .skip(offset)
-                .take(visible_height.saturating_sub(4))
+                .take(visible_height.saturating_sub(5))
             {
                 lines.push(Line::from(format!("  {}", l)));
             }
@@ -560,7 +785,7 @@ fn render_content_preview(
             .take(visible_height)
             .map(|l| Line::from(vec![Span::raw("  "), Span::raw(l.as_str())]))
             .collect();
-        let p = Paragraph::new(display_lines);
+        let p = Paragraph::new(display_lines).wrap(ratatui::widgets::Wrap { trim: false });
         frame.render_widget(p, area);
         return;
     }
@@ -606,7 +831,7 @@ fn render_content_preview(
             .collect()
     };
 
-    let p = Paragraph::new(display_lines);
+    let p = Paragraph::new(display_lines).scroll((0, preview.horizontal_offset as u16));
     frame.render_widget(p, area);
 }
 
@@ -781,45 +1006,28 @@ fn render_actions_tab(
     frame.render_widget(p, area);
 }
 
-fn render_directory_preview(frame: &mut Frame, area: Rect, path: &std::path::Path, theme: &Theme) {
+fn render_directory_preview(
+    frame: &mut Frame,
+    area: Rect,
+    path: &std::path::Path,
+    theme: &Theme,
+    cached_data: Option<&crate::state::DirectoryPreviewData>,
+) {
     let mut lines = Vec::new();
 
-    let (entries, total_count, dir_count, file_count, total_bytes) = match std::fs::read_dir(path) {
-        Ok(read_dir) => {
-            let mut items = Vec::new();
-            let mut dirs = 0;
-            let mut files = 0;
-            let mut bytes: u64 = 0;
-            for entry in read_dir.flatten() {
-                let file_type = entry.file_type().ok();
-                let is_dir = file_type.map(|t| t.is_dir()).unwrap_or(false);
-                let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-                if is_dir {
-                    dirs += 1;
-                } else {
-                    files += 1;
-                    bytes = bytes.saturating_add(size);
-                }
-                items.push((
-                    entry.file_name().to_string_lossy().to_string(),
-                    is_dir,
-                    size,
-                ));
-            }
-            items.sort_by(|a, b| match (a.1, b.1) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.0.to_lowercase().cmp(&b.0.to_lowercase()),
-            });
-            let total = items.len();
-            (items, total, dirs, files, bytes)
-        }
-        Err(e) => {
-            let p = Paragraph::new(format!("\n  Cannot read directory: {}", e))
-                .style(Style::default().fg(theme.error));
-            frame.render_widget(p, area);
-            return;
-        }
+    let (items, total_count, dir_count, file_count, total_bytes) = if let Some(d) = cached_data {
+        (
+            &d.items,
+            d.total_count,
+            d.dir_count,
+            d.file_count,
+            d.total_bytes,
+        )
+    } else {
+        let p = Paragraph::new("\n  󰉓 Loading directory metadata...")
+            .style(Style::default().fg(theme.size_color));
+        frame.render_widget(p, area);
+        return;
     };
 
     let dir_name = path.file_name().unwrap_or_default().to_string_lossy();
@@ -870,9 +1078,9 @@ fn render_directory_preview(frame: &mut Frame, area: Rect, path: &std::path::Pat
             .add_modifier(Modifier::BOLD),
     )));
 
-    let max_display = (area.height as usize).saturating_sub(7).min(entries.len());
-    for (i, (name, is_dir, size)) in entries.iter().take(max_display).enumerate() {
-        let is_last = i + 1 == max_display && entries.len() <= max_display;
+    let max_display = (area.height as usize).saturating_sub(7).min(items.len());
+    for (i, (name, is_dir, size)) in items.iter().take(max_display).enumerate() {
+        let is_last = i + 1 == max_display && items.len() <= max_display;
         let branch = if is_last {
             "    └── "
         } else {
@@ -900,8 +1108,8 @@ fn render_directory_preview(frame: &mut Frame, area: Rect, path: &std::path::Pat
         }
     }
 
-    if entries.len() > max_display {
-        let remaining = entries.len() - max_display;
+    if items.len() > max_display {
+        let remaining = items.len() - max_display;
         lines.push(Line::from(Span::styled(
             format!("    ... and {} more items", remaining),
             Style::default().fg(Color::DarkGray),

@@ -3,6 +3,7 @@
 use crate::filesystem::browser::EntryKind;
 use crate::state::{AppMode, AppState, FocusedPanel};
 use crate::theme::Theme;
+use crate::ui::hit_test::{AppAction, HitRegistry, WidgetId};
 use bytesize::ByteSize;
 use ratatui::{
     layout::{Constraint, Rect},
@@ -12,13 +13,38 @@ use ratatui::{
     Frame,
 };
 
-pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
+pub fn format_relative_date(dt: chrono::DateTime<chrono::Local>) -> String {
+    use chrono::{Datelike, Duration, Local};
+    let now = Local::now();
+    let today = now.date_naive();
+    let dt_date = dt.date_naive();
+
+    if dt_date == today {
+        "Today".to_string()
+    } else if dt_date == today - Duration::days(1) {
+        "Yesterday".to_string()
+    } else if now.year() == dt.year() {
+        dt.format("%b %d").to_string()
+    } else {
+        dt.format("%Y-%m-%d").to_string()
+    }
+}
+
+pub fn render_file_explorer(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+    theme: &Theme,
+    hit_registry: &mut HitRegistry,
+) {
     let focused = state.focused == FocusedPanel::Explorer;
     let border_style = if focused {
         theme.border_focused_style()
     } else {
         theme.border_style()
     };
+
+    hit_registry.register_button(WidgetId::ExplorerPanel, area, AppAction::FocusExplorer, 1);
 
     let dir_str = state.explorer.current_dir.to_string_lossy();
     let sort_lbl = state.explorer.sort_order.label();
@@ -37,10 +63,25 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
         String::new()
     };
 
-    let title = format!(
-        " 󰝰 {}  │  󰒺 {}{}{} ",
-        dir_str, sort_lbl, hidden_lbl, clip_lbl
-    );
+    let dir_display = if area.width < 50 {
+        state
+            .explorer
+            .current_dir
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| dir_str.to_string())
+    } else {
+        dir_str.to_string()
+    };
+
+    let title = if area.width >= 35 {
+        format!(
+            " 󰝰 {}  │  󰒺 {}{}{} ",
+            dir_display, sort_lbl, hidden_lbl, clip_lbl
+        )
+    } else {
+        format!(" 󰝰 {} ", dir_display)
+    };
 
     let block = Block::default()
         .title(Span::styled(title, theme.header_style()))
@@ -136,7 +177,7 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
 
             let modified_str = entry
                 .modified
-                .map(|m| m.format("%Y-%m-%d %H:%M").to_string())
+                .map(format_relative_date)
                 .unwrap_or_else(|| "--".to_string());
 
             let perms = &entry.permissions_str;
@@ -161,35 +202,77 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
                 ));
             }
 
-            Row::new(vec![
+            let show_perms = inner.width >= 95;
+            let show_modified = inner.width >= 34;
+
+            let mut cells = vec![
                 Cell::from(Line::from(name_spans)),
                 Cell::from(size_str).style(Style::default().fg(theme.size_color)),
-                Cell::from(modified_str).style(Style::default().fg(theme.date_color)),
-                Cell::from(perms.as_str()).style(Style::default().fg(Color::DarkGray)),
-            ])
-            .style(row_style)
+            ];
+            if show_modified {
+                cells.push(Cell::from(modified_str).style(Style::default().fg(theme.date_color)));
+            }
+            if show_perms {
+                cells.push(Cell::from(perms.as_str()).style(Style::default().fg(Color::DarkGray)));
+            }
+
+            Row::new(cells).style(row_style)
         })
         .collect();
 
-    let header = Row::new(vec![
-        Cell::from(" Name").style(theme.header_style()),
-        Cell::from("Size").style(theme.header_style()),
-        Cell::from("Modified").style(theme.header_style()),
-        Cell::from("Perms").style(theme.header_style()),
-    ]);
+    let show_perms = inner.width >= 95;
+    let show_modified = inner.width >= 34;
 
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Min(16),
-            Constraint::Length(8),
-            Constraint::Length(16),
-            Constraint::Length(10),
-        ],
-    )
-    .header(header)
-    .row_highlight_style(theme.selection_style())
-    .highlight_symbol("▎ ");
+    let (header, constraints) = if show_perms {
+        (
+            Row::new(vec![
+                Cell::from(" Name").style(theme.header_style()),
+                Cell::from("Size").style(theme.header_style()),
+                Cell::from("Modified").style(theme.header_style()),
+                Cell::from("Perms").style(theme.header_style()),
+            ]),
+            vec![
+                Constraint::Min(24),
+                Constraint::Length(10),
+                Constraint::Length(12),
+                Constraint::Length(10),
+            ],
+        )
+    } else if show_modified {
+        (
+            Row::new(vec![
+                Cell::from(" Name").style(theme.header_style()),
+                Cell::from("Size").style(theme.header_style()),
+                Cell::from("Modified").style(theme.header_style()),
+            ]),
+            vec![
+                Constraint::Min(14),
+                Constraint::Length(8),
+                Constraint::Length(10),
+            ],
+        )
+    } else if inner.width >= 24 {
+        (
+            Row::new(vec![
+                Cell::from(" Name").style(theme.header_style()),
+                Cell::from("Size").style(theme.header_style()),
+            ]),
+            vec![Constraint::Min(12), Constraint::Length(8)],
+        )
+    } else {
+        (
+            Row::new(vec![
+                Cell::from(" Name").style(theme.header_style()),
+                Cell::from("Size").style(theme.header_style()),
+            ]),
+            vec![Constraint::Min(10), Constraint::Length(6)],
+        )
+    };
+
+    let table = Table::new(rows, constraints)
+        .header(header)
+        .row_highlight_style(theme.selection_style())
+        .highlight_symbol("▎ ");
 
     let visual_selected = filtered_indices
         .iter()
@@ -199,6 +282,28 @@ pub fn render_file_explorer(frame: &mut Frame, area: Rect, state: &AppState, the
     table_state.select(visual_selected);
 
     frame.render_stateful_widget(table, inner, &mut table_state);
+
+    let offset = table_state.offset();
+    let visible_rows = inner.height.saturating_sub(1) as usize;
+    for (screen_row, &orig_idx) in filtered_indices
+        .iter()
+        .skip(offset)
+        .take(visible_rows)
+        .enumerate()
+    {
+        let row_rect = Rect {
+            x: inner.x,
+            y: inner.y + 1 + screen_row as u16,
+            width: inner.width,
+            height: 1,
+        };
+        hit_registry.register_button(
+            WidgetId::ExplorerRow(orig_idx),
+            row_rect,
+            AppAction::SelectExplorerIndex(orig_idx),
+            2,
+        );
+    }
 
     // Search indicator overlay
     if matches!(state.mode, AppMode::Search) && !query.is_empty() {

@@ -26,7 +26,7 @@ fn default_sidebar_width() -> u16 {
     20
 }
 fn default_preview_width() -> u16 {
-    30
+    75
 }
 fn default_terminal_height() -> u16 {
     8
@@ -161,10 +161,55 @@ impl Default for MonitorConfig {
     }
 }
 
+fn default_explorer_ratio() -> f32 {
+    0.25
+}
+fn default_preview_ratio() -> f32 {
+    0.75
+}
+fn default_terminal_height_percent() -> u16 {
+    15
+}
+
+// ── Layout configuration ───────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LayoutSettings {
+    #[serde(default = "default_explorer_ratio")]
+    pub explorer_ratio: f32,
+    #[serde(default = "default_preview_ratio")]
+    pub preview_ratio: f32,
+    #[serde(default = "default_terminal_height_percent")]
+    pub terminal_height_percent: u16,
+    #[serde(default = "default_false")]
+    pub show_terminal: bool,
+    #[serde(default = "default_true")]
+    pub show_preview: bool,
+    #[serde(default = "default_false")]
+    pub show_sidebar: bool,
+}
+
+impl Default for LayoutSettings {
+    fn default() -> Self {
+        Self {
+            explorer_ratio: 0.25,
+            preview_ratio: 0.75,
+            terminal_height_percent: 15,
+            show_terminal: false,
+            show_preview: true,
+            show_sidebar: false,
+        }
+    }
+}
+
 // ── Root configuration struct ─────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    // Layout settings table
+    #[serde(default)]
+    pub layout: LayoutSettings,
+
     // Pinned folders persisted across sessions.
     #[serde(default)]
     pub pinned_folders: Vec<PinnedFolder>,
@@ -172,12 +217,12 @@ pub struct Config {
     #[serde(default)]
     pub custom_shortcuts: Vec<CustomShortcut>,
 
-    // Panel visibility defaults (Workspace sidebar removed by default; Terminal shown by default).
+    // Panel visibility defaults (Workspace sidebar removed by default; Terminal hidden by default).
     #[serde(default = "default_false")]
     pub show_sidebar: bool,
     #[serde(default = "default_true")]
     pub show_preview: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_false")]
     pub show_terminal: bool,
     #[serde(default = "default_false")]
     pub show_monitor: bool,
@@ -219,11 +264,12 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            layout: LayoutSettings::default(),
             pinned_folders: Vec::new(),
             custom_shortcuts: Vec::new(),
             show_sidebar: false,
             show_preview: true,
-            show_terminal: true,
+            show_terminal: false,
             show_monitor: false,
             sidebar_width: default_sidebar_width(),
             preview_width: default_preview_width(),
@@ -253,36 +299,68 @@ impl Config {
         Self::config_dir().join("config.toml")
     }
 
-    /// Load configuration, creating a default if it does not exist.
+    /// Return the path to the backup config file.
+    pub fn backup_path() -> PathBuf {
+        Self::config_dir().join("config.toml.bak")
+    }
+
+    /// Load configuration, recovering automatically from backups if primary file is corrupted.
     pub fn load_or_create() -> Result<Self> {
         let path = Self::config_path();
         if path.exists() {
-            let content = std::fs::read_to_string(&path)
-                .with_context(|| format!("Reading config: {}", path.display()))?;
-            let mut config: Self = toml::from_str(&content)
-                .with_context(|| format!("Parsing config: {}", path.display()))?;
+            let content = match std::fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to read config file {}: {}. Attempting backup.",
+                        path.display(),
+                        e
+                    );
+                    return Self::recover_from_backup_or_default();
+                }
+            };
 
-            let mut migrated = false;
-            let current_theme = config.theme.name.to_lowercase();
-            if current_theme == "default dark"
-                || current_theme == "default_dark"
-                || current_theme.is_empty()
-            {
-                config.theme.name = "Catppuccin Mocha".to_string();
-                migrated = true;
+            let parsed: Result<Self, _> = toml::from_str(&content);
+            match parsed {
+                Ok(mut config) => {
+                    let mut migrated = false;
+                    let current_theme = config.theme.name.to_lowercase();
+                    if current_theme == "default dark"
+                        || current_theme == "default_dark"
+                        || current_theme.is_empty()
+                    {
+                        config.theme.name = "Catppuccin Mocha".to_string();
+                        migrated = true;
+                    }
+                    if config.icon_pack.is_empty() || config.icon_pack == "default" {
+                        config.icon_pack = "catppuccin".to_string();
+                        migrated = true;
+                    }
+                    // Synchronize layout table and top-level fields
+                    if config.layout.show_terminal {
+                        config.show_terminal = true;
+                    } else if !config.show_terminal {
+                        config.layout.show_terminal = false;
+                    }
+                    if config.layout.show_sidebar {
+                        config.show_sidebar = true;
+                    } else if !config.show_sidebar {
+                        config.layout.show_sidebar = false;
+                    }
+                    if migrated {
+                        let _ = config.save();
+                    }
+                    Ok(config)
+                }
+                Err(parse_err) => {
+                    tracing::warn!(
+                        "Configuration file {} is corrupted: {}. Initiating recovery sequence.",
+                        path.display(),
+                        parse_err
+                    );
+                    Self::recover_from_backup_or_default()
+                }
             }
-            if config.icon_pack.is_empty() || config.icon_pack == "default" {
-                config.icon_pack = "catppuccin".to_string();
-                migrated = true;
-            }
-            if config.terminal_height > 10 {
-                config.terminal_height = 8;
-                migrated = true;
-            }
-            if migrated {
-                let _ = config.save();
-            }
-            Ok(config)
         } else {
             let config = Self::default();
             config.save()?;
@@ -290,16 +368,94 @@ impl Config {
         }
     }
 
-    /// Persist the current configuration to disk.
+    /// Attempt recovery from config.toml.bak, or preserve corrupted config and return default.
+    fn recover_from_backup_or_default() -> Result<Self> {
+        let bak_path = Self::backup_path();
+        if bak_path.exists() {
+            if let Ok(bak_content) = std::fs::read_to_string(&bak_path) {
+                if let Ok(config) = toml::from_str::<Self>(&bak_content) {
+                    tracing::info!(
+                        "Successfully recovered configuration from {}",
+                        bak_path.display()
+                    );
+                    // Archive corrupted file
+                    let primary = Self::config_path();
+                    let timestamp = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let archive_path =
+                        Self::config_dir().join(format!("config.toml.corrupted.{}", timestamp));
+                    let _ = std::fs::rename(&primary, &archive_path);
+                    let _ = config.save();
+                    return Ok(config);
+                }
+            }
+        }
+
+        // Archive corrupted file and generate pristine defaults
+        let primary = Self::config_path();
+        if primary.exists() {
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let archive_path =
+                Self::config_dir().join(format!("config.toml.corrupted.{}", timestamp));
+            let _ = std::fs::rename(&primary, &archive_path);
+        }
+
+        let config = Self::default();
+        config.save()?;
+        Ok(config)
+    }
+
+    /// Persist the current configuration to disk atomically with automatic backup.
     pub fn save(&self) -> Result<()> {
         let dir = Self::config_dir();
         std::fs::create_dir_all(&dir)
             .with_context(|| format!("Creating config dir: {}", dir.display()))?;
-        let content = toml::to_string_pretty(self).context("Serialising configuration to TOML")?;
+
         let path = Self::config_path();
-        std::fs::write(&path, content)
-            .with_context(|| format!("Writing config: {}", path.display()))?;
+        let bak_path = Self::backup_path();
+
+        // 1. Create automatic backup of previous valid configuration
+        if path.exists() {
+            let _ = std::fs::copy(&path, &bak_path);
+        }
+
+        // 2. Serialize to TOML
+        let content = toml::to_string_pretty(self).context("Serialising configuration to TOML")?;
+
+        // 3. Atomic write using NamedTempFile in same directory
+        crate::filesystem::operations::save_file_atomic(&path, content.as_bytes())
+            .with_context(|| format!("Writing config atomically: {}", path.display()))?;
+
         Ok(())
+    }
+
+    /// Reset configuration to default values and persist atomically.
+    pub fn reset_to_default(&mut self) -> Result<()> {
+        *self = Self::default();
+        self.save()
+    }
+
+    /// Export configuration to a specified path.
+    pub fn export_to_file(&self, target_path: &std::path::Path) -> Result<()> {
+        let content =
+            toml::to_string_pretty(self).context("Serialising configuration for export")?;
+        crate::filesystem::operations::save_file_atomic(target_path, content.as_bytes())
+    }
+
+    /// Import configuration from a specified path after full schema validation.
+    pub fn import_from_file(source_path: &std::path::Path) -> Result<Self> {
+        let content = std::fs::read_to_string(source_path)
+            .with_context(|| format!("Reading import file: {}", source_path.display()))?;
+        let config: Self = toml::from_str(&content).with_context(|| {
+            format!("Validating configuration schema: {}", source_path.display())
+        })?;
+        config.save()?;
+        Ok(config)
     }
 
     /// Add a pinned folder (no-op if already pinned at that path).

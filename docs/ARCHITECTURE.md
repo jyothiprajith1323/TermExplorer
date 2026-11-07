@@ -39,7 +39,9 @@
 │ Ratatui Terminal Renderer & Layout Engine                                    │
 │  - 24-bit Truecolor Half-Block Graphics Engine (▀)                           │
 │  - Transparent Background Inheritance (bg: None)                             │
-│  - Responsive 5-Panel Layout Engine (Sidebar, Explorer, Preview, PTY, Mon)   │
+│  - Approved Workstation Layout: 25% File Explorer / 75% Contextual Preview   │
+│  - Compact Integrated Terminal Drawer: 15% height when active, OFF by default│
+│  - Full vertical content expansion (95% height) when terminal is hidden      │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 

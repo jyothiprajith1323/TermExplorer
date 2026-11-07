@@ -6,10 +6,14 @@ fn test_default_config() {
     let cfg = Config::default();
     assert!(!cfg.show_sidebar);
     assert!(cfg.show_preview);
-    assert!(cfg.show_terminal);
+    assert!(!cfg.show_terminal);
+    assert_eq!(cfg.layout.explorer_ratio, 0.25);
+    assert_eq!(cfg.layout.preview_ratio, 0.75);
+    assert_eq!(cfg.layout.terminal_height_percent, 15);
+    assert!(!cfg.layout.show_terminal);
     assert!(!cfg.show_monitor);
     assert_eq!(cfg.sidebar_width, 20);
-    assert_eq!(cfg.preview_width, 30);
+    assert_eq!(cfg.preview_width, 75);
     assert_eq!(cfg.editor.tab_width, 4);
     assert!(cfg.editor.auto_pair);
     assert!(cfg.theme.transparent_background);

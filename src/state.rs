@@ -108,10 +108,21 @@ pub struct ExplorerState {
 
 /// State of the preview panel.
 #[derive(Debug, Clone, Default)]
+pub struct DirectoryPreviewData {
+    pub path: PathBuf,
+    pub total_count: usize,
+    pub dir_count: usize,
+    pub file_count: usize,
+    pub total_bytes: u64,
+    pub items: Vec<(String, bool, u64)>,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct PreviewState {
     pub path: Option<PathBuf>,
     pub active_tab: PreviewTab,
     pub full_data: Option<FullPreviewData>,
+    pub dir_data: Option<DirectoryPreviewData>,
     pub lines: Vec<String>,
     pub highlighted_spans: Vec<Vec<(u8, u8, u8, String)>>,
     pub scroll_offset: usize,
@@ -164,6 +175,12 @@ pub struct AppState {
     pub font_status: crate::fonts::FontStatus,
     pub plugin_manager: crate::plugins::PluginManager,
     pub theme_registry: crate::theme::ThemeRegistry,
+    pub show_diagnostics: bool,
+    pub last_mouse_pos: Option<(u16, u16)>,
+    pub last_frame_duration_us: u128,
+    pub debug_hitboxes: bool,
+    pub help_category: usize,
+    pub help_scroll: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -240,6 +257,12 @@ impl AppState {
             show_monitor,
             preview_maximized: false,
             terminal_maximized: false,
+            show_diagnostics: false,
+            last_mouse_pos: None,
+            last_frame_duration_us: 0,
+            debug_hitboxes: false,
+            help_category: 0,
+            help_scroll: 0,
         }
     }
 

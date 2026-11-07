@@ -51,12 +51,13 @@ impl ProfileKind {
     pub fn apply_to_config(&self, cfg: &mut Config) {
         match self {
             Self::Default => {
-                cfg.show_sidebar = true;
+                cfg.show_sidebar = false;
                 cfg.show_preview = true;
-                cfg.show_terminal = false;
+                cfg.show_terminal = true;
                 cfg.show_monitor = false;
                 cfg.sidebar_width = 20;
-                cfg.preview_width = 35;
+                cfg.preview_width = 75;
+                cfg.terminal_height = 8;
             }
             Self::Developer => {
                 cfg.show_sidebar = true;

@@ -22,20 +22,20 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 </p>
 
 ```text
-┌── SIDEBAR [1] ────┬── FILE EXPLORER [2] ──────────────┬── PREVIEW [Preview|Info|Hex|Actions] ────────────┐
-│ * BOOKMARKS       │ SIZE   MODIFIED   NAME            │ Type: Rust Source File (14.2 KB)                 │
-│   ~ Home          │ DIR    10:14:02   src/            │ 1  use anyhow::Result;                           │
-│   ~/Projects      │ DIR    09:45:11   tests/          │ 2  use ratatui::widgets::Paragraph;              │
-│ [+] WORKSPACES    │ 2.4 KB 11:02:30   Cargo.toml      │ 3                                                │
-│   > TermExplorer  │ 12.1KB 11:02:30   README.md       │ 4  #[derive(Debug, Clone)]                       │
-│     IronKV        │ 14.2KB 11:05:12 > main.rs         │ 5  pub struct AppEngine {                        │
-│ [*] SETTINGS      │  1.1KB 08:12:00   build.rs        │ 6      pub terminal: TerminalSession,            │
-│   F10 Studio      │                                   │ 7  }                                             │
-├───────────────────┴───────────────────────────────────┴──────────────────────────────────────────────────┤
-│ termexplorer:~/Projects/TermExplorer$ cargo test --all-targets --all-features                            │
-│    Finished `test` profile in 0.45s — 42 passed; 0 failed; 0 warnings                                    │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- NORMAL  ~/Projects/TermExplorer/src/main.rs | Git: master* | F1:Help F7:Dual-Pane F10:Settings q:Quit
+┌── EXPLORER (25%) ──┬── PREVIEW / INSPECTOR (75%) [Preview|Info|Hex|Actions] ──────────────┐
+│ SIZE   NAME        │ Type: Rust Source File (14.2 KB)                                     │
+│ DIR    src/        │  1  use anyhow::Result;                                              │
+│ DIR    tests/      │  2  use ratatui::widgets::Paragraph;                                 │
+│ 2.4 KB Cargo.toml  │  3                                                                   │
+│ 12 KB  README.md   │  4  #[derive(Debug, Clone)]                                          │
+│ 14 KB >main.rs     │  5  pub struct AppEngine {                                           │
+│  1 KB  build.rs    │  6      pub terminal: TerminalSession,                               │
+│                    │  7  }                                                                │
+├────────────────────┴──────────────────────────────────────────────────────────────────────┤
+│ termexplorer:~/Projects/TermExplorer$ cargo test --all-targets --all-features             │
+│    Finished `test` profile in 0.45s — 99 passed; 0 failed; 0 warnings                     │
+└───────────────────────────────────────────────────────────────────────────────────────────┘
+ NORMAL  ~/Projects/TermExplorer/src/main.rs | Git: master* | F1:Help F10:Settings Ctrl+T:Term q:Quit
 ```
 
 ---
@@ -95,29 +95,45 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 
 | Shortcut | Context | Action |
 |---|---|---|
-| <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> | Global | Cycle focus between active panels |
-| <kbd>Ctrl+Shift+P</kbd> / <kbd>P</kbd> | Global | Open fuzzy-search Command Palette |
-| <kbd>F1</kbd> | Global | Open Onboarding Wizard / Help |
-| <kbd>F7</kbd> | Global | Toggle Dual-Pane side-by-side explorer |
-| <kbd>F10</kbd> | Global | Open Interactive Settings Studio |
-| <kbd>`</kbd> (Backtick) | Global | Toggle embedded PTY terminal drawer |
-| <kbd>m</kbd> | Global | Toggle system resource monitor |
-| <kbd>g</kbd> | Global | Toggle Git dashboard overlay |
+| <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> | Global | Cycle focus forward / backward across active panels |
+| <kbd>Ctrl+P</kbd> / <kbd>Ctrl+Shift+P</kbd> | Global | Open fuzzy-search Command Palette |
+| <kbd>Ctrl+,</kbd> / <kbd>F10</kbd> | Global | Open Interactive Settings Studio |
+| <kbd>Ctrl+Shift+X</kbd> | Global | Open Plugin Marketplace & Extension Center |
+| <kbd>F1</kbd> / <kbd>?</kbd> | Global | Open Keyboard Shortcuts Reference Matrix |
+| <kbd>Ctrl+G</kbd> / <kbd>g</kbd> | Global / Explorer | Open Git Workbench (branch status, diffs, stage `s`, commit `c`) |
+| <kbd>F6</kbd> / <kbd>Ctrl+M</kbd> | Global | Toggle live System Telemetry Monitor |
+| <kbd>F7</kbd> | Global | Toggle Dual-Pane side-by-side file manager |
+| <kbd>F11</kbd> / <kbd>z</kbd> | Global / Browse | Toggle Fullscreen Preview (100% workstation width) |
+| <kbd>Ctrl+Right</kbd> / <kbd>Alt+]</kbd> | Global | Expand Contextual Preview width (+5%, up to 85%) |
+| <kbd>Ctrl+Left</kbd> / <kbd>Alt+[</kbd> | Global | Shrink Contextual Preview width (-5%, down to 15%) |
+| <kbd>Ctrl+T</kbd> / <kbd>`</kbd> | Global | Toggle embedded PTY terminal drawer (15% height, hidden by default) |
+| <kbd>Ctrl+Up</kbd> / <kbd>Ctrl+Down</kbd> | Global / Terminal | Resize bottom terminal drawer height (+/- 2 rows) |
+| <kbd>Ctrl+B</kbd> | Global | Toggle Workspace Sidebar & Bookmarks |
+| <kbd>F12</kbd> | Global | Toggle Performance Diagnostics & Frame Latency overlay |
+| <kbd>Ctrl+Q</kbd> | Global | Cleanly terminate all child sessions and exit to shell |
 | <kbd>↓</kbd> / <kbd>↑</kbd> (or <kbd>j</kbd>/<kbd>k</kbd>) | Explorer | Move selection down / up in directory |
 | <kbd>→</kbd> / <kbd>Enter</kbd> / <kbd>l</kbd> | Explorer | Navigate into directory (or preview file) |
 | <kbd>←</kbd> / <kbd>Backspace</kbd> / <kbd>h</kbd> | Explorer | Navigate out to parent directory |
+| <kbd>Space</kbd> | Explorer | Focus directly into Contextual Preview |
 | <kbd>/</kbd> | Explorer | Real-time fuzzy filter files |
-| <kbd>.</kbd> | Explorer | Toggle hidden dotfiles |
+| <kbd>.</kbd> / <kbd>Ctrl+H</kbd> | Explorer | Toggle hidden dotfiles |
 | <kbd>s</kbd> | Explorer | Cycle sort order (Name, Size, Modified, Type) |
-| <kbd>a</kbd> / <kbd>A</kbd> | Explorer | Create new file / new directory |
+| <kbd>a</kbd> / <kbd>F4</kbd> | Explorer | Create new file with prompt |
+| <kbd>A</kbd> / <kbd>F7</kbd> | Explorer | Create new directory with prompt |
 | <kbd>r</kbd> | Explorer | Rename selected file or directory |
-| <kbd>d</kbd> | Explorer | Move selected item to FreeDesktop Trash |
-| <kbd>D</kbd> | Explorer | Permanently delete selected item |
-| <kbd>c</kbd> / <kbd>m</kbd> | Explorer | Copy / Move item (or across panes in Dual-Pane) |
-| <kbd>[</kbd> / <kbd>]</kbd> | Preview | Cycle preview tabs (`[Preview]`, `[Info]`, `[Hex]`, `[Actions]`) |
-| <kbd>Ctrl+S</kbd> | Editor | Save buffer to disk atomically |
-| <kbd>Esc</kbd> | Editor / Modal | Close modal / return focus to File Explorer |
-| <kbd>q</kbd> | Global | Exit TermExplorer safely |
+| <kbd>d</kbd> / <kbd>F8</kbd> / <kbd>Del</kbd> | Explorer | Move selected item to FreeDesktop Trash (with confirmation) |
+| <kbd>c</kbd> / <kbd>y</kbd> | Explorer | Copy item to clipboard |
+| <kbd>x</kbd> | Explorer | Cut item to clipboard |
+| <kbd>v</kbd> / <kbd>p</kbd> | Explorer | Paste clipboard item into directory |
+| <kbd>F5</kbd> | Explorer | Refresh directory tree and reload Git status |
+| <kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> / <kbd>4</kbd> | Preview | Jump directly to Preview, Info, Metadata/Hex, or Actions tab |
+| <kbd>[</kbd> / <kbd>]</kbd> | Preview | Cycle active preview tab |
+| <kbd>1</kbd>–<kbd>9</kbd> | Preview (Actions) | Execute contextual action (Open with, Extract, Play) |
+| <kbd>F2</kbd> / <kbd>Enter</kbd> | Explorer / Preview | Open highlighted file in integrated code editor |
+| <kbd>Ctrl+S</kbd> | Editor | Save buffer to disk atomically with directory synchronization |
+| <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> | Editor | Multi-level Undo / Redo |
+| <kbd>Tab</kbd> | Editor | Accept autocomplete suggestion or indent |
+| <kbd>Esc</kbd> | Any | Universal escape: exit editor/modal and return focus to Explorer |
 
 *For the complete keybinding matrix, see [KEYBINDINGS.md](docs/KEYBINDINGS.md).*
 
@@ -125,37 +141,30 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 
 ## 📦 Installation & Getting Started
 
-### Prerequisites (Ubuntu / Linux)
+### Option 1: Automated Shell Installer (Recommended)
 ```bash
-sudo apt update
-sudo apt install -y build-essential pkg-config libasound2-dev libxcb1-dev
+curl -fsSL https://raw.githubusercontent.com/jyothiprajith1323/TermExplorer/master/install.sh | bash
 ```
 
-### Optional Multimedia Preview Utilities
+### Option 2: Arch Linux (AUR)
 ```bash
-sudo apt install -y ffmpeg poppler-utils gio trash-cli
+yay -S termexplorer-bin
 ```
 
-### Option 1: Install via Cargo
+### Option 3: Install via Cargo
 ```bash
-cargo install --git https://github.com/jyothiprajith1323/TermExplorer.git
+cargo install --git https://github.com/jyothiprajith1323/TermExplorer.git --locked
 ```
 
-### Option 2: Build from Source
+### Option 4: Build from Source
 ```bash
 git clone https://github.com/jyothiprajith1323/TermExplorer.git
 cd TermExplorer
 cargo build --release
-```
-The compiled binary will be placed at `target/release/termexplorer`. Move it into your `$PATH`:
-```bash
-cp target/release/termexplorer ~/.local/bin/
+install -Dm755 target/release/termexplorer ~/.local/bin/termexplorer
 ```
 
-### Run
-```bash
-termexplorer
-```
+For package prerequisites and multimedia helpers (`ffmpeg`, `poppler-utils`, `trash-cli`), see [INSTALLATION.md](INSTALLATION.md).
 
 ---
 
@@ -163,7 +172,7 @@ termexplorer
 
 TermExplorer is tested thoroughly under strict systems safety criteria:
 ```bash
-# Run all 70 automated unit and integration tests across 14 test suites
+# Run all 105 automated unit and integration tests across 23 test suites
 cargo test --all-targets --all-features
 
 # Verify strict Clippy compliance (0 warnings allowed)
@@ -177,6 +186,8 @@ cargo fmt --all -- --check
 
 ## 📚 Documentation & Specifications
 
+- [V1.1.0-RC2 Release Validation Report](docs/RC2_VALIDATION_REPORT.md)
+- [Performance & Benchmark Measurements](PERFORMANCE.md)
 - [Architecture & Design Guide](docs/ARCHITECTURE.md)
 - [Theme Ecosystem & Catppuccin Palette](docs/THEMES.md)
 - [Icon Engine & Pack Mappings](docs/ICONS.md)

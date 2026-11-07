@@ -110,7 +110,7 @@ impl CommandRegistry {
                 title: "Toggle Embedded Terminal",
                 description: "Open or close bottom real pseudo-terminal (PTY) shell",
                 category: CommandCategory::Terminal,
-                shortcut: Some("Ctrl+` / Ctrl+T"),
+                shortcut: Some("Ctrl+T"),
             },
             CommandItem {
                 id: "terminal_increase_height",

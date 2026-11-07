@@ -15,7 +15,7 @@
                ║  [Explorer]   Create New File                        [a]           ║               
                ║  [Explorer]   Create New Directory                   [A]           ║               
                ║  [Explorer]   Refresh Explorer                       [F5]          ║               
-               ║  [Terminal]   Toggle Embedded Terminal               [Ctrl+` / Ctrl║               
+               ║  [Terminal]   Toggle Embedded Terminal               [Ctrl+T]      ║               
                ║  [Terminal]   Increase Terminal Height               [} / Ctrl+Up] ║               
                ║  [Terminal]   Decrease Terminal Height               [{ / Ctrl+Down║               
                ║  [Terminal]   Maximize Embedded Terminal             [Alt+F6 / Ctrl║               

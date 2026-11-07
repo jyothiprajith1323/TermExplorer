@@ -1,6 +1,7 @@
 //! Capability registry for preview handlers and external helper tools.
 
-use std::process::Command;
+use std::collections::HashMap;
+use std::sync::{OnceLock, RwLock};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HandlerCapability {
@@ -29,26 +30,42 @@ pub struct ToolStatus {
 
 pub struct CapabilityRegistry;
 
+static TOOL_CACHE: OnceLock<RwLock<HashMap<String, Option<String>>>> = OnceLock::new();
+
 impl CapabilityRegistry {
-    /// Check whether a command exists in $PATH.
+    /// Check whether a command exists in $PATH using cached in-memory resolution.
     pub fn is_tool_available(name: &str) -> bool {
-        Command::new("which")
-            .arg(name)
-            .output()
-            .map(|out| out.status.success())
-            .unwrap_or(false)
+        Self::tool_path(name).is_some()
     }
 
-    /// Resolve the full path of a tool if available.
+    /// Resolve the full path of a tool without spawning slow subprocesses.
     pub fn tool_path(name: &str) -> Option<String> {
-        let out = Command::new("which").arg(name).output().ok()?;
-        if out.status.success() {
-            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if !s.is_empty() {
-                return Some(s);
+        let cache = TOOL_CACHE.get_or_init(|| RwLock::new(HashMap::new()));
+        if let Ok(guard) = cache.read() {
+            if let Some(hit) = guard.get(name) {
+                return hit.clone();
             }
         }
-        None
+
+        // Fast in-process PATH lookup — zero subprocess overhead
+        let resolved = if let Ok(path_var) = std::env::var("PATH") {
+            std::env::split_paths(&path_var).find_map(|dir| {
+                let candidate = dir.join(name);
+                if candidate.is_file() {
+                    Some(candidate.to_string_lossy().to_string())
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        };
+
+        if let Ok(mut guard) = cache.write() {
+            guard.insert(name.to_string(), resolved.clone());
+        }
+
+        resolved
     }
 
     /// List status of all known optional integrations.

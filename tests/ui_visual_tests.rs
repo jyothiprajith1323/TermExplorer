@@ -12,6 +12,7 @@ use termexplorer::ui::{
     file_explorer::render_file_explorer,
     git_panel::render_git_panel,
     header::render_header,
+    hit_test::HitRegistry,
     layout::{compute_layout, LayoutConfig},
     preview::render_preview,
     settings::render_settings_studio,
@@ -39,10 +40,14 @@ fn test_render_workstation_main_layout_120x40() {
     state.workspace.name = "IronKV".to_string();
     assert!(!state.show_sidebar);
     assert!(state.show_preview);
-    assert!(state.show_terminal);
+    assert!(
+        !state.show_terminal,
+        "Terminal must be OFF by default on fresh installation"
+    );
     let theme = Theme::catppuccin_mocha();
     let snap = Monitor::new().refresh();
 
+    // 1. Render default workspace (Terminal hidden, full vertical content height)
     terminal
         .draw(|frame| {
             let area = frame.area();
@@ -52,43 +57,117 @@ fn test_render_workstation_main_layout_120x40() {
                 show_bottom: state.show_terminal,
                 dual_pane: false,
                 sidebar_pct: 20,
-                preview_pct: 30,
-                bottom_height: 10,
+                preview_pct: 75,
+                bottom_height: 6,
                 preview_maximized: false,
                 terminal_maximized: false,
             };
             let areas = compute_layout(area, &layout_cfg);
+            let mut hit_reg = HitRegistry::new();
 
-            render_header(frame, areas.header, &state, Some(&snap), &theme);
+            render_header(
+                frame,
+                areas.header,
+                &state,
+                Some(&snap),
+                &theme,
+                &mut hit_reg,
+            );
             assert!(
                 areas.sidebar.is_none(),
                 "Default layout must NOT have permanent workspace sidebar"
             );
-            render_file_explorer(frame, areas.explorer, &state, &theme);
+            assert!(
+                areas.bottom_panel.is_none(),
+                "Default layout must NOT render terminal when hidden"
+            );
+            assert_eq!(
+                areas.explorer.height, 38,
+                "Content height must take all available vertical space (40 - 2 = 38)"
+            );
+            assert_eq!(
+                areas.explorer.width, 30,
+                "Explorer must take 25% of 120 columns = 30 cols"
+            );
+            assert_eq!(
+                areas.preview.unwrap().width,
+                90,
+                "Preview must take 75% of 120 columns = 90 cols"
+            );
+
+            render_file_explorer(frame, areas.explorer, &state, &theme, &mut hit_reg);
             if let Some(pv) = areas.preview {
-                render_preview(frame, pv, &state, &theme);
-            }
-            if let Some(btm) = areas.bottom_panel {
-                termexplorer::ui::terminal::render_terminal(
-                    frame,
-                    btm,
-                    b"termexplorer:~$ ",
-                    &state,
-                    &theme,
-                );
+                render_preview(frame, pv, &state, &theme, &mut hit_reg);
             }
             render_status_bar(frame, areas.status_bar, &state, &theme);
         })
         .unwrap();
 
-    let screen = buffer_to_string(terminal.backend().buffer());
-
+    let screen_default = buffer_to_string(terminal.backend().buffer());
     std::fs::create_dir_all("screenshots").unwrap();
-    std::fs::write("screenshots/main_workstation_120x40.txt", &screen).unwrap();
+    std::fs::write("screenshots/main_workstation_120x40.txt", &screen_default).unwrap();
+    assert!(screen_default.contains("TERMEXPLORER"));
+    assert!(screen_default.contains("NORMAL"));
+    assert!(screen_default.contains("EXPLORER"));
 
-    assert!(screen.contains("TERMEXPLORER"));
-    assert!(screen.contains("NORMAL"));
-    assert!(screen.contains("EXPLORER"));
+    // 2. Render workstation with Terminal enabled (~15% drawer height)
+    state.show_terminal = true;
+    terminal
+        .draw(|frame| {
+            let area = frame.area();
+            let layout_cfg = LayoutConfig {
+                show_sidebar: state.show_sidebar,
+                show_preview: state.show_preview,
+                show_bottom: state.show_terminal,
+                dual_pane: false,
+                sidebar_pct: 20,
+                preview_pct: 75,
+                bottom_height: 6,
+                preview_maximized: false,
+                terminal_maximized: false,
+            };
+            let areas = compute_layout(area, &layout_cfg);
+            let mut hit_reg = HitRegistry::new();
+
+            render_header(
+                frame,
+                areas.header,
+                &state,
+                Some(&snap),
+                &theme,
+                &mut hit_reg,
+            );
+            render_file_explorer(frame, areas.explorer, &state, &theme, &mut hit_reg);
+            if let Some(pv) = areas.preview {
+                render_preview(frame, pv, &state, &theme, &mut hit_reg);
+            }
+            let btm = areas
+                .bottom_panel
+                .expect("Bottom panel must exist when terminal enabled");
+            assert!(
+                (5..=8).contains(&btm.height),
+                "Terminal drawer must occupy ~15% height (actual: {})",
+                btm.height
+            );
+            termexplorer::ui::terminal::render_terminal(
+                frame,
+                btm,
+                b"termexplorer:~$ ",
+                &state,
+                &theme,
+                &mut hit_reg,
+            );
+            render_status_bar(frame, areas.status_bar, &state, &theme);
+        })
+        .unwrap();
+
+    let screen_with_term = buffer_to_string(terminal.backend().buffer());
+    std::fs::write(
+        "screenshots/workstation_with_terminal_120x40.txt",
+        &screen_with_term,
+    )
+    .unwrap();
+    assert!(screen_with_term.contains("Terminal"));
 }
 
 #[test]
@@ -132,7 +211,8 @@ fn test_responsive_layout_adaptive_breakpoints() {
     let areas_160 = compute_layout(Rect::new(0, 0, 160, 50), &layout_cfg);
     assert!(areas_160.sidebar.is_some());
     assert!(areas_160.preview.is_some());
-    assert!(areas_160.explorer.width > 50);
+    assert!(areas_160.explorer.width >= 30);
+    assert!(areas_160.preview.unwrap().width >= 90);
 }
 
 #[test]
@@ -301,4 +381,170 @@ fn test_render_plugin_center_modal() {
     assert!(screen.contains("Installed"));
     assert!(screen.contains("Permissions"));
     assert!(screen.contains("Workspace Tools"));
+}
+
+#[test]
+fn test_adaptive_screen_renders_80_100_120_140_154_160() {
+    let dimensions = [
+        (80, 24),
+        (100, 30),
+        (120, 40),
+        (140, 40),
+        (154, 42),
+        (160, 50),
+    ];
+
+    let mut state = AppState::new(Config::default());
+    state.workspace.name = "Workstation".to_string();
+    let theme = Theme::catppuccin_mocha();
+    let snap = Monitor::new().refresh();
+
+    std::fs::create_dir_all("screenshots").unwrap();
+
+    for (w, h) in dimensions {
+        let backend = TestBackend::new(w, h);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let layout_cfg = LayoutConfig {
+            show_sidebar: false,
+            show_preview: true,
+            show_bottom: true,
+            dual_pane: false,
+            sidebar_pct: 20,
+            preview_pct: 35,
+            bottom_height: 7,
+            preview_maximized: false,
+            terminal_maximized: false,
+        };
+
+        let areas = compute_layout(Rect::new(0, 0, w, h), &layout_cfg);
+
+        // Verification of 25/75 workstation proportions
+        if w == 154 {
+            assert_eq!(
+                areas.explorer.width, 39,
+                "At 154 cols, explorer must be exactly 39 cols (~25%)"
+            );
+            assert_eq!(
+                areas.preview.unwrap().width,
+                115,
+                "At 154 cols, preview must be exactly 115 cols (~75%)"
+            );
+        }
+
+        let mut hit_reg = HitRegistry::new();
+
+        terminal
+            .draw(|frame| {
+                render_header(
+                    frame,
+                    areas.header,
+                    &state,
+                    Some(&snap),
+                    &theme,
+                    &mut hit_reg,
+                );
+                render_file_explorer(frame, areas.explorer, &state, &theme, &mut hit_reg);
+                if let Some(pv) = areas.preview {
+                    render_preview(frame, pv, &state, &theme, &mut hit_reg);
+                }
+                if let Some(btm) = areas.bottom_panel {
+                    termexplorer::ui::terminal::render_terminal(
+                        frame,
+                        btm,
+                        b"user@workstation:~$ ",
+                        &state,
+                        &theme,
+                        &mut hit_reg,
+                    );
+                }
+                render_status_bar(frame, areas.status_bar, &state, &theme);
+            })
+            .unwrap();
+
+        let screen = buffer_to_string(terminal.backend().buffer());
+        let file_path = format!("screenshots/workstation_{}x{}.txt", w, h);
+        std::fs::write(&file_path, &screen).unwrap();
+
+        assert!(
+            screen.contains("TERMEXPLORER"),
+            "Header must contain TERMEXPLORER at {}x{}",
+            w,
+            h
+        );
+        assert!(
+            screen.contains("NORMAL"),
+            "Status bar must contain NORMAL mode at {}x{}",
+            w,
+            h
+        );
+    }
+}
+
+#[test]
+fn test_render_help_shortcuts_matrix() {
+    use termexplorer::ui::help::render_help;
+    use termexplorer::ui::hit_test::WidgetId;
+
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let theme = Theme::catppuccin_mocha();
+
+    // 1. Test Overview Matrix (Category 0)
+    let mut hit_reg = HitRegistry::new();
+    terminal
+        .draw(|frame| {
+            let area = frame.area();
+            render_help(frame, area, 0, 0, &theme, &mut hit_reg);
+        })
+        .unwrap();
+
+    let screen = buffer_to_string(terminal.backend().buffer());
+    assert!(screen.contains("KEYBOARD SHORTCUTS MATRIX"));
+    assert!(screen.contains("WORKSTATION"));
+    assert!(screen.contains("MENUS"));
+    assert!(screen.contains("TERMINAL"));
+    assert!(screen.contains("Dual-Pane"));
+    assert!(screen.contains("Command Palette"));
+
+    // Verify tabs and close hitboxes are registered
+    assert!(hit_reg
+        .regions()
+        .iter()
+        .any(|r| matches!(r.id, WidgetId::HelpClose)));
+    assert!(hit_reg
+        .regions()
+        .iter()
+        .any(|r| matches!(r.id, WidgetId::HelpTab(0))));
+    assert!(hit_reg
+        .regions()
+        .iter()
+        .any(|r| matches!(r.id, WidgetId::HelpTab(1))));
+
+    // 2. Test Detailed Categories (1..=5)
+    for cat in 1..=5 {
+        let mut hr = HitRegistry::new();
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                render_help(frame, area, cat, 0, &theme, &mut hr);
+            })
+            .unwrap();
+        let cat_screen = buffer_to_string(terminal.backend().buffer());
+        assert!(cat_screen.contains("KEYBOARD SHORTCUTS"));
+        assert!(cat_screen.contains("PRO TIPS"));
+    }
+
+    // 3. Test Narrow Terminal (76x24)
+    let narrow_backend = TestBackend::new(76, 24);
+    let mut narrow_term = Terminal::new(narrow_backend).unwrap();
+    let mut hr_narrow = HitRegistry::new();
+    narrow_term
+        .draw(|frame| {
+            let area = frame.area();
+            render_help(frame, area, 0, 0, &theme, &mut hr_narrow);
+        })
+        .unwrap();
+    let narrow_screen = buffer_to_string(narrow_term.backend().buffer());
+    assert!(narrow_screen.contains("KEYBOARD SHORTCUTS MATRIX"));
 }

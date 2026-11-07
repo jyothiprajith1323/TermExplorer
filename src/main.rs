@@ -38,6 +38,14 @@ async fn main() -> Result<()> {
     let config = Config::load_or_create()?;
     info!("Configuration loaded");
 
+    // Install emergency panic hook to restore raw mode and alternate screen if a panic occurs.
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(std::io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+        default_hook(panic_info);
+    }));
+
     // Set up the terminal.
     enable_raw_mode()?;
     let mut stdout = io::stdout();

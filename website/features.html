@@ -3,45 +3,63 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Features — TermExplorer</title>
+  <title>Features — TermExplorer Developer Workstation</title>
+  <meta name="description" content="Explore the deep capabilities of TermExplorer: 25/75 developer workstation layout, universal multi-format preview engine, embedded Linux PTY terminal, and sandboxed WebAssembly extensions.">
   <link rel="stylesheet" href="assets/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- Navigation -->
+  <!-- Navigation Bar (Glassmorphic) -->
   <header>
     <div class="nav-container">
       <a href="index.html" class="logo">
-        <span>⚡</span> TermExplorer
+        <div class="logo-icon">⚡</div>
+        <span>TermExplorer</span>
+        <span class="logo-version">v1.1.0-RC1</span>
       </a>
+
+      <button class="mobile-menu-btn" aria-label="Toggle Navigation Menu">☰</button>
+
       <ul class="nav-links">
         <li><a href="index.html">Overview</a></li>
         <li><a href="features.html" class="active">Features</a></li>
         <li><a href="docs.html">Documentation</a></li>
         <li><a href="architecture.html">Architecture</a></li>
         <li><a href="roadmap.html">Roadmap</a></li>
-        <li><a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-btn">GitHub ⭐</a></li>
+        <li>
+          <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-github-btn">
+            <span>⭐ Star</span>
+            <span class="nav-star-count">GitHub</span>
+          </a>
+        </li>
       </ul>
     </div>
   </header>
 
   <main class="container">
-    <div style="text-align: center; margin-bottom: 3rem;">
-      <div class="badge">Comprehensive Feature Breakdown</div>
-      <h1 style="font-size: 2.75rem; margin-bottom: 1rem;">Engineered for Precision & Flow</h1>
-      <p style="color: var(--text-muted); max-width: 700px; margin: 0 auto;">
-        Explore the deep capabilities of TermExplorer: from universal multi-format file inspection to dual-pane file management and real-time PTY terminal emulation.
+    <div style="text-align: center; margin-bottom: 3.5rem;">
+      <div class="badge">Comprehensive Capabilities</div>
+      <h1 style="font-size: 3rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 1rem; color: var(--text-bright);">
+        Engineered for Precision, Flow &amp; Safety
+      </h1>
+      <p style="color: var(--text-sub); max-width: 720px; margin: 0 auto; font-size: 1.15rem;">
+        Explore the deep capabilities of TermExplorer: from universal multi-format file inspection to dual-pane file management, real-time Linux PTY terminal emulation, and sandboxed extensions.
       </p>
     </div>
 
     <!-- Section 1: Universal Preview Subsystem -->
-    <section style="margin-bottom: 4rem;">
-      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-cyan);">1. Universal Multi-Format Preview Engine</h2>
-      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-        TermExplorer includes a dedicated <code>src/preview/</code> subsystem with 4 active inspector tabs: <code>[Preview]</code>, <code>[Information]</code>, <code>[Hex]</code>, and <code>[Actions]</code>. File type detection is powered by a magic-bytes detector that inspects file signatures before falling back to extensions.
+    <section style="margin-bottom: 4.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <span style="font-size: 1.5rem; color: var(--accent-blue);">👁️</span>
+        <h2 style="font-size: 2rem; font-weight: 800; color: var(--text-bright); letter-spacing: -0.02em;">
+          1. Universal Multi-Format Preview Engine
+        </h2>
+      </div>
+      <p style="color: var(--text-sub); margin-bottom: 1.75rem; font-size: 1.05rem;">
+        TermExplorer includes a dedicated preview subsystem with 4 active inspector tabs: <code>[Preview]</code>, <code>[Information]</code>, <code>[Hex]</code>, and <code>[Actions]</code>. File type detection is powered by magic bytes detection before falling back to extensions.
       </p>
 
       <div class="table-container">
@@ -49,16 +67,16 @@
           <thead>
             <tr>
               <th>Format Category</th>
-              <th>Extensions & Magic Bytes</th>
+              <th>Extensions &amp; Magic Bytes</th>
               <th>Preview Capabilities</th>
-              <th>Fallback / Tools</th>
+              <th>Fallback / External Tools</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><strong>Source Code</strong></td>
               <td><code>.rs, .py, .js, .ts, .go, .c, .cpp, .sh</code></td>
-              <td>Syntax highlighting via <code>syntect</code>, line numbers, bounded read buffers.</td>
+              <td>Syntax highlighting via <code>syntect</code>, line numbers, word/symbol indexing.</td>
               <td>Plain text stream</td>
             </tr>
             <tr>
@@ -68,7 +86,7 @@
               <td>Source preview</td>
             </tr>
             <tr>
-              <td><strong>Images & Vector</strong></td>
+              <td><strong>Images &amp; Vector</strong></td>
               <td><code>PNG, JPG, GIF, WebP, BMP, SVG</code></td>
               <td>24-bit Truecolor half-block (<code>▀</code>) pixel rendering, dimensions, aspect ratio.</td>
               <td>Image metadata</td>
@@ -88,7 +106,7 @@
             <tr>
               <td><strong>PDF Documents</strong></td>
               <td><code>PDF</code> (<code>%PDF-</code> magic)</td>
-              <td>Pure-Rust PDF catalog parser (page count, title, author) & extracted text stream.</td>
+              <td>Pure-Rust PDF catalog parser (page count, title, author) &amp; extracted text stream.</td>
               <td><code>pdftotext</code> / <code>pdfinfo</code></td>
             </tr>
             <tr>
@@ -100,8 +118,8 @@
             <tr>
               <td><strong>Tabular Data</strong></td>
               <td><code>CSV, TSV, JSON, JSONL</code></td>
-              <td>Auto-delimiter sniffer, formatted column tables, JSON validation with syntax error offsets.</td>
-              <td>Raw text</td>
+              <td>Auto-delimiter sniffer, formatted column tables, JSON validation with error offsets.</td>
+              <td>Raw text stream</td>
             </tr>
             <tr>
               <td><strong>Archives</strong></td>
@@ -119,70 +137,116 @@
               <td><strong>Hex Inspection</strong></td>
               <td>All binary files</td>
               <td>16-byte canonical hex dump with memory offsets, hex pairs, and printable ASCII.</td>
-              <td>Built-in</td>
+              <td>Built-in engine</td>
             </tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <!-- Section 2: Dual Pane Explorer -->
-    <section style="margin-bottom: 4rem;">
-      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-blue);">2. Dual-Pane File Management</h2>
+    <!-- Section 2: Two-Column Workstation & Layout -->
+    <section style="margin-bottom: 4.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <span style="font-size: 1.5rem; color: var(--accent-green);">📁</span>
+        <h2 style="font-size: 2rem; font-weight: 800; color: var(--text-bright); letter-spacing: -0.02em;">
+          2. The Two-Column Developer Workstation
+        </h2>
+      </div>
+      <p style="color: var(--text-sub); margin-bottom: 1.75rem; font-size: 1.05rem;">
+        Standardized layout architecture designed to maximize horizontal screen efficiency without wasting room on permanent sidebars.
+      </p>
+
       <div class="features-grid">
         <div class="card">
-          <h3>Dual-Pane Split (<kbd>F7</kbd>)</h3>
-          <p>Split your file explorer into primary and secondary panes side-by-side. Navigate both independently and transfer files across panes with single keystrokes (<kbd>c</kbd> for copy, <kbd>m</kbd> for move).</p>
+          <div class="card-icon-wrap">🗂️</div>
+          <h3>Standardized 25/75 Ratio</h3>
+          <p>
+            The Explorer occupies 25% width while the Contextual Preview occupies 75% width. Press <kbd>Ctrl+Right</kbd> / <kbd>Ctrl+Left</kbd> (or <kbd>Alt+]</kbd> / <kbd>Alt+[</kbd>) to expand or shrink proportions on the fly with 5% increments (up to 85% width).
+          </p>
         </div>
         <div class="card">
-          <h3>FreeDesktop Trash (<kbd>d</kbd>)</h3>
-          <p>Accidental deletions are a thing of the past. TermExplorer prioritizes <code>gio trash</code> and <code>trash-put</code> to move files safely to your OS desktop trash before asking for permanent removal (<kbd>D</kbd>).</p>
+          <div class="card-icon-wrap">󰕰</div>
+          <h3>Dual-Pane Explorer (<kbd>F7</kbd>)</h3>
+          <p>
+            Split the file explorer into primary and secondary panes side-by-side. Navigate both independently and transfer files across panes with single keystrokes (<kbd>c</kbd>/<kbd>y</kbd> copy, <kbd>x</kbd> cut, <kbd>p</kbd>/<kbd>v</kbd> paste).
+          </p>
         </div>
         <div class="card">
-          <h3>Bookmarks & Workspaces</h3>
-          <p>Pin frequently used folders (<kbd>p</kbd>) or jump to your home directory, root, or project workspaces (<kbd>b</kbd>) via the unified sidebar.</p>
+          <div class="card-icon-wrap">🗑️</div>
+          <h3>FreeDesktop Trash Integration (<kbd>d</kbd> / <kbd>Del</kbd>)</h3>
+          <p>
+            Accidental deletions are eliminated. TermExplorer prioritizes <code>gio trash</code> and <code>trash-put</code> to move files safely to your OS desktop trash with explicit confirmation before permanent deletion (<kbd>D</kbd>).
+          </p>
         </div>
       </div>
     </section>
 
     <!-- Section 3: Interactive Settings Studio -->
-    <section style="margin-bottom: 4rem;">
-      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-orange);">3. Interactive Settings Studio (<kbd>F10</kbd>)</h2>
-      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-        Configure every aspect of your developer environment through a dedicated full-screen TUI modal covering 15 distinct sections:
+    <section style="margin-bottom: 4.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <span style="font-size: 1.5rem; color: var(--accent-peach);">⚙️</span>
+        <h2 style="font-size: 2rem; font-weight: 800; color: var(--text-bright); letter-spacing: -0.02em;">
+          3. Interactive Settings Studio (<kbd>F10</kbd> / <kbd>Ctrl+,</kbd>)
+        </h2>
+      </div>
+      <p style="color: var(--text-sub); margin-bottom: 1.75rem; font-size: 1.05rem;">
+        Configure every aspect of your developer workstation through a dedicated modal covering 14 customizable categories:
       </p>
 
       <div class="features-grid">
         <div class="card">
-          <h3>15 Config Sections</h3>
-          <p>General, Appearance, Keybindings, Explorer, Preview, Editor, Terminal, System Monitor, Git, Bookmarks, Profiles, Performance, Plugins, Advanced, and About.</p>
+          <div class="card-icon-wrap">🎨</div>
+          <h3>Theme &amp; Appearance</h3>
+          <p>
+            Live switching across all 4 official Catppuccin flavors (Mocha, Macchiato, Frappé, Latte) plus 8 community themes, with transparent terminal inheritance and truecolor support.
+          </p>
         </div>
         <div class="card">
+          <div class="card-icon-wrap">󰋖</div>
           <h3>Keybinding Conflict Detection</h3>
-          <p>Interactive key action registry with scope isolation (Global, Explorer, Editor, Terminal, Preview, Git). Automatically flags colliding keystrokes before they cause issues.</p>
+          <p>
+            Interactive key action registry with scope isolation (Global, Explorer, Editor, Terminal, Preview, Git). Automatically flags colliding keystrokes before they cause issues.
+          </p>
         </div>
         <div class="card">
-          <h3>6 Built-in Profiles</h3>
-          <p>Switch instantly between <code>Default</code>, <code>Developer</code>, <code>Minimal</code>, <code>TerminalPowerUser</code>, <code>EditorFocus</code>, and <code>Monitoring</code> with full persistence to <code>config.toml</code>.</p>
+          <div class="card-icon-wrap">💾</div>
+          <h3>Profile Management</h3>
+          <p>
+            Switch instantly between <code>Default</code>, <code>Developer</code>, <code>Minimal</code>, <code>TerminalPowerUser</code>, <code>EditorFocus</code>, and <code>Monitoring</code> with automatic backups.
+          </p>
         </div>
       </div>
     </section>
 
-    <!-- Section 4: Productivity Engine -->
+    <!-- Section 4: Command Center & Git -->
     <section style="margin-bottom: 4rem;">
-      <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--accent-purple);">4. Developer Command Center</h2>
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <span style="font-size: 1.5rem; color: var(--accent-mauve);">⚡</span>
+        <h2 style="font-size: 2rem; font-weight: 800; color: var(--text-bright); letter-spacing: -0.02em;">
+          4. Command Center &amp; Git Workbench
+        </h2>
+      </div>
       <div class="features-grid">
         <div class="card">
-          <h3>Command Palette (<kbd>Ctrl+Shift+P</kbd>)</h3>
-          <p>Fuzzy-search across all internal commands, toggle views, jump to bookmarks, reload configuration, or launch workspace tasks with a modern floating modal.</p>
+          <div class="card-icon-wrap">󰍉</div>
+          <h3>Command Palette (<kbd>Ctrl+P</kbd>)</h3>
+          <p>
+            Fuzzy-search across all internal commands, toggle views, jump to pinned folders, reload configuration, or launch workspace tasks with a floating modal and acronym search.
+          </p>
         </div>
         <div class="card">
-          <h3>Git Integration (<kbd>g</kbd>)</h3>
-          <p>Inspect repository status, branches, staged vs. unstaged files, and recent commit history without switching windows. Stage files with <kbd>s</kbd> directly from the overlay.</p>
+          <div class="card-icon-wrap"></div>
+          <h3>Git Workbench (<kbd>g</kbd> / <kbd>Ctrl+G</kbd>)</h3>
+          <p>
+            Inspect repository status, branch tracking, staged vs. unstaged diffs, and recent commit history without switching windows. Stage files with <kbd>s</kbd> directly from the overlay.
+          </p>
         </div>
         <div class="card">
-          <h3>Smart Workspace Detection</h3>
-          <p>Automatically detects Cargo (Rust), Python, Node.js, Go, C/C++, Java, and Makefile projects. Provides quick actions to build, test, and run your project.</p>
+          <div class="card-icon-wrap">🔌</div>
+          <h3>Wasm Plugin Center (<kbd>Ctrl+Shift+X</kbd>)</h3>
+          <p>
+            Discover, install, enable, disable, and configure sandboxed WebAssembly extensions with SHA-256 integrity verification, permission enforcement, and hot reloading.
+          </p>
         </div>
       </div>
     </section>
@@ -191,11 +255,16 @@
   <!-- Footer -->
   <footer>
     <div class="footer-container">
-      <div><strong>TermExplorer</strong> &bull; The Terminal Developer Environment</div>
       <div>
-        <a href="index.html">Home</a> &bull;
-        <a href="docs.html">Docs</a> &bull;
+        <strong style="color: var(--text-bright);">TermExplorer v1.1.0-RC1</strong> &bull; Released under the MIT License.<br>
+        Crafted with pure safe Rust for the developer workstation community.
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Overview</a> &bull;
+        <a href="features.html">Features</a> &bull;
+        <a href="docs.html">Documentation</a> &bull;
         <a href="architecture.html">Architecture</a> &bull;
+        <a href="roadmap.html">Roadmap</a> &bull;
         <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank">GitHub</a>
       </div>
     </div>

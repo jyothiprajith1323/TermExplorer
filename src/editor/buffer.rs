@@ -2,8 +2,19 @@
 //! undo/redo, selection, search, and atomic saving.
 
 use crate::filesystem::operations::save_file_atomic;
-use anyhow::Result;
-use std::path::PathBuf;
+use anyhow::{bail, Result};
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+
+// ── Line Endings ────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LineEnding {
+    #[default]
+    Lf,
+    Crlf,
+}
 
 // ── Cursor ─────────────────────────────────────────────────────────────────
 
@@ -45,6 +56,10 @@ pub struct Buffer {
     pub search_match: usize,
     /// Autocompletion state.
     pub completion: CompletionState,
+    /// Last modified time recorded when loaded or saved.
+    pub loaded_mtime: Option<SystemTime>,
+    /// Line ending format.
+    pub line_ending: LineEnding,
 }
 
 impl Buffer {
@@ -63,17 +78,25 @@ impl Buffer {
             search_query: String::new(),
             search_match: 0,
             completion: CompletionState::default(),
+            loaded_mtime: None,
+            line_ending: LineEnding::Lf,
         }
     }
 
-    /// Load a file into the buffer.
+    /// Load a file into the buffer, recording mtime and detecting line endings.
     pub fn from_file(path: PathBuf) -> Result<Self> {
         let content = std::fs::read_to_string(&path)?;
+        let line_ending = if content.contains("\r\n") {
+            LineEnding::Crlf
+        } else {
+            LineEnding::Lf
+        };
         let lines: Vec<String> = if content.is_empty() {
             vec![String::new()]
         } else {
             content.lines().map(str::to_string).collect()
         };
+        let loaded_mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
 
         Ok(Self {
             path: Some(path),
@@ -88,6 +111,8 @@ impl Buffer {
             search_query: String::new(),
             search_match: 0,
             completion: CompletionState::default(),
+            loaded_mtime,
+            line_ending,
         })
     }
 
@@ -348,23 +373,131 @@ impl Buffer {
         }
     }
 
-    // ── Save ─────────────────────────────────────────────────────────────────
+    // ── Save & External Modification Protection ─────────────────────────────
 
+    /// Check if the file on disk has been modified externally since it was opened or saved.
+    pub fn check_external_modification(&self) -> bool {
+        if let Some(ref path) = self.path {
+            if let Ok(meta) = std::fs::metadata(path) {
+                if let Ok(current_mtime) = meta.modified() {
+                    if let Some(loaded) = self.loaded_mtime {
+                        return current_mtime > loaded;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Save buffer atomically to disk with external modification protection.
     pub fn save(&mut self) -> Result<()> {
+        if self.check_external_modification() {
+            bail!("Conflict: File on disk was modified by an external process since it was opened. Use save_force() to overwrite.");
+        }
+        self.save_force()
+    }
+
+    /// Save buffer atomically to disk, intentionally overriding any external modification.
+    pub fn save_force(&mut self) -> Result<()> {
         let path = self
             .path
             .clone()
             .ok_or_else(|| anyhow::anyhow!("No file path set"))?;
-        let content = self.lines.join("\n");
+        let sep = match self.line_ending {
+            LineEnding::Crlf => "\r\n",
+            LineEnding::Lf => "\n",
+        };
+        let content = self.lines.join(sep);
         save_file_atomic(&path, content.as_bytes())?;
+        self.loaded_mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
         self.dirty = false;
+        self.clear_recovery_snapshot();
         Ok(())
     }
 
     #[allow(dead_code)]
     pub fn save_as(&mut self, path: PathBuf) -> Result<()> {
         self.path = Some(path);
-        self.save()
+        self.save_force()
+    }
+
+    // ── Buffer Recovery Snapshots ─────────────────────────────────────────────
+
+    /// Deterministic recovery path in ~/.local/share/termexplorer/recovery/
+    pub fn recovery_path_for(path: &Path) -> PathBuf {
+        let dir = dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("~/.local/share"))
+            .join("termexplorer/recovery");
+        let mut hasher = Sha256::new();
+        hasher.update(path.to_string_lossy().as_bytes());
+        let hash = format!("{:x}", hasher.finalize());
+        dir.join(format!("{}.rec", hash))
+    }
+
+    /// Save a recovery snapshot if the buffer has unsaved changes.
+    pub fn create_recovery_snapshot(&self) -> Result<()> {
+        if self.dirty {
+            if let Some(ref path) = self.path {
+                let rec_path = Self::recovery_path_for(path);
+                if let Some(parent) = rec_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                let sep = match self.line_ending {
+                    LineEnding::Crlf => "\r\n",
+                    LineEnding::Lf => "\n",
+                };
+                let content = self.lines.join(sep);
+                std::fs::write(&rec_path, content)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Clear the recovery snapshot after clean save or discard.
+    pub fn clear_recovery_snapshot(&self) {
+        if let Some(ref path) = self.path {
+            let rec_path = Self::recovery_path_for(path);
+            let _ = std::fs::remove_file(rec_path);
+        }
+    }
+
+    /// Check if an unsaved crash recovery snapshot exists for the given file.
+    pub fn has_recovery_snapshot(path: &Path) -> bool {
+        Self::recovery_path_for(path).exists()
+    }
+
+    /// Restore buffer content from an unsaved crash recovery snapshot.
+    pub fn recover_from_snapshot(path: &Path) -> Result<Self> {
+        let rec_path = Self::recovery_path_for(path);
+        let content = std::fs::read_to_string(&rec_path)?;
+        let line_ending = if content.contains("\r\n") {
+            LineEnding::Crlf
+        } else {
+            LineEnding::Lf
+        };
+        let lines: Vec<String> = if content.is_empty() {
+            vec![String::new()]
+        } else {
+            content.lines().map(str::to_string).collect()
+        };
+        let loaded_mtime = std::fs::metadata(path).and_then(|m| m.modified()).ok();
+
+        Ok(Self {
+            path: Some(path.to_path_buf()),
+            lines,
+            cursor: Cursor::default(),
+            dirty: true,
+            scroll_row: 0,
+            scroll_col: 0,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            clipboard: String::new(),
+            search_query: String::new(),
+            search_match: 0,
+            completion: CompletionState::default(),
+            loaded_mtime,
+            line_ending,
+        })
     }
 
     // ── Autocompletion ───────────────────────────────────────────────────────

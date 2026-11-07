@@ -1,0 +1,30 @@
+ ◆ TERMEXPLORER  󰲋 Workstation [🦀  R󰝰 TermExplorer  [ 󰍉 Search ]    [ ◇ Plugins ]   [ ⚙ Settings ]  
+╭ 󰝰 TermExplorer ───────╮╭ [󰈈 Preview]  󰋽 Info  󰘳 Metadata  󰌒 Actions ─────────────────────────────╮
+│ Name            Size  ││                                                                         │
+│                       ││                                                                         │
+│                       ││                                                                         │
+│                       ││                                                                         │
+│                       ││                                                                         │
+│                       ││                                                                         │
+│                       ││  󰍉 Select a file to preview                                             │
+│                       ││                                                                         │
+│                       ││  Choose an item in the explorer to inspect its content.                 │
+│                       ││                                                                         │
+│                       ││  [↑ / ↓]  Navigate entries                                              │
+│                       ││  [← / →]  Open / Exit folders                                           │
+│                       ││  [Tab]    Switch panel focus                                            │
+│                       ││  [/]      Fuzzy filter entries                                          │
+│                       ││                                                                         │
+│                       ││                                                                         │
+│                       ││                                                                         │
+│                       ││                                                                         │
+│                       ││                                                                         │
+│                       ││                                                                         │
+│                       ││                                                                         │
+╰───────────────────────╯╰─────────────────────────────────────────────────────────────────────────╯
+╭ [Terminal] 1: bash ~/TermExplorer                                          [+] [Hide] [Maximize] ╮
+│user@workstation:~$                                                                               │
+│                                                                                                  │
+│                                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+ NORMAL   EXPLORER   0/0            ? Help │ / Search │ F2 Edit │ Ctrl+T Term │ F10 Settings        

@@ -1,0 +1,40 @@
+ ◆ TERMEXPLORER  󰲋 Workstation [🦀  R~ › TermExplorer │ │ 󰻠 13% 󰍛 1.4 GB [ 󰍉 Search ]    [ ◇ Plugins ]   [ ⚙ Settings ]  
+╭ 󰝰 TermExplorer ────────────╮╭ [󰈈 Preview]  󰋽 Info  󰘳 Metadata  󰌒 Actions ────────────────────────────────────────────╮
+│ Name               Size    ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││  󰍉 Select a file to preview                                                            │
+│                            ││                                                                                        │
+│                            ││  Choose an item in the explorer to inspect its content.                                │
+│                            ││                                                                                        │
+│                            ││  [↑ / ↓]  Navigate entries                                                             │
+│                            ││  [← / →]  Open / Exit folders                                                          │
+│                            ││  [Tab]    Switch panel focus                                                           │
+│                            ││  [/]      Fuzzy filter entries                                                         │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+╰────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭ [Terminal] 1: bash ~/TermExplorer                                                              [+] [Hide] [Maximize] ╮
+│user@workstation:~$                                                                                                   │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ NORMAL   EXPLORER   0/0                                                                                                

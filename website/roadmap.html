@@ -3,99 +3,133 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Roadmap & Future Horizons — TermExplorer</title>
+  <title>Product Roadmap &amp; Future Horizons — TermExplorer</title>
+  <meta name="description" content="Transparent product roadmap and milestone trajectory for TermExplorer Developer Workstation from v1.1.0-RC1 to v1.2.0.">
   <link rel="stylesheet" href="assets/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- Navigation -->
+  <!-- Navigation Bar (Glassmorphic) -->
   <header>
     <div class="nav-container">
       <a href="index.html" class="logo">
-        <span>⚡</span> TermExplorer
+        <div class="logo-icon">⚡</div>
+        <span>TermExplorer</span>
+        <span class="logo-version">v1.1.0-RC1</span>
       </a>
+
+      <button class="mobile-menu-btn" aria-label="Toggle Navigation Menu">☰</button>
+
       <ul class="nav-links">
         <li><a href="index.html">Overview</a></li>
         <li><a href="features.html">Features</a></li>
         <li><a href="docs.html">Documentation</a></li>
         <li><a href="architecture.html">Architecture</a></li>
         <li><a href="roadmap.html" class="active">Roadmap</a></li>
-        <li><a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-btn">GitHub ⭐</a></li>
+        <li>
+          <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-github-btn">
+            <span>⭐ Star</span>
+            <span class="nav-star-count">GitHub</span>
+          </a>
+        </li>
       </ul>
     </div>
   </header>
 
   <main class="container">
-    <div style="margin-bottom: 3rem;">
-      <div class="badge">Development Milestones & Vision</div>
-      <h1 style="font-size: 2.75rem; margin-bottom: 0.5rem;">Product Roadmap</h1>
-      <p style="color: var(--text-muted); font-size: 1.1rem;">
-        TermExplorer is built for the long term. Here is our transparent development trajectory.
+    <div style="margin-bottom: 3.5rem; text-align: center;">
+      <div class="badge">Development Milestones &amp; Trajectory</div>
+      <h1 style="font-size: 3rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; color: var(--text-bright);">
+        Product Roadmap
+      </h1>
+      <p style="color: var(--text-sub); font-size: 1.15rem; max-width: 740px; margin: 0 auto;">
+        TermExplorer is engineered for longevity and rock-solid reliability. Here is our transparent development trajectory.
       </p>
     </div>
 
     <!-- Milestones -->
     <div style="display: flex; flex-direction: column; gap: 2rem;">
-      <!-- v0.1.0 Current -->
+
+      <!-- v1.1.0 Release Candidate -->
       <div class="card" style="border-left: 4px solid var(--accent-green);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <h3 style="color: var(--accent-green); margin-bottom: 0;">v0.1.0 — Foundation & Universal Previews</h3>
-          <span class="badge" style="background: rgba(52, 211, 153, 0.15); color: var(--accent-green); border-color: rgba(52, 211, 153, 0.3);">Shipped</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h3 style="color: var(--accent-green); margin-bottom: 0.25rem;">v1.1.0 — The Developer Workstation</h3>
+            <span style="color: var(--text-muted); font-size: 0.88rem; font-family: var(--font-mono);">Release Candidate 1</span>
+          </div>
+          <span class="perf-badge">Current Release Candidate</span>
         </div>
-        <p style="margin-bottom: 1rem;">The initial release establishing the complete developer terminal environment:</p>
-        <ul style="color: var(--text-muted); margin-left: 1.5rem; line-height: 1.8;">
-          <li>Universal 12+ format preview engine with 4 inspector tabs (<code>[Preview]</code>, <code>[Info]</code>, <code>[Hex]</code>, <code>[Actions]</code>).</li>
-          <li>Dual-pane file management (<kbd>F7</kbd>) with FreeDesktop Trash integration.</li>
-          <li>Interactive Settings Studio (<kbd>F10</kbd>) with 15 sections and keybinding conflict detector.</li>
-          <li>12 built-in themes with transparent terminal background inheritance.</li>
-          <li>Embedded interactive PTY terminal drawer and live system resource monitor.</li>
-          <li>Fuzzy-search command palette (<kbd>Ctrl+Shift+P</kbd>) and Git status dashboard (<kbd>g</kbd>).</li>
+        <p style="margin-bottom: 1rem; color: var(--text-sub);">
+          The milestone transforming TermExplorer into an integrated developer workstation:
+        </p>
+        <ul style="color: var(--text-sub); margin-left: 1.5rem; line-height: 2;">
+          <li><strong>Two-Column Workstation:</strong> Standardized 25% Explorer / 75% Preview with on-the-fly resizing (<kbd>Ctrl+Right</kbd> / <kbd>Ctrl+Left</kbd> up to 85%).</li>
+          <li><strong>Integrated Linux PTY:</strong> Embedded terminal drawer (<kbd>Ctrl+T</kbd>) with maximize (<kbd>Alt+F6</kbd>) and resize (<kbd>{</kbd> / <kbd>}</kbd>).</li>
+          <li><strong>Keyboard Shortcuts Matrix:</strong> Redesigned workstation reference modal (<kbd>F1</kbd> / <kbd>?</kbd>) with categorized tabs.</li>
+          <li><strong>Settings Studio:</strong> Interactive 14-category configuration center (<kbd>F10</kbd>) with atomic backups.</li>
+          <li><strong>Catppuccin Ecosystem:</strong> Official Mocha default, Macchiato, Frappé, Latte, and transparent background inheritance.</li>
+          <li><strong>WASM Plugins:</strong> Sandboxed extension runtime powered by <code>wasmi</code> with SHA-256 integrity verification.</li>
         </ul>
       </div>
 
-      <!-- v0.2.0 Next -->
-      <div class="card" style="border-left: 4px solid var(--accent-cyan);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <h3 style="color: var(--accent-cyan); margin-bottom: 0;">v0.2.0 — Kitty Graphics & LSP Language Server</h3>
-          <span class="badge">In Active Development</span>
+      <!-- v1.1.x Stabilization & Data Safety -->
+      <div class="card" style="border-left: 4px solid var(--accent-blue);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h3 style="color: var(--accent-blue); margin-bottom: 0.25rem;">v1.1.x — Integration &amp; Data Safety Stabilization</h3>
+            <span style="color: var(--text-muted); font-size: 0.88rem; font-family: var(--font-mono);">In Active Engineering</span>
+          </div>
+          <span class="perf-badge" style="background: rgba(137, 180, 250, 0.15); color: var(--accent-blue); border-color: rgba(137, 180, 250, 0.3);">Priority P0</span>
         </div>
-        <p style="margin-bottom: 1rem;">Expanding terminal graphics and intelligent code navigation:</p>
-        <ul style="color: var(--text-muted); margin-left: 1.5rem; line-height: 1.8;">
-          <li>Native Kitty graphics protocol & Sixel protocol passthrough for ultra-high-resolution image rendering.</li>
-          <li>Embedded Language Server Protocol (LSP) client support for go-to-definition and inline diagnostics.</li>
-          <li>Remote SSH / SFTP virtual filesystem integration for browsing remote servers seamlessly.</li>
-          <li>Split terminal tabs and multiple PTY multiplexing.</li>
+        <p style="margin-bottom: 1rem; color: var(--text-sub);">
+          Rigorously stabilizing core workflows and ensuring bulletproof data safety:
+        </p>
+        <ul style="color: var(--text-sub); margin-left: 1.5rem; line-height: 2;">
+          <li><strong>End-to-End Workflow Testing:</strong> Seamless development flow across Rust, Python, C/C++, Java, and Go projects without state loss.</li>
+          <li><strong>Data Safety &amp; Reliability:</strong> Safe file deletion, FreeDesktop trash integration, atomic file saving, and unsaved-change protection.</li>
+          <li><strong>Filesystem Watcher:</strong> Instant external file modification detection and live buffer reload prompts.</li>
+          <li><strong>CI Automation:</strong> Multi-architecture automated test matrix (x86_64 and ARM64 Linux).</li>
         </ul>
       </div>
 
-      <!-- v0.3.0 Horizon -->
-      <div class="card" style="border-left: 4px solid var(--accent-purple);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <h3 style="color: var(--accent-purple); margin-bottom: 0;">v0.3.0 — WebAssembly Plugins & Cloud Sync</h3>
-          <span class="badge" style="background: rgba(192, 132, 252, 0.15); color: var(--accent-purple); border-color: rgba(192, 132, 252, 0.3);">Planned</span>
+      <!-- v1.2.0 Horizon -->
+      <div class="card" style="border-left: 4px solid var(--accent-mauve);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h3 style="color: var(--accent-mauve); margin-bottom: 0.25rem;">v1.2.0 — Project Intelligence &amp; Unified Search</h3>
+            <span style="color: var(--text-muted); font-size: 0.88rem; font-family: var(--font-mono);">Strategic Horizon</span>
+          </div>
+          <span class="perf-badge" style="background: rgba(203, 166, 247, 0.15); color: var(--accent-mauve); border-color: rgba(203, 166, 247, 0.3);">Planned</span>
         </div>
-        <p style="margin-bottom: 1rem;">Extensibility and ecosystem tooling:</p>
-        <ul style="color: var(--text-muted); margin-left: 1.5rem; line-height: 1.8;">
-          <li>Wasm-based plugin sandbox enabling third-party file previews, custom commands, and linters.</li>
-          <li>Encrypted dotfiles and configuration sync across developer workstations.</li>
-          <li>Collaborative terminal pair-programming sessions with zero latency.</li>
+        <p style="margin-bottom: 1rem; color: var(--text-sub);">
+          Three flagship capabilities reserved for the v1.2 milestone:
+        </p>
+        <ul style="color: var(--text-sub); margin-left: 1.5rem; line-height: 2;">
+          <li><strong>1. Project Intelligence:</strong> Automatically recognizes <code>Cargo.toml</code>, <code>pyproject.toml</code>, <code>Makefile</code>, etc., and provides contextual quick-action commands (build, test, format, clippy).</li>
+          <li><strong>2. Workspace Session Manager:</strong> Save and restore entire multi-window development sessions, including open buffers, terminal scrollback, and cursor positions.</li>
+          <li><strong>3. Advanced Unified Search Engine:</strong> Search filenames, file contents (ripgrep-grade), AST symbols, and git commits through one unified high-speed interface.</li>
         </ul>
       </div>
+
     </div>
   </main>
 
   <!-- Footer -->
   <footer>
     <div class="footer-container">
-      <div><strong>TermExplorer</strong> &bull; Roadmap & Evolution</div>
       <div>
-        <a href="index.html">Home</a> &bull;
+        <strong style="color: var(--text-bright);">TermExplorer v1.1.0-RC1</strong> &bull; Product Roadmap &amp; Evolution<br>
+        Crafted with pure safe Rust for the developer workstation community.
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Overview</a> &bull;
         <a href="features.html">Features</a> &bull;
-        <a href="docs.html">Docs</a> &bull;
+        <a href="docs.html">Documentation</a> &bull;
         <a href="architecture.html">Architecture</a> &bull;
+        <a href="roadmap.html">Roadmap</a> &bull;
         <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank">GitHub</a>
       </div>
     </div>

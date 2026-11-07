@@ -111,7 +111,7 @@ pub struct WorkspaceSymbol {
 /// Workspace Symbol Indexer with background scanning and cache.
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceIndexer {
-    /// Cached map: symbol_name -> Vec<WorkspaceSymbol>
+    /// Cached map: symbol_name -> `Vec<WorkspaceSymbol>`
     cache: Arc<RwLock<BTreeMap<String, Vec<WorkspaceSymbol>>>>,
     /// Root path indexed
     indexed_root: Arc<RwLock<Option<PathBuf>>>,
@@ -136,6 +136,10 @@ impl WorkspaceIndexer {
                 | "vendor"
                 | ".cargo"
                 | ".gemini"
+                | "website"
+                | "screenshots"
+                | "docs"
+                | "tests"
         )
     }
 
@@ -152,7 +156,7 @@ impl WorkspaceIndexer {
     /// Target latency: < 100ms for typical projects (measured: 5ms - 35ms).
     pub fn index_directory(&self, root: &Path) {
         let mut symbols_map: BTreeMap<String, Vec<WorkspaceSymbol>> = BTreeMap::new();
-        self.walk_and_index(root, root, &mut symbols_map, 0, 500);
+        self.walk_and_index(root, root, &mut symbols_map, 0, 150);
 
         let mut lock = self.cache.write().unwrap();
         *lock = symbols_map;
@@ -168,7 +172,7 @@ impl WorkspaceIndexer {
         depth: usize,
         max_files: usize,
     ) {
-        if depth > 10 || map.len() >= max_files * 10 {
+        if depth > 8 || map.len() >= max_files {
             return;
         }
 
@@ -201,6 +205,12 @@ impl WorkspaceIndexer {
         root: &Path,
         map: &mut BTreeMap<String, Vec<WorkspaceSymbol>>,
     ) {
+        if let Ok(meta) = path.metadata() {
+            if meta.len() > 100_000 {
+                return;
+            }
+        }
+
         let content = match std::fs::read_to_string(path) {
             Ok(c) => c,
             Err(_) => return,

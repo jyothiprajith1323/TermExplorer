@@ -37,6 +37,7 @@ fn test_example_plugins_discovery_and_execution() {
 
     let mut manager = PluginManager::new();
     manager.discover_and_load(&plugins_dir, ".");
+    manager.init_all_instances(".");
 
     assert!(
         manager.plugins.len() >= 2,

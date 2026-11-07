@@ -1,0 +1,42 @@
+ ◆ TERMEXPLORER  󰲋 Workstation [🦀  R~ › TermExplorer │ 󰊢 master ● 65                     │ 󰻠 13% 󰍛 1.4 GB [ 󰍉 Search ]    [ ◇ Plugins ]   [ ⚙ Settings ]  
+╭ 󰝰 TermExplorer  │  󰒺 Name ▲ ────────╮╭ [󰈈 Preview]  󰋽 Info  󰘳 Metadata  󰌒 Actions ─────────────────────────────────────────────────────────────────────╮
+│ Name             Size     Modified  ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││  󰍉 Select a file to preview                                                                                     │
+│                                     ││                                                                                                                 │
+│                                     ││  Choose an item in the explorer to inspect its content.                                                         │
+│                                     ││                                                                                                                 │
+│                                     ││  [↑ / ↓]  Navigate entries                                                                                      │
+│                                     ││  [← / →]  Open / Exit folders                                                                                   │
+│                                     ││  [Tab]    Switch panel focus                                                                                    │
+│                                     ││  [/]      Fuzzy filter entries                                                                                  │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+│                                     ││                                                                                                                 │
+╰─────────────────────────────────────╯╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ [Terminal] 1: bash ~/TermExplorer                                                                                                [+] [Hide] [Maximize] ╮
+│user@workstation:~$                                                                                                                                     │
+│                                                                                                                                                        │
+│                                                                                                                                                        │
+│                                                                                                                                                        │
+│                                                                                                                                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ NORMAL   EXPLORER   0/0                                   ? Help │ / Search │ F2 Edit │ F6 Monitor │ F7 Dual │ Ctrl+T Terminal │ F10 Settings            

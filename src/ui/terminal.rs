@@ -2,6 +2,7 @@
 
 use crate::state::{AppState, FocusedPanel};
 use crate::theme::Theme;
+use crate::ui::hit_test::{AppAction, HitRegistry, WidgetId};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -16,6 +17,7 @@ pub fn render_terminal(
     scrollback: &[u8],
     state: &AppState,
     theme: &Theme,
+    hit_registry: &mut HitRegistry,
 ) {
     let focused = state.focused == FocusedPanel::Terminal;
     let border_style = if focused {
@@ -37,9 +39,9 @@ pub fn render_terminal(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "~".to_string());
 
-    let session_tab = if focused {
+    let terminal_tag = if focused {
         Span::styled(
-            format!(" 󰆍 1: {} ", shell_base),
+            " [Terminal] ",
             Style::default()
                 .fg(Color::Black)
                 .bg(theme.accent)
@@ -47,7 +49,7 @@ pub fn render_terminal(
         )
     } else {
         Span::styled(
-            format!(" 󰆍 1: {} ", shell_base),
+            " [Terminal] ",
             Style::default()
                 .fg(theme.header_fg)
                 .add_modifier(Modifier::BOLD),
@@ -55,40 +57,161 @@ pub fn render_terminal(
     };
 
     let max_label = if state.terminal_maximized {
-        "[▼ Restore]"
+        "[Restore]"
     } else {
-        "[▲ Max]"
+        "[Maximize]"
     };
 
-    let mut title_spans = vec![
-        session_tab,
-        Span::raw(" "),
-        Span::styled(
-            format!("📁 ~/{} ", cwd_str),
-            Style::default().fg(theme.size_color),
-        ),
-    ];
+    let mut title_spans = vec![terminal_tag];
+    let mut left_len: usize = 12; // " [Terminal] "
 
-    if area.width >= 80 {
-        title_spans.push(Span::styled("│ ", Style::default().fg(theme.border)));
+    let session_str = format!("1: {} ", shell_base);
+    let session_len = session_str.chars().count();
+    let cwd_display = format!("~/{} ", cwd_str);
+    let cwd_len = cwd_display.chars().count();
+
+    if area.width >= 70 {
+        title_spans.push(Span::styled(
+            session_str,
+            Style::default()
+                .fg(theme.header_fg)
+                .add_modifier(Modifier::BOLD),
+        ));
+        left_len += session_len;
+
+        title_spans.push(Span::styled(
+            cwd_display,
+            Style::default().fg(theme.size_color),
+        ));
+        left_len += cwd_len;
+    } else if area.width >= 45 {
+        title_spans.push(Span::styled(
+            session_str,
+            Style::default().fg(theme.header_fg),
+        ));
+        left_len += session_len;
+    }
+
+    if area.width >= 70 {
+        let max_w = max_label.chars().count();
+        // Right side: "[+] " (4), "[Hide] " (7), "{max_label} " (max_w + 1)
+        let right_len = 4 + 7 + max_w + 1;
+
+        if area.width as usize > left_len + right_len + 2 {
+            let spaces = (area.width as usize) - 2 - left_len - right_len;
+            title_spans.push(Span::raw(" ".repeat(spaces)));
+        } else {
+            title_spans.push(Span::raw(" "));
+        }
+
         title_spans.push(Span::styled("[+] ", Style::default().fg(theme.success)));
-        title_spans.push(Span::styled("[×] ", Style::default().fg(theme.error)));
+        title_spans.push(Span::styled("[Hide] ", Style::default().fg(theme.error)));
         title_spans.push(Span::styled(
             format!("{} ", max_label),
             Style::default().fg(theme.accent),
         ));
-        title_spans.push(Span::styled("[▼ Min] ", Style::default().fg(theme.warning)));
-        title_spans.push(Span::styled(
-            "[↕ Resize] ",
-            Style::default().fg(theme.status_fg),
-        ));
-    } else if area.width >= 50 {
-        title_spans.push(Span::styled("│ ", Style::default().fg(theme.border)));
-        title_spans.push(Span::styled(
-            "[+] [×] [▲] [▼] [↕] ",
-            Style::default().fg(theme.accent),
-        ));
+
+        let btn_start_x = area.x + area.width.saturating_sub(1 + right_len as u16);
+
+        hit_registry.register_button(
+            WidgetId::TerminalButtonNew,
+            Rect {
+                x: btn_start_x,
+                y: area.y,
+                width: 3,
+                height: 1,
+            },
+            AppAction::ClearTerminal,
+            10,
+        );
+        hit_registry.register_button(
+            WidgetId::TerminalButtonClose,
+            Rect {
+                x: btn_start_x + 4,
+                y: area.y,
+                width: 6,
+                height: 1,
+            },
+            AppAction::ToggleTerminal,
+            10,
+        );
+        hit_registry.register_button(
+            WidgetId::TerminalButtonMax,
+            Rect {
+                x: btn_start_x + 11,
+                y: area.y,
+                width: max_w as u16,
+                height: 1,
+            },
+            AppAction::MaximizeTerminal,
+            10,
+        );
+    } else if area.width >= 45 {
+        let right_len = 12; // "[+] " (4) + "[×] " (4) + "[▲] " (4)
+        if area.width as usize > left_len + right_len + 2 {
+            let spaces = (area.width as usize) - 2 - left_len - right_len;
+            title_spans.push(Span::raw(" ".repeat(spaces)));
+        } else {
+            title_spans.push(Span::raw(" "));
+        }
+
+        let compact_max = if state.terminal_maximized {
+            "[▼] "
+        } else {
+            "[▲] "
+        };
+        title_spans.push(Span::styled("[+] ", Style::default().fg(theme.success)));
+        title_spans.push(Span::styled("[×] ", Style::default().fg(theme.error)));
+        title_spans.push(Span::styled(compact_max, Style::default().fg(theme.accent)));
+
+        let btn_start_x = area.x + area.width.saturating_sub(1 + right_len as u16);
+
+        hit_registry.register_button(
+            WidgetId::TerminalButtonNew,
+            Rect {
+                x: btn_start_x,
+                y: area.y,
+                width: 3,
+                height: 1,
+            },
+            AppAction::ClearTerminal,
+            10,
+        );
+        hit_registry.register_button(
+            WidgetId::TerminalButtonClose,
+            Rect {
+                x: btn_start_x + 4,
+                y: area.y,
+                width: 3,
+                height: 1,
+            },
+            AppAction::ToggleTerminal,
+            10,
+        );
+        hit_registry.register_button(
+            WidgetId::TerminalButtonMax,
+            Rect {
+                x: btn_start_x + 8,
+                y: area.y,
+                width: 3,
+                height: 1,
+            },
+            AppAction::MaximizeTerminal,
+            10,
+        );
     }
+
+    hit_registry.register_button(
+        WidgetId::TerminalTitle,
+        Rect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: 1,
+        },
+        AppAction::FocusTerminal,
+        2,
+    );
 
     let title = Line::from(title_spans);
 
@@ -99,6 +222,12 @@ pub fn render_terminal(
         .border_style(border_style);
 
     let inner = block.inner(area);
+    hit_registry.register_button(
+        WidgetId::TerminalContent,
+        inner,
+        AppAction::FocusTerminal,
+        1,
+    );
     frame.render_widget(block, area);
 
     if inner.height < 2 || inner.width < 4 {

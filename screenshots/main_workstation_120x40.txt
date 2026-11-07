@@ -1,40 +1,40 @@
- ◆ TERMEXPLORER  󰲋 IronKV [🦀  Rust (Cargo)] │  ~ › TermExplorer │ 󰊢 master ● 22 │ 󰻠 12%  󰍛 1.5 GB │ [ 󰍉 Search ] [ ◇ Plu
-╭ 󰝰 /home/prajith/TermExplorer  │  󰒺 Name ▲ ───────────────────────────────────────╮╭ 󰍉 Inspector ─  [󰈈 Preview]  󰋽 Inf╮
-│ Name                                         Size     Modified         Perms     ││                                  │
-│                                                                                  ││  Select a file or folder to previ│
-│                                                                                  ││                                  │
-│                                                                                  ││  Tabs: [ / ] or h / l switch tabs│
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-│                                                                                  ││                                  │
-╰──────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────╯
-╭ 󰆍 1: bash  📁  ~/TermExplorer │ [+] [×] [▲ Max] [▼ Min] [↕ Resize] ───────────────────────────────────────────────────╮
-│termexplorer:~$                                                                                                       │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
- NORMAL   EXPLORER   0/0  󰡨 [Workspace Tools: Workspace Tools Active]                                                   
+ ◆ TERMEXPLORER  󰲋 IronKV [🦀  Rust (~ › TermExplorer │ │ 󰻠 13% 󰍛 1.4 GB [ 󰍉 Search ]    [ ◇ Plugins ]   [ ⚙ Settings ]  
+╭ 󰝰 TermExplorer ────────────╮╭ [󰈈 Preview]  󰋽 Info  󰘳 Metadata  󰌒 Actions ────────────────────────────────────────────╮
+│ Name               Size    ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││  󰍉 Select a file to preview                                                            │
+│                            ││                                                                                        │
+│                            ││  Choose an item in the explorer to inspect its content.                                │
+│                            ││                                                                                        │
+│                            ││  [↑ / ↓]  Navigate entries                                                             │
+│                            ││  [← / →]  Open / Exit folders                                                          │
+│                            ││  [Tab]    Switch panel focus                                                           │
+│                            ││  [/]      Fuzzy filter entries                                                         │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+│                            ││                                                                                        │
+╰────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────────────╯
+ NORMAL   EXPLORER   0/0                                                                                                

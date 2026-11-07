@@ -2,6 +2,9 @@
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::RwLock;
+
+static CACHED_STATUS: RwLock<Option<FontStatus>> = RwLock::new(None);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FontStatus {
@@ -19,8 +22,32 @@ impl Default for FontStatus {
 }
 
 impl FontStatus {
-    /// Detect presence of JetBrains Mono and Nerd Font variants on the system.
+    /// Detect presence of JetBrains Mono and Nerd Font variants on the system (cached).
     pub fn detect() -> Self {
+        if let Ok(read) = CACHED_STATUS.read() {
+            if let Some(status) = &*read {
+                return status.clone();
+            }
+        }
+
+        let detected = Self::detect_uncached();
+        if let Ok(mut write) = CACHED_STATUS.write() {
+            *write = Some(detected.clone());
+        }
+        detected
+    }
+
+    /// Explicitly refresh font detection, invalidating cached state.
+    pub fn redetect() -> Self {
+        let detected = Self::detect_uncached();
+        if let Ok(mut write) = CACHED_STATUS.write() {
+            *write = Some(detected.clone());
+        }
+        detected
+    }
+
+    /// Uncached font detection running fc-list and fc-match.
+    pub fn detect_uncached() -> Self {
         let (mono, nerd, family, file) = detect_via_fc();
 
         Self {

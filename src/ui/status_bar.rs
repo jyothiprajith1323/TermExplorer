@@ -106,9 +106,9 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState, theme:
 
     // ── 4. Right: Quick Navigation Keybinding Cheat-sheet ────────────────────
     let right_text = if width >= 120 {
-        "? Help │ / Search │ F2 Edit │ F6 Monitor │ F7 Dual │ Ctrl+` Terminal │ F10 Settings"
+        "? Help │ / Search │ F2 Edit │ F6 Monitor │ F7 Dual │ Ctrl+T Terminal │ F10 Settings"
     } else if width >= 90 {
-        "? Help │ / Search │ F2 Edit │ F6 Monitor │ F10 Settings"
+        "? Help │ / Search │ F2 Edit │ Ctrl+T Term │ F10 Settings"
     } else if width >= 60 {
         "? Help │ / Search │ F10 Settings"
     } else {

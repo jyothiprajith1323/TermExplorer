@@ -3,74 +3,132 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TermExplorer — Modern Terminal-Based Developer Workspace in Rust</title>
-  <meta name="description" content="A blazing fast, keyboard-driven Linux developer environment combining a 70/30 two-column file explorer, code editor, embedded terminal, resource monitor, and multi-format preview engine in pure Rust.">
+  <title>TermExplorer — The Developer Workstation in Rust</title>
+  <meta name="description" content="A blazing fast, keyboard-driven Linux developer workstation combining a 25/75 two-column file explorer, code editor, embedded Linux PTY terminal, and multi-format preview engine in pure Rust.">
   <link rel="stylesheet" href="assets/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- Navigation -->
+  <!-- Navigation Bar (Glassmorphic) -->
   <header>
     <div class="nav-container">
       <a href="index.html" class="logo">
-        <span>⚡</span> TermExplorer
+        <div class="logo-icon">⚡</div>
+        <span>TermExplorer</span>
+        <span class="logo-version">v1.1.0-RC1</span>
       </a>
+
+      <button class="mobile-menu-btn" aria-label="Toggle Navigation Menu">☰</button>
+
       <ul class="nav-links">
         <li><a href="index.html" class="active">Overview</a></li>
         <li><a href="features.html">Features</a></li>
         <li><a href="docs.html">Documentation</a></li>
         <li><a href="architecture.html">Architecture</a></li>
         <li><a href="roadmap.html">Roadmap</a></li>
-        <li><a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-btn">GitHub ⭐</a></li>
+        <li>
+          <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-github-btn">
+            <span>⭐ Star</span>
+            <span class="nav-star-count">GitHub</span>
+          </a>
+        </li>
       </ul>
     </div>
   </header>
 
   <!-- Hero Section -->
   <section class="hero container">
-    <div class="badge">🚀 TermExplorer v1.1.0 Released — The Developer Workstation</div>
-    <h1>Your terminal. Your workspace.<br><span style="color: var(--accent-cyan);">Your rules.</span></h1>
+    <div class="badge">
+      <span class="badge-dot"></span>
+      TermExplorer v1.1.0-RC1 Released — The Developer Workstation
+    </div>
+
+    <h1>
+      The High-Performance Developer<br>
+      <span class="text-gradient">Workstation in Pure Rust.</span>
+    </h1>
+
     <p>
-      A high-performance, keyboard-driven Linux developer workstation written in pure Rust.
-      Built with a clean Two-Column workspace (70% File Explorer, 30% Contextual Preview), integrated
-      bottom terminal, intelligent sub-millisecond autocomplete, and a sandboxed WebAssembly plugin runtime.
+      A keyboard-first developer environment engineered for Linux power users. Featuring a standardized
+      <strong>25% File Explorer / 75% Contextual Preview</strong>, compact embedded Linux PTY terminal drawer,
+      instant sub-millisecond autocomplete, and a sandboxed WebAssembly plugin ecosystem.
     </p>
 
     <div class="hero-cta">
-      <a href="docs.html" class="btn-primary">Get Started &rarr;</a>
-      <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="btn-secondary">View on GitHub</a>
+      <a href="docs.html" class="btn-primary">
+        <span>Get Started</span>
+        <span>&rarr;</span>
+      </a>
+      <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="btn-secondary">
+        <span>View Source on GitHub</span>
+      </a>
     </div>
 
-    <!-- Quick Install Command -->
-    <div class="install-box">
-      <span class="prompt">$</span>
-      <span id="cargo-install-cmd">cargo install --git https://github.com/jyothiprajith1323/TermExplorer.git</span>
-      <button class="copy-btn" data-clipboard-target="cargo-install-cmd">Copy</button>
+    <!-- Interactive Multi-Tab Install Command Widget -->
+    <div class="install-widget-container">
+      <div class="install-tabs">
+        <button class="install-tab-btn active" data-install-type="shell">󰌽 Shell Script</button>
+        <button class="install-tab-btn" data-install-type="cargo">󱘗 Cargo Install</button>
+        <button class="install-tab-btn" data-install-type="aur">󰣇 Arch Linux (AUR)</button>
+        <button class="install-tab-btn" data-install-type="source">󰀵 Build from Source</button>
+      </div>
+      <div class="install-body">
+        <div class="install-cmd-wrap">
+          <span class="prompt">$</span>
+          <span id="install-cmd-text">curl -sSL https://raw.githubusercontent.com/jyothiprajith1323/TermExplorer/master/install.sh | bash</span>
+        </div>
+        <button class="copy-btn" data-clipboard-target="install-cmd-text">
+          <span>📋</span> Copy
+        </button>
+      </div>
     </div>
 
-    <!-- Official Terminal UI Screenshot (Vector SVG) -->
-    <div style="margin: 2.5rem auto 1.5rem; max-width: 1120px;">
-      <img src="assets/termexplorer-ui.svg" alt="TermExplorer Two-Column Developer Workstation" class="hero-screenshot" width="100%" height="auto" />
+    <!-- Official Workstation UI Vector Demonstration Mockup -->
+    <div class="workstation-mockup">
+      <div class="mockup-header">
+        <div class="window-dots">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+        </div>
+        <div class="mockup-title">
+          <span>termexplorer</span>
+          <span class="mockup-badge">Workstation Live Demo</span>
+        </div>
+        <div class="mockup-tabs">
+          <button class="mockup-tab-btn active" data-view="workstation">Workstation (25/75)</button>
+          <button class="mockup-tab-btn" data-view="preview">Multi-Format Preview</button>
+          <button class="mockup-tab-btn" data-view="settings">Settings Studio (F10)</button>
+          <button class="mockup-tab-btn" data-view="help">Shortcuts Matrix (F1)</button>
+        </div>
+      </div>
+      <div class="mockup-content">
+        <img id="workstation-hero-img" src="assets/termexplorer-ui.svg" alt="TermExplorer 25/75 Developer Workstation with Terminal and Preview" class="hero-screenshot" />
+      </div>
+      <div style="background: #181825; padding: 0.6rem 1.25rem; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-sub); font-family: var(--font-mono);">
+        <span id="workstation-caption">25% File Explorer │ 75% Contextual Preview │ 85% Workspace Height │ 15% Terminal Drawer</span>
+        <span style="color: var(--accent-green);">● Active Session</span>
+      </div>
     </div>
   </section>
 
-  <!-- Performance Stats -->
-  <section class="container">
+  <!-- Performance Statistics Banner -->
+  <section class="container" style="padding-top: 1rem;">
     <div class="stats-banner">
       <div class="stat-item">
         <h4>&lt; 0.2 ms</h4>
         <p>Autocomplete Latency</p>
       </div>
       <div class="stat-item">
-        <h4>70 / 30</h4>
-        <p>Workspace Ratio</p>
+        <h4>25 / 75</h4>
+        <p>Workstation Proportions</p>
       </div>
       <div class="stat-item">
         <h4>Catppuccin</h4>
-        <p>4 Flavors + Transparent</p>
+        <p>Mocha Default Theme</p>
       </div>
       <div class="stat-item">
         <h4>WASM</h4>
@@ -79,12 +137,17 @@
     </div>
   </section>
 
-  <!-- Measured Performance & Latency Analytics -->
-  <section class="container" style="margin-top: 3rem;">
-    <h2 style="font-size: 2rem; text-align: center; margin-bottom: 0.5rem;">Measured Latency Telemetry</h2>
-    <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;">
-      Every keystroke, path completion, and symbol query is rigorously benchmarked to guarantee real-time interactive responsiveness.
-    </p>
+  <!-- Measured Performance & SLA Telemetry -->
+  <section class="container">
+    <div style="text-align: center; margin-bottom: 2.5rem;">
+      <div class="badge">Real-Time Performance Engine</div>
+      <h2 style="font-size: 2.5rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; color: var(--text-bright);">
+        Engineered for Sub-Millisecond Precision
+      </h2>
+      <p style="color: var(--text-sub); max-width: 680px; margin: 0 auto;">
+        Every keystroke, path completion, and symbol query is benchmarked to guarantee real-time interactive responsiveness without frame stutter.
+      </p>
+    </div>
 
     <div class="perf-grid">
       <div class="perf-card">
@@ -94,7 +157,7 @@
             <span class="perf-badge">PASS &bull; 100x Faster</span>
           </div>
           <div class="perf-val">0.12 ms</div>
-          <div class="perf-target">Target SLA: &lt; 20.00 ms (Measured: 120 µs on 2,000 lines)</div>
+          <div class="perf-target">Target SLA: &lt; 20.00 ms (Measured: 120 µs on 2,000 lines buffer)</div>
         </div>
         <div class="perf-bar-bg"><div class="perf-bar-fill" style="width: 99%;"></div></div>
       </div>
@@ -106,7 +169,7 @@
             <span class="perf-badge">PASS &bull; 290x Faster</span>
           </div>
           <div class="perf-val">0.17 ms</div>
-          <div class="perf-target">Target SLA: &lt; 50.00 ms (Measured: 171 µs with tilde & dir expansion)</div>
+          <div class="perf-target">Target SLA: &lt; 50.00 ms (Measured: 171 µs with directory expansion)</div>
         </div>
         <div class="perf-bar-bg"><div class="perf-bar-fill" style="width: 99.5%;"></div></div>
       </div>
@@ -137,58 +200,204 @@
     </div>
   </section>
 
-  <!-- Two-Column Workstation Layout Highlights -->
-  <section class="container" style="margin-top: 3.5rem;">
-    <h2 style="font-size: 2rem; text-align: center; margin-bottom: 0.5rem;">The Two-Column Developer Workstation</h2>
-    <p style="text-align: center; color: var(--text-muted); margin-bottom: 2.5rem;">
-      No permanent screen-wasting sidebars. High density information architecture built by engineers for engineers.
-    </p>
+  <!-- Two-Column Workstation Highlights -->
+  <section class="container" style="margin-top: 2rem;">
+    <div style="text-align: center; margin-bottom: 2.5rem;">
+      <div class="badge">Architecture & Interaction</div>
+      <h2 style="font-size: 2.5rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; color: var(--text-bright);">
+        The Modern Developer Workstation
+      </h2>
+      <p style="color: var(--text-sub); max-width: 680px; margin: 0 auto;">
+        No permanent screen-wasting sidebars. High information density designed by engineers for engineers.
+      </p>
+    </div>
 
     <div class="features-grid">
       <div class="card">
-        <span class="card-icon">📁</span>
-        <h3>70% File Explorer (Default)</h3>
-        <p>Maximizes readable horizontal space. Full breadcrumbs, Git status indicators, file size, permissions, modification timestamps, and dual-pane (<kbd>F7</kbd>) support.</p>
+        <div class="card-icon-wrap">📁</div>
+        <h3>25% File Explorer (Default)</h3>
+        <p>
+          Clean compact navigation. Shows breadcrumbs, Git status indicators, file size, permissions, and modification timestamps. Press <kbd>[</kbd> and <kbd>]</kbd> to resize or <kbd>F7</kbd> for dual-pane side-by-side mode.
+        </p>
       </div>
 
       <div class="card">
-        <span class="card-icon">👁️</span>
-        <h3>30% Universal Preview</h3>
-        <p>Syntax-highlighted source code, 24-bit half-block RGB images, CSV/TSV table rendering, SQLite inspection, hex dumps, and audio/video metadata. Press <kbd>F11</kbd> or <kbd>Z</kbd> for Fullscreen mode.</p>
+        <div class="card-icon-wrap">👁️</div>
+        <h3>75% Contextual Preview Engine</h3>
+        <p>
+          Generous screen real estate for syntax-highlighted source code, 24-bit half-block RGB images, CSV/TSV table rendering, SQLite inspection, hex dumps, and video metadata. Press <kbd>F11</kbd> or <kbd>z</kbd> for Fullscreen mode.
+        </p>
       </div>
 
       <div class="card">
-        <span class="card-icon">💻</span>
-        <h3>Integrated Bottom Terminal</h3>
-        <p>Running by default (~25% height). Spawns an interactive native Linux PTY shell. Maximizable to 80% via <kbd>Alt+F6</kbd> or <kbd>Ctrl+Shift+T</kbd>, resizable via <kbd>{</kbd> / <kbd>}</kbd>.</p>
+        <div class="card-icon-wrap">󰞷</div>
+        <h3>Integrated Linux PTY Terminal</h3>
+        <p>
+          Starts open by default at ~20-22% height. Spawns an interactive native Linux PTY shell. Resizable with <kbd>{</kbd> and <kbd>}</kbd> or maximizable to 80% screen height via <kbd>Alt+F6</kbd> / <kbd>Ctrl+Shift+T</kbd>.
+        </p>
       </div>
 
       <div class="card">
-        <span class="card-icon">⚡</span>
-        <h3>Interactive Resizing Shortcuts</h3>
-        <p>Resize explorer/preview width on the fly with <kbd>[</kbd> / <kbd>]</kbd> or <kbd>Ctrl+Left</kbd> / <kbd>Ctrl+Right</kbd>. Resize terminal height with <kbd>{</kbd> / <kbd>}</kbd> or <kbd>Ctrl+Down</kbd> / <kbd>Ctrl+Up</kbd>.</p>
-      </div>
-
-      <div class="card">
-        <span class="card-icon">🧭</span>
+        <div class="card-icon-wrap">󰍉</div>
         <h3>Zero-Waste Navigation</h3>
-        <p>Pinned folders and recent directories are instantly accessible via <kbd>Ctrl+P</kbd> Command Palette with acronym search (e.g. <code>tdp</code>) without consuming permanent screen space.</p>
+        <p>
+          Pinned folders and recent directories are instantly accessible via <kbd>Ctrl+P</kbd> Command Palette with fuzzy acronym search (e.g. <code>git</code>, <code>st</code>, <code>tdp</code>) without consuming permanent screen space.
+        </p>
       </div>
 
       <div class="card">
-        <span class="card-icon">🔌</span>
+        <div class="card-icon-wrap">󰒓</div>
+        <h3>Interactive Settings Studio</h3>
+        <p>
+          Press <kbd>Ctrl+,</kbd> or <kbd>F10</kbd> to access the 14-category Settings Studio. Configure themes, icon packs, typography, keybindings, layout ratios, editor behavior, and configuration backups.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon-wrap">🔌</div>
         <h3>WASM Plugin Architecture</h3>
-        <p>Extend TermExplorer with WebAssembly plugins compiled from Rust or C. Sandboxed execution via <code>wasmi</code> with SHA-256 integrity verification.</p>
+        <p>
+          Extend TermExplorer with WebAssembly plugins compiled from Rust or C. Sandboxed execution via <code>wasmi</code> with SHA-256 integrity verification, permission enforcement, and hot reload.
+        </p>
       </div>
     </div>
   </section>
 
-  <!-- Theme Showcase (Catppuccin) -->
-  <section class="container" style="margin-top: 3.5rem;">
-    <h2 style="font-size: 2rem; text-align: center; margin-bottom: 0.5rem;">Official Catppuccin Theme Ecosystem</h2>
-    <p style="text-align: center; color: var(--text-muted); margin-bottom: 2rem;">
-      Full 26-color canonical palettes across all 4 official Catppuccin flavors, with transparent background inheritance.
-    </p>
+  <!-- Interactive Keyboard Shortcuts Matrix Section -->
+  <section class="container" style="margin-top: 3rem;">
+    <div style="text-align: center; margin-bottom: 2.5rem;">
+      <div class="badge">Shortcuts & Productivity</div>
+      <h2 style="font-size: 2.5rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; color: var(--text-bright);">
+        Workstation Keyboard Shortcuts Matrix
+      </h2>
+      <p style="color: var(--text-sub); max-width: 680px; margin: 0 auto;">
+        Press <kbd>F1</kbd> or <kbd>?</kbd> anytime inside TermExplorer to bring up the integrated reference matrix with interactive tab categories.
+      </p>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Subsystem</th>
+            <th>Shortcut Pill</th>
+            <th>Action</th>
+            <th>Description & Pro Tip</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Workstation</strong></td>
+            <td><kbd>F7</kbd></td>
+            <td>Dual-Pane Explorer</td>
+            <td>Toggle side-by-side secondary explorer for bulk copy/move operations</td>
+          </tr>
+          <tr>
+            <td><strong>Workstation</strong></td>
+            <td><kbd>Ctrl+Right</kbd> / <kbd>Ctrl+Left</kbd></td>
+            <td>Resize Workspace Panels</td>
+            <td>Adjust Contextual Preview width (&plusmn;5%, up to 85%) on the fly (<kbd>Alt+]</kbd> / <kbd>Alt+[</kbd>)</td>
+          </tr>
+          <tr>
+            <td><strong>Workstation</strong></td>
+            <td><kbd>F11</kbd> / <kbd>z</kbd></td>
+            <td>Fullscreen Preview</td>
+            <td>Expand preview to 100% width for comprehensive image, PDF, or code inspection</td>
+          </tr>
+          <tr>
+            <td><strong>Workstation</strong></td>
+            <td><kbd>F6</kbd> / <kbd>Ctrl+M</kbd></td>
+            <td>Telemetry Monitor</td>
+            <td>Toggle live CPU, RAM, Swap, Disk I/O, and Network bandwidth gauges</td>
+          </tr>
+          <tr>
+            <td><strong>Menus</strong></td>
+            <td><kbd>Ctrl+P</kbd> / <kbd>Ctrl+Shift+P</kbd></td>
+            <td>Command Palette</td>
+            <td>Instant fuzzy search for commands, pinned folders, and recent directories</td>
+          </tr>
+          <tr>
+            <td><strong>Menus</strong></td>
+            <td><kbd>Ctrl+,</kbd> / <kbd>F10</kbd></td>
+            <td>Settings Studio</td>
+            <td>Interactive workstation settings studio across 14 deep configuration panels</td>
+          </tr>
+          <tr>
+            <td><strong>Menus</strong></td>
+            <td><kbd>g</kbd> / <kbd>Ctrl+G</kbd></td>
+            <td>Git Workbench</td>
+            <td>Repository branch status, staged diffs, and inline staging/commit workflows</td>
+          </tr>
+          <tr>
+            <td><strong>Menus</strong></td>
+            <td><kbd>Ctrl+Shift+X</kbd></td>
+            <td>Plugin Center</td>
+            <td>Discover, install, update, and manage sandboxed WebAssembly extensions</td>
+          </tr>
+          <tr>
+            <td><strong>Terminal</strong></td>
+            <td><kbd>Ctrl+T</kbd> / <kbd>`</kbd></td>
+            <td>Toggle Terminal</td>
+            <td>Show or hide the integrated Linux PTY shell drawer anytime (15% height default)</td>
+          </tr>
+          <tr>
+            <td><strong>Terminal</strong></td>
+            <td><kbd>Alt+F6</kbd> / <kbd>Ctrl+Shift+T</kbd></td>
+            <td>Maximize Terminal</td>
+            <td>Scale the terminal drawer to ~80% of application height for intensive CLI workflows</td>
+          </tr>
+          <tr>
+            <td><strong>Preview</strong></td>
+            <td><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> / <kbd>4</kbd></td>
+            <td>Preview Tabs</td>
+            <td>Jump directly to [Preview], [Info], [Hex/Metadata], or [Actions] tabs (<kbd>[</kbd> / <kbd>]</kbd> to cycle)</td>
+          </tr>
+          <tr>
+            <td><strong>Editor</strong></td>
+            <td><kbd>Enter</kbd> / <kbd>F2</kbd></td>
+            <td>Open in Editor</td>
+            <td>Edit highlighted file in the built-in editor with &lt; 0.2ms autocomplete and atomic saves (<kbd>Ctrl+S</kbd>)</td>
+          </tr>
+          <tr>
+            <td><strong>Navigation</strong></td>
+            <td><kbd>Space</kbd></td>
+            <td>Focus Preview</td>
+            <td>Instantly transfer keyboard focus into the 75% preview viewer</td>
+          </tr>
+          <tr>
+            <td><strong>Navigation</strong></td>
+            <td><kbd>/</kbd></td>
+            <td>Inline Fuzzy Filter</td>
+            <td>Instantly filter files in current directory without losing cursor position</td>
+          </tr>
+          <tr>
+            <td><strong>File Ops</strong></td>
+            <td><kbd>a</kbd> / <kbd>A</kbd></td>
+            <td>New File / Directory</td>
+            <td>Create new files (<kbd>a</kbd>) or new subdirectories (<kbd>A</kbd>) with in-place prompts</td>
+          </tr>
+          <tr>
+            <td><strong>File Ops</strong></td>
+            <td><kbd>d</kbd> / <kbd>Del</kbd></td>
+            <td>Delete to Trash</td>
+            <td>Safely move items to FreeDesktop Trash with confirmation safeguards</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Theme Showcase (Official Catppuccin) -->
+  <section class="container" style="margin-top: 3rem;">
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <div class="badge">Aesthetics & Personalization</div>
+      <h2 style="font-size: 2.5rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; color: var(--text-bright);">
+        Official Catppuccin Theme Ecosystem
+      </h2>
+      <p style="color: var(--text-sub); max-width: 680px; margin: 0 auto;">
+        Full 26-color canonical palettes across all 4 official Catppuccin flavors, with transparent background inheritance.
+      </p>
+    </div>
 
     <div class="theme-showcase">
       <div class="theme-card">
@@ -242,16 +451,27 @@
   </section>
 
   <!-- Typography & Font Installation Guide -->
-  <section class="container" style="margin-top: 3rem;">
-    <h2 style="font-size: 2rem; text-align: center; margin-bottom: 0.5rem;">Typography & JetBrains Mono Support</h2>
-    <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;">
-      Engineered for optimal readability with JetBrains Mono Nerd Font. Install locally in your user profile:
-    </p>
+  <section class="container" style="margin-top: 2rem;">
+    <div style="text-align: center; margin-bottom: 1.5rem;">
+      <div class="badge">Typography & Nerd Fonts</div>
+      <h2 style="font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; color: var(--text-bright);">
+        JetBrains Mono Nerd Font Support
+      </h2>
+      <p style="color: var(--text-sub); max-width: 680px; margin: 0 auto;">
+        TermExplorer includes built-in font detection and automated one-click installation for JetBrains Mono Nerd Font:
+      </p>
+    </div>
 
-    <div class="install-box" style="max-width: 750px;">
-      <span class="prompt">$</span>
-      <span id="font-install-cmd">curl -sSL https://raw.githubusercontent.com/jyothiprajith1323/TermExplorer/master/src/fonts/install.sh | bash</span>
-      <button class="copy-btn" data-clipboard-target="font-install-cmd">Copy</button>
+    <div class="install-widget-container" style="max-width: 780px;">
+      <div class="install-body">
+        <div class="install-cmd-wrap">
+          <span class="prompt">$</span>
+          <span id="font-install-cmd">curl -sSL https://raw.githubusercontent.com/jyothiprajith1323/TermExplorer/master/src/fonts/install.sh | bash</span>
+        </div>
+        <button class="copy-btn" data-clipboard-target="font-install-cmd">
+          <span>📋</span> Copy
+        </button>
+      </div>
     </div>
   </section>
 
@@ -259,14 +479,15 @@
   <footer>
     <div class="footer-container">
       <div>
-        <strong>TermExplorer v1.1.0</strong> &bull; Released under the MIT License.<br>
-        Crafted with pure safe Rust for the Linux developer community.
+        <strong style="color: var(--text-bright); font-size: 1.05rem;">TermExplorer v1.1.0-RC1</strong> &bull; Released under the MIT License.<br>
+        Crafted with pure safe Rust for the developer workstation community.
       </div>
-      <div>
+      <div class="footer-links">
         <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank">GitHub</a> &bull;
-        <a href="docs.html">Docs</a> &bull;
+        <a href="docs.html">Documentation</a> &bull;
         <a href="features.html">Features</a> &bull;
-        <a href="architecture.html">Architecture</a>
+        <a href="architecture.html">Architecture</a> &bull;
+        <a href="roadmap.html">Roadmap</a>
       </div>
     </div>
   </footer>

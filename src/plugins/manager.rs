@@ -30,15 +30,22 @@ pub struct LoadedPlugin {
     pub instance: Option<PluginInstance>,
 }
 
-#[derive(Default)]
 pub struct PluginManager {
     pub plugins: Vec<LoadedPlugin>,
+    pub workspace_path: String,
+}
+
+impl Default for PluginManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PluginManager {
     pub fn new() -> Self {
         Self {
             plugins: Vec::new(),
+            workspace_path: ".".to_string(),
         }
     }
 
@@ -55,8 +62,9 @@ impl PluginManager {
         }
     }
 
-    /// Discover and load all plugins in the given plugins root directory.
+    /// Discover and register all plugins in the given plugins root directory without upfront Wasm compilation.
     pub fn discover_and_load(&mut self, root: &Path, workspace_path: &str) {
+        self.workspace_path = workspace_path.to_string();
         if !root.exists() || !root.is_dir() {
             return;
         }
@@ -74,8 +82,9 @@ impl PluginManager {
         }
     }
 
-    /// Load a single plugin directory.
+    /// Load a single plugin directory: parses manifest and validates entrypoint file lazily.
     pub fn load_plugin_dir(&mut self, dir: &Path, workspace_path: &str) {
+        self.workspace_path = workspace_path.to_string();
         let manifest_path = dir.join("plugin.toml");
         let manifest = match PluginManifest::load_from_file(&manifest_path) {
             Ok(m) => m,
@@ -104,56 +113,60 @@ impl PluginManager {
             return;
         }
 
-        let wasm_bytes = match fs::read(&wasm_file) {
-            Ok(b) => b,
-            Err(e) => {
-                self.plugins.push(LoadedPlugin {
-                    manifest,
-                    state: PluginState::Error(format!("Failed reading wasm: {}", e)),
-                    path: dir.to_path_buf(),
-                    instance: None,
-                });
-                return;
-            }
-        };
-
-        match PluginInstance::new(manifest.clone(), &wasm_bytes, workspace_path) {
-            Ok(instance) => {
-                self.plugins.push(LoadedPlugin {
-                    manifest,
-                    state: PluginState::Active,
-                    path: dir.to_path_buf(),
-                    instance: Some(instance),
-                });
-            }
-            Err(e) => {
-                self.plugins.push(LoadedPlugin {
-                    manifest,
-                    state: PluginState::Error(e),
-                    path: dir.to_path_buf(),
-                    instance: None,
-                });
-            }
-        }
+        // Lazy initialization: Register plugin with manifest metadata, deferring Wasm compilation.
+        self.plugins.push(LoadedPlugin {
+            manifest,
+            state: PluginState::Active,
+            path: dir.to_path_buf(),
+            instance: None,
+        });
     }
 
-    /// Enable a plugin by ID.
-    pub fn enable(&mut self, id: &str, workspace_path: &str) -> Result<(), String> {
+    /// On-demand initialization and compilation of a plugin's WebAssembly instance.
+    pub fn init_instance(&mut self, id: &str, workspace_path: &str) -> Result<(), String> {
         let plugin = self
             .plugins
             .iter_mut()
             .find(|p| p.manifest.id == id)
             .ok_or_else(|| format!("Plugin '{}' not found", id))?;
 
-        if plugin.state == PluginState::Active {
+        if plugin.instance.is_some() {
             return Ok(());
         }
 
         let wasm_file = plugin.path.join(&plugin.manifest.entrypoint);
         let wasm_bytes = fs::read(&wasm_file).map_err(|e| e.to_string())?;
 
-        let instance = PluginInstance::new(plugin.manifest.clone(), &wasm_bytes, workspace_path)?;
-        plugin.instance = Some(instance);
+        match PluginInstance::new(plugin.manifest.clone(), &wasm_bytes, workspace_path) {
+            Ok(instance) => {
+                plugin.instance = Some(instance);
+                plugin.state = PluginState::Active;
+                Ok(())
+            }
+            Err(e) => {
+                plugin.state = PluginState::Error(e.clone());
+                Err(e)
+            }
+        }
+    }
+
+    /// Initialize all discovered plugin instances (used for batch testing and pre-warming).
+    pub fn init_all_instances(&mut self, workspace_path: &str) {
+        let ids: Vec<String> = self.plugins.iter().map(|p| p.manifest.id.clone()).collect();
+        for id in ids {
+            let _ = self.init_instance(&id, workspace_path);
+        }
+    }
+
+    /// Enable a plugin by ID.
+    pub fn enable(&mut self, id: &str, workspace_path: &str) -> Result<(), String> {
+        self.init_instance(id, workspace_path)?;
+        let plugin = self
+            .plugins
+            .iter_mut()
+            .find(|p| p.manifest.id == id)
+            .ok_or_else(|| format!("Plugin '{}' not found", id))?;
+
         plugin.state = PluginState::Active;
         Ok(())
     }
@@ -168,6 +181,8 @@ impl PluginManager {
 
     /// Dispatch command to a specific plugin.
     pub fn trigger_command(&mut self, id: &str, cmd: &str) -> Result<i32, String> {
+        let workspace = self.workspace_path.clone();
+        let _ = self.init_instance(id, &workspace);
         let plugin = self
             .plugins
             .iter_mut()

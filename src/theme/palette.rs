@@ -1,5 +1,5 @@
 //! Official Catppuccin Palette — 26 canonical colors for all 4 flavors.
-//! Source of truth: https://catppuccin.com/palette/
+//! Source of truth: <https://catppuccin.com/palette/>
 
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};

@@ -23,12 +23,14 @@ use crate::{
     theme::Theme,
     ui::{
         command_palette::render_command_palette,
+        diagnostics::render_diagnostics,
         editor::render_editor,
         file_explorer::{render_file_explorer, render_secondary_explorer},
         git_panel::render_git_panel,
-        header::{header_click_action, render_header, HeaderAction},
+        header::render_header,
         help::render_help,
-        layout::{compute_layout, LayoutConfig},
+        hit_test::{AppAction, HitRegistry},
+        layout::{compute_layout, AppLayout, LayoutConfig},
         onboarding::{render_onboarding, OnboardingStep},
         plugin_center::render_plugin_center,
         preview::render_preview,
@@ -55,6 +57,8 @@ pub struct App {
     pty_rx: Option<mpsc::UnboundedReceiver<Vec<u8>>>,
     _watcher: Option<notify::RecommendedWatcher>,
     fs_rx: Option<mpsc::UnboundedReceiver<notify::Result<notify::Event>>>,
+    hit_registry: HitRegistry,
+    pub layout: AppLayout,
 }
 
 impl App {
@@ -91,6 +95,8 @@ impl App {
             pty_rx: None,
             _watcher,
             fs_rx,
+            hit_registry: HitRegistry::new(),
+            layout: AppLayout::default(),
         };
 
         if app.state.show_terminal {
@@ -183,6 +189,11 @@ impl App {
     // ── Rendering ────────────────────────────────────────────────────────────
 
     fn draw(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
+        let frame_start = Instant::now();
+        let mut hit_registry = std::mem::take(&mut self.hit_registry);
+        hit_registry.clear();
+        let mut current_layout = self.layout;
+
         let state = &self.state;
         let theme = &self.theme;
         let editor_buf = &self.editor_buf;
@@ -235,9 +246,17 @@ impl App {
             };
 
             let areas = compute_layout(area, &layout_cfg);
+            current_layout = areas;
 
             // ── Header (Workstation Command Bar) ──────────────────────────
-            render_header(frame, areas.header, state, monitor_snap.as_ref(), theme);
+            render_header(
+                frame,
+                areas.header,
+                state,
+                monitor_snap.as_ref(),
+                theme,
+                &mut hit_registry,
+            );
 
             // ── Sidebar ───────────────────────────────────────────────────
             if let Some(sb_area) = areas.sidebar {
@@ -245,7 +264,13 @@ impl App {
             }
 
             // ── File explorer ─────────────────────────────────────────────
-            render_file_explorer(frame, areas.explorer, state, theme);
+            render_file_explorer(
+                frame,
+                areas.explorer,
+                state,
+                theme,
+                &mut hit_registry,
+            );
 
             // ── Dual Pane Secondary Explorer ──────────────────────────────
             if let Some(sec_area) = areas.explorer_secondary {
@@ -254,13 +279,20 @@ impl App {
 
             // ── Preview ───────────────────────────────────────────────────
             if let Some(prev_area) = areas.preview {
-                render_preview(frame, prev_area, state, theme);
+                render_preview(frame, prev_area, state, theme, &mut hit_registry);
             }
 
             // ── Bottom panel ──────────────────────────────────────────────
             if let Some(bottom_area) = areas.bottom_panel {
                 if state.show_terminal {
-                    render_terminal(frame, bottom_area, scrollback, state, theme);
+                    render_terminal(
+                        frame,
+                        bottom_area,
+                        scrollback,
+                        state,
+                        theme,
+                        &mut hit_registry,
+                    );
                 } else if state.show_monitor {
                     if let Some(snap) = monitor_snap {
                         render_system_monitor(frame, bottom_area, snap, theme);
@@ -273,7 +305,14 @@ impl App {
 
             // ── Help overlay ──────────────────────────────────────────────
             if matches!(state.mode, AppMode::Help) {
-                render_help(frame, area, theme);
+                render_help(
+                    frame,
+                    area,
+                    state.help_category,
+                    state.help_scroll,
+                    theme,
+                    &mut hit_registry,
+                );
             }
 
             // ── Modal dialog ──────────────────────────────────────────────
@@ -340,7 +379,29 @@ impl App {
                 };
                 render_plugin_center(frame, area, state, theme, &view);
             }
+
+            // ── Screen Hitbox Visualizer (Debug overlay) ──────────────────
+            if state.debug_hitboxes {
+                for r in hit_registry.regions() {
+                    let b = ratatui::widgets::Block::default()
+                        .borders(ratatui::widgets::Borders::ALL)
+                        .border_style(
+                            ratatui::style::Style::default()
+                                .fg(ratatui::style::Color::Yellow),
+                        );
+                    frame.render_widget(b, r.rect);
+                }
+            }
+
+            // ── Diagnostics Inspector (F12) ───────────────────────────────
+            if state.show_diagnostics {
+                render_diagnostics(frame, area, state, theme, &hit_registry);
+            }
         })?;
+
+        self.state.last_frame_duration_us = frame_start.elapsed().as_micros();
+        self.hit_registry = hit_registry;
+        self.layout = current_layout;
 
         Ok(())
     }
@@ -472,8 +533,55 @@ impl App {
             self.state.preview.is_binary = false;
             self.state.preview.total_lines = 1;
             self.state.preview.full_data = None;
+
+            // Only scan directory if not already cached for this exact path
+            let needs_scan = match &self.state.preview.dir_data {
+                Some(d) => d.path != path,
+                None => true,
+            };
+
+            if needs_scan {
+                if let Ok(read_dir) = std::fs::read_dir(&path) {
+                    let mut items = Vec::new();
+                    let mut dirs = 0;
+                    let mut files = 0;
+                    let mut bytes: u64 = 0;
+                    for entry in read_dir.flatten() {
+                        let file_type = entry.file_type().ok();
+                        let is_dir = file_type.map(|t| t.is_dir()).unwrap_or(false);
+                        let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                        if is_dir {
+                            dirs += 1;
+                        } else {
+                            files += 1;
+                            bytes = bytes.saturating_add(size);
+                        }
+                        items.push((
+                            entry.file_name().to_string_lossy().to_string(),
+                            is_dir,
+                            size,
+                        ));
+                    }
+                    items.sort_by(|a, b| match (a.1, b.1) {
+                        (true, false) => std::cmp::Ordering::Less,
+                        (false, true) => std::cmp::Ordering::Greater,
+                        _ => a.0.to_lowercase().cmp(&b.0.to_lowercase()),
+                    });
+                    let total = items.len();
+                    self.state.preview.dir_data = Some(crate::state::DirectoryPreviewData {
+                        path: path.clone(),
+                        total_count: total,
+                        dir_count: dirs,
+                        file_count: files,
+                        total_bytes: bytes,
+                        items,
+                    });
+                }
+            }
             return;
         }
+
+        self.state.preview.dir_data = None;
 
         let full_data =
             self.preview_manager
@@ -535,6 +643,26 @@ impl App {
 
     /// Returns true if the application should quit.
     pub async fn handle_key(&mut self, key: KeyEvent) -> Result<bool> {
+        // F12: Diagnostics overlay toggle
+        if key.code == KeyCode::F(12) {
+            self.state.show_diagnostics = !self.state.show_diagnostics;
+            return Ok(false);
+        }
+
+        if self.state.show_diagnostics {
+            match key.code {
+                KeyCode::Esc => {
+                    self.state.show_diagnostics = false;
+                    return Ok(false);
+                }
+                KeyCode::Char('h') | KeyCode::Char('H') => {
+                    self.state.debug_hitboxes = !self.state.debug_hitboxes;
+                    return Ok(false);
+                }
+                _ => {}
+            }
+        }
+
         // ── Terminal mode: forward most keys to PTY ──────────────────────
         if self.state.focused == FocusedPanel::Terminal {
             return self.handle_terminal_key(key).await;
@@ -590,6 +718,35 @@ impl App {
                 item_idx: 0,
                 in_items: false,
             };
+            return Ok(false);
+        }
+
+        // Ctrl+G: Git Dashboard
+        if key.modifiers == KeyModifiers::CONTROL
+            && (key.code == KeyCode::Char('g') || key.code == KeyCode::Char('G'))
+        {
+            self.state.git_status = GitRepoStatus::query(&self.state.explorer.current_dir);
+            self.state.mode = AppMode::GitDashboard { selected_idx: 0 };
+            return Ok(false);
+        }
+
+        // Ctrl+M: Telemetry Monitor
+        if key.modifiers == KeyModifiers::CONTROL
+            && (key.code == KeyCode::Char('m') || key.code == KeyCode::Char('M'))
+        {
+            self.toggle_monitor();
+            return Ok(false);
+        }
+
+        // F1 or ? (in non-text-entry modes): Shortcuts Reference Modal
+        if key.code == KeyCode::F(1)
+            || (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char('?'))
+        {
+            if matches!(self.state.mode, AppMode::Help) {
+                self.state.mode = AppMode::Browse;
+            } else {
+                self.state.mode = AppMode::Help;
+            }
             return Ok(false);
         }
 
@@ -652,39 +809,68 @@ impl App {
         }
 
         // Panel resizing shortcuts:
-        // [ / Ctrl+Left: shrink preview width (expand explorer)
-        // ] / Ctrl+Right: expand preview width (shrink explorer)
-        if (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char('['))
-            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Left)
-        {
+        // Ctrl+Left / Alt+[ (and [ when not in Preview): shrink preview width (expand explorer)
+        // Ctrl+Right / Alt+] (and ] when not in Preview): expand preview width (shrink explorer)
+        let is_preview_shrink = (key.modifiers == KeyModifiers::CONTROL
+            && key.code == KeyCode::Left)
+            || (key.modifiers == KeyModifiers::ALT && key.code == KeyCode::Char('['))
+            || (key.modifiers == KeyModifiers::NONE
+                && key.code == KeyCode::Char('[')
+                && self.state.focused != FocusedPanel::Preview);
+        let is_preview_expand = (key.modifiers == KeyModifiers::CONTROL
+            && key.code == KeyCode::Right)
+            || (key.modifiers == KeyModifiers::ALT && key.code == KeyCode::Char(']'))
+            || (key.modifiers == KeyModifiers::NONE
+                && key.code == KeyCode::Char(']')
+                && self.state.focused != FocusedPanel::Preview);
+
+        if is_preview_shrink {
             self.state.config.preview_width =
                 self.state.config.preview_width.saturating_sub(5).max(15);
+            self.state.config.layout.preview_ratio = self.state.config.preview_width as f32 / 100.0;
+            self.state.config.layout.explorer_ratio = 1.0 - self.state.config.layout.preview_ratio;
             let _ = self.state.config.save();
             self.state.set_status(
-                format!("Preview width: {}%", self.state.config.preview_width),
+                format!(
+                    "Preview: {}% │ Explorer: {}%",
+                    self.state.config.preview_width,
+                    100 - self.state.config.preview_width
+                ),
                 StatusKind::Info,
             );
             return Ok(false);
         }
-        if (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char(']'))
-            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Right)
-        {
-            self.state.config.preview_width = (self.state.config.preview_width + 5).min(65);
+        if is_preview_expand {
+            self.state.config.preview_width = (self.state.config.preview_width + 5).min(85);
+            self.state.config.layout.preview_ratio = self.state.config.preview_width as f32 / 100.0;
+            self.state.config.layout.explorer_ratio = 1.0 - self.state.config.layout.preview_ratio;
             let _ = self.state.config.save();
             self.state.set_status(
-                format!("Preview width: {}%", self.state.config.preview_width),
+                format!(
+                    "Preview: {}% │ Explorer: {}%",
+                    self.state.config.preview_width,
+                    100 - self.state.config.preview_width
+                ),
                 StatusKind::Info,
             );
             return Ok(false);
         }
 
-        // { / Ctrl+Down: shrink bottom terminal height
-        // } / Ctrl+Up: expand bottom terminal height
-        if (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char('{'))
-            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Down)
-        {
+        // { / Ctrl+Down / Alt+{ : shrink bottom terminal height
+        // } / Ctrl+Up / Alt+} : expand bottom terminal height
+        let is_term_shrink = (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Down)
+            || (key.modifiers == KeyModifiers::ALT && key.code == KeyCode::Char('{'))
+            || (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char('{'));
+        let is_term_expand = (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Up)
+            || (key.modifiers == KeyModifiers::ALT && key.code == KeyCode::Char('}'))
+            || (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char('}'));
+
+        if is_term_shrink {
             self.state.config.terminal_height =
                 self.state.config.terminal_height.saturating_sub(2).max(5);
+            self.state.config.layout.terminal_height_percent =
+                ((self.state.config.terminal_height as f32 / 40.0) * 100.0).clamp(10.0, 50.0)
+                    as u16;
             let _ = self.state.config.save();
             self.state.set_status(
                 format!(
@@ -695,10 +881,11 @@ impl App {
             );
             return Ok(false);
         }
-        if (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::Char('}'))
-            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Up)
-        {
+        if is_term_expand {
             self.state.config.terminal_height = (self.state.config.terminal_height + 2).min(40);
+            self.state.config.layout.terminal_height_percent =
+                ((self.state.config.terminal_height as f32 / 40.0) * 100.0).clamp(10.0, 50.0)
+                    as u16;
             let _ = self.state.config.save();
             self.state.set_status(
                 format!(
@@ -758,8 +945,51 @@ impl App {
             _ => {}
         }
 
-        // ── Help mode: Esc already handled above ──────────────────────────
+        // ── Help mode: interactive category switching & scrolling ─────────
         if matches!(self.state.mode, AppMode::Help) {
+            match key.code {
+                KeyCode::Esc | KeyCode::F(1) | KeyCode::Char('q') | KeyCode::Char('?') => {
+                    self.state.mode = AppMode::Browse;
+                }
+                KeyCode::Tab => {
+                    self.state.help_category = (self.state.help_category + 1) % 6;
+                    self.state.help_scroll = 0;
+                }
+                KeyCode::BackTab => {
+                    self.state.help_category = (self.state.help_category + 5) % 6;
+                    self.state.help_scroll = 0;
+                }
+                KeyCode::Char(c @ '1'..='6') => {
+                    self.state.help_category = (c as usize) - ('1' as usize);
+                    self.state.help_scroll = 0;
+                }
+                KeyCode::Left | KeyCode::Char('h') => {
+                    self.state.help_category = self.state.help_category.saturating_sub(1);
+                    self.state.help_scroll = 0;
+                }
+                KeyCode::Right | KeyCode::Char('l') => {
+                    if self.state.help_category < 5 {
+                        self.state.help_category += 1;
+                        self.state.help_scroll = 0;
+                    }
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.state.help_scroll = self.state.help_scroll.saturating_sub(1);
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.state.help_scroll = self.state.help_scroll.saturating_add(1);
+                }
+                KeyCode::PageUp => {
+                    self.state.help_scroll = self.state.help_scroll.saturating_sub(6);
+                }
+                KeyCode::PageDown => {
+                    self.state.help_scroll = self.state.help_scroll.saturating_add(6);
+                }
+                KeyCode::Home => {
+                    self.state.help_scroll = 0;
+                }
+                _ => {}
+            }
             return Ok(false);
         }
 
@@ -1201,18 +1431,24 @@ impl App {
                     }
                 }
             }
-            (KeyModifiers::NONE, KeyCode::F(4)) => {
+            (KeyModifiers::NONE, KeyCode::F(4)) | (KeyModifiers::NONE, KeyCode::Char('a')) => {
                 self.state.mode = AppMode::Modal(ModalKind::NewFile);
                 self.state.modal_input.clear();
             }
             (KeyModifiers::NONE, KeyCode::F(5)) => {
                 self.refresh_dir().await;
             }
-            (KeyModifiers::NONE, KeyCode::F(7)) => {
+            (KeyModifiers::NONE, KeyCode::F(7))
+            | (KeyModifiers::SHIFT, KeyCode::Char('A'))
+            | (KeyModifiers::NONE, KeyCode::Char('A')) => {
                 self.state.mode = AppMode::Modal(ModalKind::NewDir);
                 self.state.modal_input.clear();
             }
-            (KeyModifiers::NONE, KeyCode::F(8)) => {
+            (KeyModifiers::NONE, KeyCode::F(8))
+            | (KeyModifiers::NONE, KeyCode::Char('d'))
+            | (KeyModifiers::NONE, KeyCode::Delete)
+            | (KeyModifiers::SHIFT, KeyCode::Char('D'))
+            | (KeyModifiers::NONE, KeyCode::Char('D')) => {
                 if let Some(path) = self.state.selected_path() {
                     self.state.mode = AppMode::Modal(ModalKind::Delete);
                     self.state.modal_input.clear();
@@ -1221,6 +1457,16 @@ impl App {
                         StatusKind::Warning,
                     );
                 }
+            }
+            (KeyModifiers::NONE, KeyCode::Char('g')) => {
+                self.state.git_status = GitRepoStatus::query(&self.state.explorer.current_dir);
+                self.state.mode = AppMode::GitDashboard { selected_idx: 0 };
+            }
+            (KeyModifiers::NONE, KeyCode::Char('?')) => {
+                self.state.mode = AppMode::Help;
+            }
+            (KeyModifiers::NONE, KeyCode::Char(' ')) => {
+                self.state.focused = FocusedPanel::Preview;
             }
             (KeyModifiers::NONE, KeyCode::Char('r')) => {
                 self.state.mode = AppMode::Modal(ModalKind::Rename);
@@ -1439,7 +1685,17 @@ impl App {
             }
             KeyCode::PageDown => {
                 let max = self.state.preview.total_lines.saturating_sub(1);
-                self.state.preview.scroll_offset = (self.state.preview.scroll_offset + 20).min(max);
+                if max > 0 {
+                    self.state.preview.scroll_offset =
+                        (self.state.preview.scroll_offset + 20).min(max);
+                }
+            }
+            KeyCode::Home => {
+                self.state.preview.scroll_offset = 0;
+            }
+            KeyCode::End => {
+                let max = self.state.preview.total_lines.saturating_sub(1);
+                self.state.preview.scroll_offset = max;
             }
             KeyCode::Esc | KeyCode::Backspace => {
                 self.state.focused = if self.state.dual_pane_enabled
@@ -1450,12 +1706,21 @@ impl App {
                     FocusedPanel::Explorer
                 };
             }
-            KeyCode::Char('[') => {
+            KeyCode::BackTab | KeyCode::Char('[') => {
                 self.state.preview.active_tab = match self.state.preview.active_tab {
                     PreviewTab::Preview => PreviewTab::Actions,
                     PreviewTab::Information => PreviewTab::Preview,
                     PreviewTab::Hex => PreviewTab::Information,
                     PreviewTab::Actions => PreviewTab::Hex,
+                };
+                self.update_preview().await;
+            }
+            KeyCode::Tab | KeyCode::Char(']') => {
+                self.state.preview.active_tab = match self.state.preview.active_tab {
+                    PreviewTab::Preview => PreviewTab::Information,
+                    PreviewTab::Information => PreviewTab::Hex,
+                    PreviewTab::Hex => PreviewTab::Actions,
+                    PreviewTab::Actions => PreviewTab::Preview,
                 };
                 self.update_preview().await;
             }
@@ -1478,7 +1743,7 @@ impl App {
                     self.update_preview().await;
                 }
             }
-            KeyCode::Char(']') | KeyCode::Right => {
+            KeyCode::Right | KeyCode::Char('l') => {
                 self.state.preview.active_tab = match self.state.preview.active_tab {
                     PreviewTab::Preview => PreviewTab::Information,
                     PreviewTab::Information => PreviewTab::Hex,
@@ -1487,11 +1752,30 @@ impl App {
                 };
                 self.update_preview().await;
             }
-            KeyCode::Char(c @ '1'..='9')
+            KeyCode::Char('1') => {
+                self.state.preview.active_tab = PreviewTab::Preview;
+                self.update_preview().await;
+            }
+            KeyCode::Char('2') => {
+                self.state.preview.active_tab = PreviewTab::Information;
+                self.update_preview().await;
+            }
+            KeyCode::Char('3') => {
+                self.state.preview.active_tab = PreviewTab::Hex;
+                self.update_preview().await;
+            }
+            KeyCode::Char('4') => {
+                self.state.preview.active_tab = PreviewTab::Actions;
+                self.update_preview().await;
+            }
+            KeyCode::Char(c @ '5'..='9')
                 if self.state.preview.active_tab == PreviewTab::Actions =>
             {
                 let idx = (c as u8 - b'1') as usize;
                 self.execute_preview_action(idx).await;
+            }
+            KeyCode::Enter if self.state.preview.active_tab == PreviewTab::Actions => {
+                self.execute_preview_action(0).await;
             }
             _ => {}
         }
@@ -1605,7 +1889,7 @@ impl App {
         };
 
         match key.code {
-            KeyCode::Esc | KeyCode::F(10) => {
+            KeyCode::Esc | KeyCode::F(10) | KeyCode::Char('q') => {
                 let _ = SettingsPersistence::save_with_backup(&self.state.config);
                 self.state.mode = AppMode::Browse;
                 self.state
@@ -1734,8 +2018,12 @@ impl App {
                                     self.state.config.preview_width.saturating_sub(5).max(15);
                             } else {
                                 self.state.config.preview_width =
-                                    (self.state.config.preview_width + 5).min(60);
+                                    (self.state.config.preview_width + 5).min(85);
                             }
+                            self.state.config.layout.preview_ratio =
+                                self.state.config.preview_width as f32 / 100.0;
+                            self.state.config.layout.explorer_ratio =
+                                1.0 - self.state.config.layout.preview_ratio;
                         }
                         "terminal_height" => {
                             if key.code == KeyCode::Left {
@@ -1743,8 +2031,11 @@ impl App {
                                     self.state.config.terminal_height.saturating_sub(1).max(5);
                             } else {
                                 self.state.config.terminal_height =
-                                    (self.state.config.terminal_height + 1).min(20);
+                                    (self.state.config.terminal_height + 1).min(40);
                             }
+                            self.state.config.layout.terminal_height_percent =
+                                ((self.state.config.terminal_height as f32 / 40.0) * 100.0)
+                                    .clamp(10.0, 50.0) as u16;
                         }
                         "plugin_marketplace" => {
                             self.state.mode = AppMode::PluginCenter {
@@ -1812,10 +2103,10 @@ impl App {
                 self.state.mode = AppMode::Browse;
                 return Ok(false);
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::BackTab => {
                 selected_idx = selected_idx.saturating_sub(1);
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Tab => {
                 let count = CommandRegistry::search_with_context(
                     &query,
                     &self.state.config.pinned_folders,
@@ -1831,7 +2122,9 @@ impl App {
                 query.pop();
                 selected_idx = 0;
             }
-            KeyCode::Char(c) => {
+            KeyCode::Char(c)
+                if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT =>
+            {
                 query.push(c);
                 selected_idx = 0;
             }
@@ -2079,13 +2372,13 @@ impl App {
         };
 
         match key.code {
-            KeyCode::Esc => {
+            KeyCode::Esc | KeyCode::Char('q') => {
                 self.state.mode = AppMode::Browse;
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 selected_idx = selected_idx.saturating_sub(1);
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 let count = self.state.git_status.staged_files.len().max(1);
                 if selected_idx + 1 < count {
                     selected_idx += 1;
@@ -2643,111 +2936,28 @@ impl App {
     }
 
     async fn handle_mouse(&mut self, mouse: MouseEvent) -> Result<()> {
-        let (width, height) = match crossterm::terminal::size() {
-            Ok((w, h)) => (w, h),
-            Err(_) => return Ok(()),
-        };
+        self.state.last_mouse_pos = Some((mouse.column, mouse.row));
 
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => {
-                // Row 0: Workstation Command Header
-                if mouse.row == 0 {
-                    if let Some(action) = header_click_action(mouse.column, width) {
-                        match action {
-                            HeaderAction::Brand => {
-                                self.state.mode = AppMode::Help;
-                            }
-                            HeaderAction::Search => {
-                                self.state.mode = AppMode::CommandPalette {
-                                    query: String::new(),
-                                    selected_idx: 0,
-                                };
-                            }
-                            HeaderAction::Plugins => {
-                                self.state.mode = AppMode::PluginCenter {
-                                    tab: 0,
-                                    selected_idx: 0,
-                                    query: String::new(),
-                                    category_idx: 0,
-                                    confirm_install: None,
-                                    inspecting_logs: false,
-                                };
-                            }
-                            HeaderAction::Settings => {
-                                self.state.mode = AppMode::SettingsStudio {
-                                    section_idx: 0,
-                                    item_idx: 0,
-                                    in_items: false,
-                                };
-                            }
-                        }
-                        return Ok(());
-                    }
+                if let Some(action) = self.hit_registry.hit_test(mouse.column, mouse.row) {
+                    self.dispatch_action(action).await?;
+                    return Ok(());
                 }
 
-                // Terminal header & controls
-                if self.state.show_terminal {
-                    let bottom_height = if self.state.terminal_maximized {
-                        (height * 80 / 100).min(height.saturating_sub(4)).max(8)
-                    } else {
-                        (height * 21 / 100).clamp(6, 10)
-                    };
-                    let terminal_y = height.saturating_sub(bottom_height + 1);
-                    if mouse.row == terminal_y {
-                        let col = mouse.column;
-                        if width >= 50 {
-                            let rel_from_right = width.saturating_sub(col);
-                            if rel_from_right <= 12 {
-                                // [↕ Resize]
-                                self.state.config.terminal_height =
-                                    if self.state.config.terminal_height >= 12 {
-                                        6
-                                    } else {
-                                        12
-                                    };
-                                let _ = self.state.config.save();
-                            } else if rel_from_right <= 20 {
-                                // [▼ Min]
-                                self.minimize_terminal();
-                            } else if rel_from_right <= 32 {
-                                // [▲ Max] / [▼ Restore]
-                                self.toggle_terminal_maximize();
-                            } else if rel_from_right <= 36 {
-                                // [×] Close / Hide
-                                self.toggle_terminal();
-                            } else if rel_from_right <= 40 {
-                                // [+] Clear terminal buffer
-                                self.terminal_scrollback.clear();
-                                self.state
-                                    .set_status("Terminal buffer cleared", StatusKind::Info);
-                            }
-                        }
-                        self.state.focused = FocusedPanel::Terminal;
-                        return Ok(());
-                    } else if mouse.row > terminal_y && mouse.row < height.saturating_sub(1) {
-                        self.state.focused = FocusedPanel::Terminal;
-                        return Ok(());
-                    }
-                }
-
-                // Explorer / Preview
-                let preview_pct = self.state.config.preview_width.clamp(15, 60);
-                let explorer_w = width * (100 - preview_pct) / 100;
-                if mouse.column < explorer_w {
-                    self.state.focused = FocusedPanel::Explorer;
-                    if mouse.row >= 2 {
-                        let clicked_row = (mouse.row - 2) as usize;
-                        if clicked_row < self.state.explorer.entries.len() {
-                            self.state.explorer.selected_index = clicked_row;
-                            self.update_preview().await;
-                        }
-                    }
-                } else {
+                // Fallback to panel click routing based on centralized AppLayout
+                if self.layout.contains_terminal(mouse.column, mouse.row) {
+                    self.state.focused = FocusedPanel::Terminal;
+                } else if self.layout.contains_preview(mouse.column, mouse.row) {
                     self.state.focused = FocusedPanel::Preview;
+                } else if self.layout.contains_explorer(mouse.column, mouse.row) {
+                    self.state.focused = FocusedPanel::Explorer;
                 }
             }
             MouseEventKind::ScrollDown => {
-                if self.state.focused == FocusedPanel::Explorer {
+                if matches!(self.state.mode, AppMode::Help) {
+                    self.state.help_scroll = self.state.help_scroll.saturating_add(2);
+                } else if self.state.focused == FocusedPanel::Explorer {
                     if self.state.explorer.selected_index + 1 < self.state.explorer.entries.len() {
                         self.state.explorer.selected_index += 1;
                         self.update_preview().await;
@@ -2758,7 +2968,9 @@ impl App {
                 }
             }
             MouseEventKind::ScrollUp => {
-                if self.state.focused == FocusedPanel::Explorer {
+                if matches!(self.state.mode, AppMode::Help) {
+                    self.state.help_scroll = self.state.help_scroll.saturating_sub(2);
+                } else if self.state.focused == FocusedPanel::Explorer {
                     self.state.explorer.selected_index =
                         self.state.explorer.selected_index.saturating_sub(1);
                     self.update_preview().await;
@@ -2770,6 +2982,146 @@ impl App {
             _ => {}
         }
 
+        Ok(())
+    }
+
+    pub async fn dispatch_action(&mut self, action: AppAction) -> Result<()> {
+        match action {
+            AppAction::OpenSettings => {
+                self.state.mode = AppMode::SettingsStudio {
+                    section_idx: 0,
+                    item_idx: 0,
+                    in_items: false,
+                };
+            }
+            AppAction::OpenPluginCenter => {
+                self.state.mode = AppMode::PluginCenter {
+                    tab: 0,
+                    selected_idx: 0,
+                    query: String::new(),
+                    category_idx: 0,
+                    confirm_install: None,
+                    inspecting_logs: false,
+                };
+            }
+            AppAction::OpenSearch => {
+                self.state.mode = AppMode::CommandPalette {
+                    query: String::new(),
+                    selected_idx: 0,
+                };
+            }
+            AppAction::OpenHelp => {
+                self.state.mode = AppMode::Help;
+            }
+            AppAction::OpenGitDashboard => {
+                self.state.mode = AppMode::GitDashboard { selected_idx: 0 };
+            }
+            AppAction::ToggleTerminal => {
+                self.toggle_terminal();
+            }
+            AppAction::MaximizeTerminal => {
+                self.toggle_terminal_maximize();
+            }
+            AppAction::MinimizeTerminal => {
+                self.minimize_terminal();
+            }
+            AppAction::RestoreTerminal => {
+                self.state.terminal_maximized = false;
+            }
+            AppAction::ResizeTerminalCycle => {
+                self.state.config.terminal_height = if self.state.config.terminal_height >= 12 {
+                    6
+                } else {
+                    12
+                };
+                let _ = self.state.config.save();
+            }
+            AppAction::ClearTerminal => {
+                self.terminal_scrollback.clear();
+                self.state
+                    .set_status("Terminal buffer cleared", StatusKind::Info);
+            }
+            AppAction::FocusExplorer => {
+                self.state.focused = FocusedPanel::Explorer;
+            }
+            AppAction::FocusPreview => {
+                self.state.focused = FocusedPanel::Preview;
+            }
+            AppAction::FocusTerminal => {
+                self.state.focused = FocusedPanel::Terminal;
+            }
+            AppAction::SelectExplorerIndex(idx) => {
+                self.state.focused = FocusedPanel::Explorer;
+                if idx < self.state.explorer.entries.len() {
+                    self.state.explorer.selected_index = idx;
+                    self.update_preview().await;
+                }
+            }
+            AppAction::SelectPreviewTab(idx) => {
+                self.state.focused = FocusedPanel::Preview;
+                self.state.preview.active_tab = match idx {
+                    0 => PreviewTab::Preview,
+                    1 => PreviewTab::Information,
+                    2 => PreviewTab::Hex,
+                    _ => PreviewTab::Actions,
+                };
+                self.update_preview().await;
+            }
+            AppAction::SelectPluginCenterTab(tab) => {
+                if let AppMode::PluginCenter { tab: t, .. } = &mut self.state.mode {
+                    *t = tab;
+                }
+            }
+            AppAction::SelectPluginCenterCategory(cat) => {
+                if let AppMode::PluginCenter {
+                    category_idx: c, ..
+                } = &mut self.state.mode
+                {
+                    *c = cat;
+                }
+            }
+            AppAction::SelectPluginCenterItem(item) => {
+                if let AppMode::PluginCenter {
+                    selected_idx: s, ..
+                } = &mut self.state.mode
+                {
+                    *s = item;
+                }
+            }
+            AppAction::SelectSettingsCategory(cat) => {
+                if let AppMode::SettingsStudio {
+                    section_idx: s,
+                    in_items,
+                    ..
+                } = &mut self.state.mode
+                {
+                    *s = cat;
+                    *in_items = false;
+                }
+            }
+            AppAction::SelectSettingsItem(item) => {
+                if let AppMode::SettingsStudio {
+                    item_idx: i,
+                    in_items,
+                    ..
+                } = &mut self.state.mode
+                {
+                    *i = item;
+                    *in_items = true;
+                }
+            }
+            AppAction::SelectHelpCategory(cat) => {
+                self.state.help_category = cat;
+                self.state.help_scroll = 0;
+            }
+            AppAction::ToggleDiagnostics => {
+                self.state.show_diagnostics = !self.state.show_diagnostics;
+            }
+            AppAction::CloseActiveView => {
+                self.state.mode = AppMode::Browse;
+                self.state.show_diagnostics = false;
+            }
+        }
         Ok(())
     }
 }

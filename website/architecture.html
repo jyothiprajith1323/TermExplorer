@@ -3,75 +3,94 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Architecture & Engineering Design — TermExplorer</title>
+  <title>Architecture &amp; Systems Engineering — TermExplorer</title>
+  <meta name="description" content="An in-depth look at how TermExplorer combines high-performance TUI rendering, non-blocking I/O, pseudo-terminals, WebAssembly sandboxing, and safe Rust abstractions.">
   <link rel="stylesheet" href="assets/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- Navigation -->
+  <!-- Navigation Bar (Glassmorphic) -->
   <header>
     <div class="nav-container">
       <a href="index.html" class="logo">
-        <span>⚡</span> TermExplorer
+        <div class="logo-icon">⚡</div>
+        <span>TermExplorer</span>
+        <span class="logo-version">v1.1.0-RC1</span>
       </a>
+
+      <button class="mobile-menu-btn" aria-label="Toggle Navigation Menu">☰</button>
+
       <ul class="nav-links">
         <li><a href="index.html">Overview</a></li>
         <li><a href="features.html">Features</a></li>
         <li><a href="docs.html">Documentation</a></li>
         <li><a href="architecture.html" class="active">Architecture</a></li>
         <li><a href="roadmap.html">Roadmap</a></li>
-        <li><a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-btn">GitHub ⭐</a></li>
+        <li>
+          <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" class="nav-github-btn">
+            <span>⭐ Star</span>
+            <span class="nav-star-count">GitHub</span>
+          </a>
+        </li>
       </ul>
     </div>
   </header>
 
   <main class="container">
-    <div style="margin-bottom: 3rem;">
-      <div class="badge">Systems Engineering & Internals</div>
-      <h1 style="font-size: 2.75rem; margin-bottom: 0.5rem;">Architecture</h1>
-      <p style="color: var(--text-muted); font-size: 1.1rem;">
-        An in-depth look at how TermExplorer combines high-performance rendering, non-blocking I/O, pseudo-terminals, and safe Rust abstractions.
+    <div style="margin-bottom: 3rem; text-align: center;">
+      <div class="badge">Systems Engineering &amp; Dataflow</div>
+      <h1 style="font-size: 3rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; color: var(--text-bright);">
+        Workstation Architecture
+      </h1>
+      <p style="color: var(--text-sub); font-size: 1.15rem; max-width: 740px; margin: 0 auto;">
+        An in-depth look at how TermExplorer pairs 60fps Ratatui rendering, Tokio non-blocking async channels, pseudo-terminal isolation, and Wasmi execution sandboxing.
       </p>
     </div>
 
-    <!-- Architecture Diagram (Vector SVG) -->
-    <div style="margin: 2.5rem auto 3.5rem; max-width: 1000px;">
+    <!-- Architecture Diagram Vector -->
+    <div style="margin: 2.5rem auto 3.5rem; max-width: 1040px;">
       <img src="assets/architecture-diagram.svg" alt="TermExplorer Systems Architecture and Dataflow" class="hero-screenshot" width="100%" height="auto" />
     </div>
 
     <!-- Core Systems Breakdown -->
     <div class="features-grid">
       <div class="card">
+        <div class="card-icon-wrap">👁️</div>
         <h3>Universal Preview Pipeline</h3>
-        <p>The preview engine implements a multi-stage pipeline: Magic Bytes Sniffer &rarr; Category Dispatcher &rarr; Format-Specific Parser (pure Rust for DOCX/XLSX/SQLite/Hex) &rarr; LRU Cache &rarr; Ratatui spans. If a file is repeated, preview is rendered in 0ms directly from cache.</p>
+        <p>The preview engine implements a multi-stage pipeline: Magic Bytes Sniffer &rarr; Category Dispatcher &rarr; Format-Specific Parser (pure Rust for DOCX/XLSX/SQLite/Hex) &rarr; LRU Cache &rarr; Ratatui spans. Repeated files render in 0ms directly from cache.</p>
       </div>
 
       <div class="card">
+        <div class="card-icon-wrap">󰞷</div>
         <h3>Pseudo-Terminal Subsystem</h3>
-        <p>Powered by <code>portable-pty</code>, the terminal spawns the user's default shell (<code>$SHELL</code>) inside a virtual slave PTY. Master reads execute on a dedicated background thread pumping bytes into a non-blocking channel to prevent TUI rendering locks.</p>
+        <p>Powered by <code>portable-pty</code>, the terminal spawns the user's default shell (<code>$SHELL</code>) inside a virtual slave PTY. Master reads execute on a dedicated Tokio background thread pumping bytes into a non-blocking channel to prevent TUI rendering locks.</p>
       </div>
 
       <div class="card">
-        <h3>Dual-Pane Explorer Architecture</h3>
-        <p>Both primary and secondary panes maintain independent <code>BrowserState</code> structs tracking their current working directories, sort orders, selections, and filters. File operations (copy, move) bridge the source and target paths synchronously with status reporting.</p>
+        <div class="card-icon-wrap">🗂️</div>
+        <h3>25/75 Workstation Layout Engine</h3>
+        <p>Centralized layout calculation dynamically apportions screen geometry between the 25% File Explorer and 75% Preview area, adapting gracefully across terminal column widths from 70 up to 160+ columns with zero text clipping.</p>
       </div>
 
       <div class="card">
+        <div class="card-icon-wrap">󰋖</div>
         <h3>Keybinding Conflict Detection</h3>
         <p>Every keystroke action is defined as a scoped enum (<code>Global</code>, <code>Explorer</code>, <code>Editor</code>, <code>Terminal</code>, <code>Preview</code>, <code>Git</code>). The Keybindings Manager runs an overlap-matrix conflict detector to ensure actions within the same scope never clash.</p>
       </div>
 
       <div class="card">
+        <div class="card-icon-wrap">💾</div>
         <h3>Resilient Settings Persistence</h3>
         <p>Before any configuration write occurs, the serializer creates an atomic <code>.toml.bak</code> backup of the previous configuration. Boundary clamping verifies widths, timeouts, and limits so invalid configs never brick the application.</p>
       </div>
 
       <div class="card">
-        <h3>Zero-Panic Systems Safety</h3>
-        <p>Following strict systems engineering practices, all I/O errors, archive corruptions, and invalid image formats are trapped into typed <code>Result</code> enums and presented cleanly on the UI without causing application aborts.</p>
+        <div class="card-icon-wrap">🔌</div>
+        <h3>Sandboxed Wasm Runtime</h3>
+        <p>Extensions run inside an isolated <code>wasmi</code> interpreter with explicit memory quotas, deterministic instruction limits, SHA-256 integrity validation, and strict capability-based access control.</p>
       </div>
     </div>
   </main>
@@ -79,11 +98,16 @@
   <!-- Footer -->
   <footer>
     <div class="footer-container">
-      <div><strong>TermExplorer</strong> &bull; Systems Architecture & Design</div>
       <div>
-        <a href="index.html">Home</a> &bull;
+        <strong style="color: var(--text-bright);">TermExplorer v1.1.0-RC1</strong> &bull; Systems Architecture &amp; Design<br>
+        Crafted with pure safe Rust for the developer workstation community.
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Overview</a> &bull;
         <a href="features.html">Features</a> &bull;
-        <a href="docs.html">Docs</a> &bull;
+        <a href="docs.html">Documentation</a> &bull;
+        <a href="architecture.html">Architecture</a> &bull;
+        <a href="roadmap.html">Roadmap</a> &bull;
         <a href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank">GitHub</a>
       </div>
     </div>

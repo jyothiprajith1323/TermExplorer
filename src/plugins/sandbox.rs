@@ -8,6 +8,43 @@ use super::manifest::PluginManifest;
 use super::permissions::PluginPermission;
 
 pub const DEFAULT_FUEL_LIMIT: u64 = 5_000_000;
+pub const MAX_ALLOWED_MEMORY_BYTES: usize = 16 * 1024 * 1024; // 16 MiB
+pub const MAX_ALLOWED_TABLE_ELEMENTS: u32 = 10_000;
+
+#[derive(Debug, Clone)]
+pub struct PluginLimiter {
+    pub max_memory_bytes: usize,
+    pub max_table_elements: u32,
+}
+
+impl Default for PluginLimiter {
+    fn default() -> Self {
+        Self {
+            max_memory_bytes: MAX_ALLOWED_MEMORY_BYTES,
+            max_table_elements: MAX_ALLOWED_TABLE_ELEMENTS,
+        }
+    }
+}
+
+impl wasmi::ResourceLimiter for PluginLimiter {
+    fn memory_growing(
+        &mut self,
+        _current: usize,
+        desired: usize,
+        _maximum: Option<usize>,
+    ) -> Result<bool, wasmi::errors::MemoryError> {
+        Ok(desired <= self.max_memory_bytes)
+    }
+
+    fn table_growing(
+        &mut self,
+        _current: u32,
+        desired: u32,
+        _maximum: Option<u32>,
+    ) -> Result<bool, wasmi::errors::TableError> {
+        Ok(desired <= self.max_table_elements)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct HostState {
@@ -17,6 +54,7 @@ pub struct HostState {
     pub status_text: Option<String>,
     pub logs: Vec<String>,
     pub permissions: HashSet<PluginPermission>,
+    pub limiter: PluginLimiter,
 }
 
 pub struct PluginInstance {
@@ -62,9 +100,11 @@ impl PluginInstance {
             status_text: None,
             logs: Vec::new(),
             permissions: manifest.permissions.clone(),
+            limiter: PluginLimiter::default(),
         };
 
         let mut store = Store::new(&engine, host_state);
+        store.limiter(|state| &mut state.limiter);
         store
             .set_fuel(DEFAULT_FUEL_LIMIT)
             .map_err(|e| e.to_string())?;
@@ -166,6 +206,32 @@ impl PluginInstance {
         let memory = instance
             .get_memory(&store, "memory")
             .ok_or_else(|| "Wasm module missing exported 'memory'".to_string())?;
+
+        // Linear memory limits: enforced by runtime limiter and verified upfront
+        let m_ty = memory.ty(&store);
+        if let Some(init_bytes) = m_ty.initial_pages().to_bytes() {
+            if init_bytes > MAX_ALLOWED_MEMORY_BYTES {
+                return Err(format!(
+                    "Plugin initial memory size ({} bytes) exceeds safety ceiling of 16 MB",
+                    init_bytes
+                ));
+            }
+        }
+        if let Some(max_bytes) = m_ty.maximum_pages().and_then(|p| p.to_bytes()) {
+            if max_bytes > MAX_ALLOWED_MEMORY_BYTES {
+                return Err(format!(
+                    "Plugin declared maximum memory ({} bytes) exceeds safety ceiling of 16 MB",
+                    max_bytes
+                ));
+            }
+        }
+        let mem_bytes = memory.data(&store).len();
+        if mem_bytes > MAX_ALLOWED_MEMORY_BYTES {
+            return Err(format!(
+                "Plugin memory size ({} bytes) exceeds safety ceiling of 16 MB",
+                mem_bytes
+            ));
+        }
 
         let init_func = instance.get_typed_func::<(), i32>(&store, "init").ok();
         let on_cmd_func = instance

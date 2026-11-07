@@ -1,0 +1,50 @@
+# Maintainer: Jyothi Prajith <jyothiprajith1323@users.noreply.github.com>
+pkgname=termexplorer-git
+pkgver=1.1.0.r0
+pkgrel=1
+pkgdesc="High-performance, keyboard-driven Linux developer workstation written in pure Rust"
+arch=('x86_64' 'aarch64')
+url="https://github.com/jyothiprajith1323/TermExplorer"
+license=('MIT')
+depends=('gcc-libs' 'glibc')
+makedepends=('cargo' 'git')
+optdepends=(
+    'ffmpeg: Video thumbnailing and audio metadata'
+    'poppler: PDF text extraction'
+    'trash-cli: FreeDesktop desktop trash integration'
+)
+provides=('termexplorer')
+conflicts=('termexplorer')
+source=("git+https://github.com/jyothiprajith1323/TermExplorer.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "${srcdir}/TermExplorer"
+    printf "1.1.0.r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+    cd "${srcdir}/TermExplorer"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$CARCH-unknown-linux-gnu" 2>/dev/null || cargo fetch --target "$CARCH-unknown-linux-gnu"
+}
+
+build() {
+    cd "${srcdir}/TermExplorer"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --frozen --release --all-features 2>/dev/null || cargo build --release --all-features
+}
+
+check() {
+    cd "${srcdir}/TermExplorer"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo test --frozen --release --all-features 2>/dev/null || cargo test --release --all-features
+}
+
+package() {
+    cd "${srcdir}/TermExplorer"
+    install -Dm755 target/release/termexplorer "${pkgdir}/usr/bin/termexplorer"
+    install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE" 2>/dev/null || true
+    install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+}
