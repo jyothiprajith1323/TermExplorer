@@ -51,18 +51,23 @@ pub fn render_preview(frame: &mut Frame, area: Rect, state: &AppState, theme: &T
         return;
     }
 
-    if preview.path.is_none() {
+    let Some(path) = &preview.path else {
         let hint =
-            Paragraph::new("\n  Select a file to preview\n\n  Tabs: [ / ] or h / l switch tabs")
+            Paragraph::new("\n  Select a file or folder to preview\n\n  Tabs: [ / ] or h / l switch tabs")
                 .style(Style::default().fg(Color::DarkGray));
         frame.render_widget(hint, inner);
+        return;
+    };
+
+    if path.is_dir() {
+        render_directory_preview(frame, inner, path, theme);
         return;
     }
 
     let full_data = match &preview.full_data {
         Some(d) => d,
         None => {
-            let hint = Paragraph::new("\n  Loading preview...")
+            let hint = Paragraph::new("\n  Select a file to preview")
                 .style(Style::default().fg(Color::DarkGray));
             frame.render_widget(hint, inner);
             return;
@@ -749,6 +754,112 @@ fn render_actions_tab(
             Span::styled(action.description, Style::default().fg(Color::Gray)),
         ]));
         lines.push(Line::raw(""));
+    }
+
+    let p = Paragraph::new(lines);
+    frame.render_widget(p, area);
+}
+
+fn render_directory_preview(
+    frame: &mut Frame,
+    area: Rect,
+    path: &std::path::Path,
+    theme: &Theme,
+) {
+    let mut lines = Vec::new();
+
+    let (entries, total_count, dir_count, file_count) = match std::fs::read_dir(path) {
+        Ok(read_dir) => {
+            let mut items = Vec::new();
+            let mut dirs = 0;
+            let mut files = 0;
+            for entry in read_dir.flatten() {
+                let file_type = entry.file_type().ok();
+                let is_dir = file_type.map(|t| t.is_dir()).unwrap_or(false);
+                if is_dir {
+                    dirs += 1;
+                } else {
+                    files += 1;
+                }
+                items.push((entry.file_name().to_string_lossy().to_string(), is_dir));
+            }
+            items.sort_by(|a, b| {
+                match (a.1, b.1) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.0.to_lowercase().cmp(&b.0.to_lowercase()),
+                }
+            });
+            let total = items.len();
+            (items, total, dirs, files)
+        }
+        Err(e) => {
+            let p = Paragraph::new(format!("\n  Cannot read directory: {}", e))
+                .style(Style::default().fg(theme.error));
+            frame.render_widget(p, area);
+            return;
+        }
+    };
+
+    let dir_name = path.file_name().unwrap_or_default().to_string_lossy();
+    lines.push(Line::from(vec![
+        Span::styled(
+            "  Directory: ",
+            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("{}/", dir_name),
+            Style::default().add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  Items:     ", Style::default().fg(theme.accent)),
+        Span::raw(format!(
+            "{} entries ({} folders, {} files)",
+            total_count, dir_count, file_count
+        )),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  Action:    ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "Press [→] or [Enter] to enter directory",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    lines.push(Line::raw(""));
+    lines.push(Line::from(Span::styled(
+        "  Contents:",
+        Style::default().fg(theme.accent),
+    )));
+
+    let max_display = (area.height as usize).saturating_sub(6).min(entries.len());
+    for (name, is_dir) in entries.iter().take(max_display) {
+        if *is_dir {
+            lines.push(Line::from(vec![
+                Span::raw("    "),
+                Span::styled("📁 ", Style::default().fg(theme.dir_color)),
+                Span::styled(
+                    format!("{}/", name),
+                    Style::default()
+                        .fg(theme.dir_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]));
+        } else {
+            lines.push(Line::from(vec![
+                Span::raw("    "),
+                Span::styled("📄 ", Style::default().fg(theme.file_color)),
+                Span::raw(name.as_str()),
+            ]));
+        }
+    }
+
+    if entries.len() > max_display {
+        let remaining = entries.len() - max_display;
+        lines.push(Line::from(Span::styled(
+            format!("    ... and {} more items", remaining),
+            Style::default().fg(Color::DarkGray),
+        )));
     }
 
     let p = Paragraph::new(lines);
