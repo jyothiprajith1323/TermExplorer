@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: TermExplorer Documentation & Website
+    url: https://jyothiprajith1323.github.io/TermExplorer/
+    about: Explore online documentation, keyboard shortcut cheat sheets, and architecture.
+  - name: Security Vulnerability Reporting
+    url: https://github.com/jyothiprajith1323/TermExplorer/security/advisories/new
+    about: Privately report a security vulnerability in accordance with SECURITY.md.

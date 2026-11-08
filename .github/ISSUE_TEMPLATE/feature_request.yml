@@ -1,0 +1,58 @@
+name: Feature Request
+description: Propose a new feature, improvement, syntax support, or workflow capability.
+title: "[FEAT]: "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement or new feature for TermExplorer!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Missing Capability
+      description: Is your feature request related to a specific problem or workflow friction?
+      placeholder: "I am always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_functionality
+    attributes:
+      label: Proposed Solution & Functionality
+      description: A clear and concise description of the feature you want implemented.
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Developer Use Case
+      description: Describe the real-world developer scenario and workflows where this helps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you have considered.
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Suggested Priority
+      options:
+        - P3-low (Nice to have, future release)
+        - P2-medium (Quality of life enhancement)
+        - P1-high (Important workflow capability)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to submit a Pull Request or test this feature.

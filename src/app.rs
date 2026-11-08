@@ -1136,6 +1136,14 @@ impl App {
             (KeyModifiers::CONTROL, KeyCode::Char('f')) => {
                 self.state.mode = AppMode::Modal(ModalKind::Message("Search: ".to_string()));
             }
+            (KeyModifiers::NONE, KeyCode::F(3)) => buf.search_next(),
+            (KeyModifiers::SHIFT, KeyCode::F(3)) => buf.search_prev(),
+            (KeyModifiers::CONTROL, KeyCode::Char('/') | KeyCode::Char('_')) => {
+                buf.toggle_comment()
+            }
+            (KeyModifiers::CONTROL, KeyCode::Char(' ') | KeyCode::Null) => {
+                buf.update_completion();
+            }
             (KeyModifiers::NONE, KeyCode::Esc) => {
                 if buf.dirty {
                     self.state.mode = AppMode::Modal(ModalKind::Message(
@@ -1184,9 +1192,17 @@ impl App {
             _ => {}
         }
 
-        // Update scroll so cursor stays visible.
+        // Update scroll so cursor stays visible in viewport.
         if let Some(buf) = &mut self.editor_buf {
-            buf.scroll_to_cursor(40, 100);
+            let (visible_h, visible_w) = if let Some(rect) = self.layout.preview {
+                (
+                    rect.height.saturating_sub(2).max(10) as usize,
+                    rect.width.saturating_sub(6).max(20) as usize,
+                )
+            } else {
+                (30, 80)
+            };
+            buf.scroll_to_cursor(visible_h, visible_w);
         }
 
         Ok(false)
@@ -1692,10 +1708,19 @@ impl App {
             }
             KeyCode::Home => {
                 self.state.preview.scroll_offset = 0;
+                self.state.preview.horizontal_offset = 0;
             }
             KeyCode::End => {
                 let max = self.state.preview.total_lines.saturating_sub(1);
                 self.state.preview.scroll_offset = max;
+            }
+            KeyCode::Char('H') => {
+                self.state.preview.horizontal_offset =
+                    self.state.preview.horizontal_offset.saturating_sub(4);
+            }
+            KeyCode::Char('L') => {
+                self.state.preview.horizontal_offset =
+                    self.state.preview.horizontal_offset.saturating_add(4);
             }
             KeyCode::Esc | KeyCode::Backspace => {
                 self.state.focused = if self.state.dual_pane_enabled
@@ -2957,26 +2982,36 @@ impl App {
             MouseEventKind::ScrollDown => {
                 if matches!(self.state.mode, AppMode::Help) {
                     self.state.help_scroll = self.state.help_scroll.saturating_add(2);
-                } else if self.state.focused == FocusedPanel::Explorer {
-                    if self.state.explorer.selected_index + 1 < self.state.explorer.entries.len() {
-                        self.state.explorer.selected_index += 1;
-                        self.update_preview().await;
+                } else if self.layout.contains_preview(mouse.column, mouse.row)
+                    || self.state.focused == FocusedPanel::Preview
+                {
+                    let max = self.state.preview.total_lines.saturating_sub(1);
+                    if self.state.preview.scroll_offset < max {
+                        self.state.preview.scroll_offset =
+                            (self.state.preview.scroll_offset + 3).min(max);
                     }
-                } else if self.state.focused == FocusedPanel::Preview {
-                    self.state.preview.scroll_offset =
-                        self.state.preview.scroll_offset.saturating_add(3);
+                } else if (self.layout.contains_explorer(mouse.column, mouse.row)
+                    || self.state.focused == FocusedPanel::Explorer)
+                    && self.state.explorer.selected_index + 1 < self.state.explorer.entries.len()
+                {
+                    self.state.explorer.selected_index += 1;
+                    self.update_preview().await;
                 }
             }
             MouseEventKind::ScrollUp => {
                 if matches!(self.state.mode, AppMode::Help) {
                     self.state.help_scroll = self.state.help_scroll.saturating_sub(2);
-                } else if self.state.focused == FocusedPanel::Explorer {
+                } else if self.layout.contains_preview(mouse.column, mouse.row)
+                    || self.state.focused == FocusedPanel::Preview
+                {
+                    self.state.preview.scroll_offset =
+                        self.state.preview.scroll_offset.saturating_sub(3);
+                } else if self.layout.contains_explorer(mouse.column, mouse.row)
+                    || self.state.focused == FocusedPanel::Explorer
+                {
                     self.state.explorer.selected_index =
                         self.state.explorer.selected_index.saturating_sub(1);
                     self.update_preview().await;
-                } else if self.state.focused == FocusedPanel::Preview {
-                    self.state.preview.scroll_offset =
-                        self.state.preview.scroll_offset.saturating_sub(3);
                 }
             }
             _ => {}

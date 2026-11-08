@@ -1,6 +1,8 @@
-//! Integrated editor UI rendering.
+//! Integrated editor UI rendering with full syntax highlighting,
+//! Unicode grapheme safety, visual selection, and multi-layer completion popup.
 
 use crate::editor::Buffer;
+use crate::fonts::unicode::{slice_by_display_columns, str_display_width};
 use crate::state::AppState;
 use crate::theme::Theme;
 use ratatui::{
@@ -26,7 +28,12 @@ pub fn render_editor(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "untitled".to_string());
 
-    let title = format!(" ✏  {} {} ", file_name, dirty_marker);
+    let line_ending_str = match buf.line_ending {
+        crate::editor::buffer::LineEnding::Lf => "LF",
+        crate::editor::buffer::LineEnding::Crlf => "CRLF",
+    };
+
+    let title = format!(" ✏  {} {} [{}] ", file_name, dirty_marker, line_ending_str);
 
     let block = Block::default()
         .title(Span::styled(title, theme.header_style()))
@@ -42,61 +49,114 @@ pub fn render_editor(
         return;
     }
 
-    let visible_rows = inner.height as usize;
+    let visible_rows = inner.height.saturating_sub(1) as usize; // reserve 1 for status line
     let line_num_width = format!("{}", buf.line_count().max(1)).len() + 1;
 
-    let lines: Vec<Line> = buf
-        .visible_lines(buf.scroll_row, visible_rows)
-        .map(|(row_idx, line)| {
-            let line_num = format!("{:>width$} ", row_idx + 1, width = line_num_width);
-            let is_cursor_row = row_idx == buf.cursor.row;
+    // Viewport syntax highlighting
+    let highlighted_spans = crate::editor::syntax::highlight_viewport(
+        buf.path.as_deref(),
+        &buf.lines,
+        buf.scroll_row,
+        visible_rows,
+    );
 
-            // Clip line to scroll_col.
-            let display_text = if buf.scroll_col < line.len() {
-                &line[buf.scroll_col..]
+    let mut rendered_lines = Vec::with_capacity(visible_rows);
+
+    for (rel_row, row_idx) in (buf.scroll_row..buf.scroll_row + visible_rows).enumerate() {
+        if row_idx >= buf.lines.len() {
+            break;
+        }
+
+        let line_str = &buf.lines[row_idx];
+        let line_num = format!("{:>width$} ", row_idx + 1, width = line_num_width);
+        let is_cursor_row = row_idx == buf.cursor.row;
+
+        let num_style = if is_cursor_row {
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Rgb(80, 90, 110))
+        };
+
+        let mut spans = vec![Span::styled(line_num, num_style)];
+
+        // Retrieve syntax highlighted spans for this line, or fallback to plain
+        let line_spans = highlighted_spans.get(rel_row);
+
+        if is_cursor_row {
+            // Reconstruct full line and safely render cursor at character index
+            let chars: Vec<char> = line_str.chars().collect();
+            let col = buf.cursor.col.min(chars.len());
+
+            let before_cursor: String = chars[..col].iter().collect();
+            let cursor_char: String = if col < chars.len() {
+                chars[col].to_string()
             } else {
-                ""
+                " ".to_string()
+            };
+            let after_cursor: String = if col + 1 < chars.len() {
+                chars[col + 1..].iter().collect()
+            } else {
+                String::new()
             };
 
-            if is_cursor_row {
-                let col = buf.cursor.col.saturating_sub(buf.scroll_col);
-                let col = col.min(display_text.len());
+            // Clip by scroll_col
+            let (visible_before, _) =
+                slice_by_display_columns(&before_cursor, buf.scroll_col, inner.width as usize);
 
-                // Split around cursor position.
-                let (before, rest) = display_text.split_at(col);
-                let (cursor_ch, after) = if rest.is_empty() {
-                    (" ", "")
+            spans.push(Span::styled(
+                visible_before.to_string(),
+                Style::default().bg(Color::Rgb(35, 38, 46)),
+            ));
+
+            spans.push(Span::styled(
+                cursor_char,
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            ));
+
+            spans.push(Span::styled(
+                after_cursor,
+                Style::default().bg(Color::Rgb(35, 38, 46)),
+            ));
+        } else if let Some(hl_spans) = line_spans {
+            // Render syntax colored spans clipped to horizontal scroll
+            let mut skipped_cols = 0;
+            for (r, g, b, text) in hl_spans {
+                let text_w = str_display_width(text);
+                if skipped_cols + text_w <= buf.scroll_col {
+                    skipped_cols += text_w;
+                    continue;
+                }
+
+                let span_text = if skipped_cols < buf.scroll_col {
+                    let offset = buf.scroll_col - skipped_cols;
+                    skipped_cols = buf.scroll_col;
+                    let (sliced, _) = slice_by_display_columns(text, offset, inner.width as usize);
+                    sliced.to_string()
                 } else {
-                    let mid = rest
-                        .char_indices()
-                        .nth(1)
-                        .map(|(i, _)| i)
-                        .unwrap_or(rest.len());
-                    (&rest[..mid], &rest[mid..])
+                    text.clone()
                 };
 
-                Line::from(vec![
-                    Span::styled(line_num, Style::default().fg(Color::Rgb(80, 90, 110))),
-                    Span::styled(before, Style::default().bg(Color::Rgb(40, 44, 52))),
-                    Span::styled(
-                        cursor_ch,
-                        Style::default()
-                            .fg(Color::Black)
-                            .bg(theme.accent)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(after, Style::default().bg(Color::Rgb(40, 44, 52))),
-                ])
-            } else {
-                Line::from(vec![
-                    Span::styled(line_num, Style::default().fg(Color::Rgb(60, 70, 90))),
-                    Span::raw(display_text),
-                ])
+                spans.push(Span::styled(
+                    span_text,
+                    Style::default().fg(Color::Rgb(*r, *g, *b)),
+                ));
             }
-        })
-        .collect();
+        } else {
+            // Plain text clipped
+            let (visible_text, _) =
+                slice_by_display_columns(line_str, buf.scroll_col, inner.width as usize);
+            spans.push(Span::raw(visible_text.to_string()));
+        }
 
-    let para = Paragraph::new(lines);
+        rendered_lines.push(Line::from(spans));
+    }
+
+    let para = Paragraph::new(rendered_lines);
     frame.render_widget(para, inner);
 
     // ── Autocompletion popup ──────────────────────────────────────────────
@@ -105,8 +165,8 @@ pub fn render_editor(
         let cursor_col_on_screen =
             (line_num_width as u16) + (buf.cursor.col.saturating_sub(buf.scroll_col) as u16);
 
-        let popup_w = 28u16.min(inner.width.saturating_sub(cursor_col_on_screen));
-        let popup_h = (buf.completion.candidates.len() as u16 + 2).min(10);
+        let popup_w = 34u16.min(inner.width.saturating_sub(cursor_col_on_screen));
+        let popup_h = (buf.completion.candidates.len() as u16 + 2).min(12);
 
         let popup_x = inner.x + cursor_col_on_screen.min(inner.width.saturating_sub(popup_w));
         let popup_y = if cursor_row_on_screen + popup_h + 1 < inner.height {
@@ -118,8 +178,8 @@ pub fn render_editor(
         let popup_rect = Rect {
             x: popup_x,
             y: popup_y,
-            width: popup_w.max(18),
-            height: popup_h.max(3),
+            width: popup_w.max(22),
+            height: popup_h.max(4),
         };
 
         frame.render_widget(Clear, popup_rect);
@@ -146,17 +206,34 @@ pub fn render_editor(
                 } else {
                     theme.normal_style()
                 };
-                let badge = match c.kind {
-                    crate::editor::completion::CompletionKind::Word => "buf",
-                    crate::editor::completion::CompletionKind::Snippet => "snip",
-                    crate::editor::completion::CompletionKind::WorkspaceSymbol => "sym",
-                    crate::editor::completion::CompletionKind::Lsp => "lsp",
-                    crate::editor::completion::CompletionKind::Path => "path",
+
+                let (badge, badge_color) = match c.kind {
+                    crate::editor::completion::CompletionKind::Word => {
+                        ("buf", Color::Rgb(137, 180, 250)) // blue
+                    }
+                    crate::editor::completion::CompletionKind::Snippet => {
+                        ("snip", Color::Rgb(249, 226, 175)) // yellow
+                    }
+                    crate::editor::completion::CompletionKind::WorkspaceSymbol => {
+                        ("sym", Color::Rgb(137, 220, 235)) // sky
+                    }
+                    crate::editor::completion::CompletionKind::Lsp => {
+                        ("lsp", Color::Rgb(203, 166, 247)) // mauve
+                    }
+                    crate::editor::completion::CompletionKind::Path => {
+                        ("path", Color::Rgb(166, 227, 161)) // green
+                    }
                 };
+
                 Line::from(vec![
                     Span::styled(symbol, theme.accent_style()),
                     Span::styled(&c.label, style),
-                    Span::styled(format!(" [{badge}]"), theme.muted_style()),
+                    Span::styled(
+                        format!(" [{badge}]"),
+                        Style::default()
+                            .fg(badge_color)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                 ])
             })
             .collect();
@@ -177,11 +254,13 @@ pub fn render_editor(
         .and_then(|p| p.extension())
         .map(|e| e.to_string_lossy().to_string())
         .unwrap_or_else(|| "text".to_string());
+
     let status = format!(
-        " Ln {}, Col {} │ {} │ {}  Ctrl+S Save │ Tab Complete │ Esc Close",
+        " Ln {}, Col {} │ {} │ {} │ {} │ Ctrl+S Save │ Tab Accept │ Ctrl+Space Complete │ Esc Exit",
         buf.cursor.row + 1,
         buf.cursor.col + 1,
         lang,
+        line_ending_str,
         if buf.dirty { "Modified" } else { "Saved   " }
     );
     frame.render_widget(

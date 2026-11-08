@@ -6,6 +6,7 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 
 [![Continuous Integration](https://github.com/jyothiprajith1323/TermExplorer/actions/workflows/ci.yml/badge.svg)](https://github.com/jyothiprajith1323/TermExplorer/actions/workflows/ci.yml)
 [![GitHub Pages](https://github.com/jyothiprajith1323/TermExplorer/actions/workflows/pages.yml/badge.svg)](https://jyothiprajith1323.github.io/TermExplorer/)
+[![Release](https://img.shields.io/github/v/release/jyothiprajith1323/TermExplorer?include_prereleases&color=blue)](https://github.com/jyothiprajith1323/TermExplorer/releases)
 [![Rust](https://img.shields.io/badge/rust-1.80%2B%20stable-brightgreen.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Ubuntu-orange.svg)]()
@@ -79,9 +80,13 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 - Preserves native shell completions, aliases, prompts, and job control.
 - Non-blocking channel I/O eliminates rendering locks.
 
-### 6. ✏️ Lightweight Code Editor
-- Auto-pairing for `( )`, `[ ]`, `{ }`, `" "`, `' '`, and `` ` ``.
-- Multi-level Undo/Redo, word autocompletion popup, line numbers, and atomic writes via `tempfile`.
+### 6. ✏️ Advanced Rope-Backed Code Editor & Autocomplete Engine
+- **Rope Text Buffer (`ropey`):** Handles large source files with instantaneous insertions, deletions, and character-safe indexing.
+- **4-Layer Autocomplete:** Layer 1 buffer words, Layer 2 async workspace symbol indexer (<26 ms), Layer 3 language snippets, and Layer 4 LSP queries.
+- **Syntax Highlighting & Formatting:** Viewport-bounded syntax tokenization across 20+ programming languages.
+- **Visual Selection & Comments:** Visual block selection, search/replace (`F3`), and multi-language line comments (`Ctrl+/`).
+- **Unicode & Emoji Precision:** True display-width slicing and zero-panic multibyte UTF-8 handling.
+- **Data Protection:** Multi-level Undo/Redo (300 entries), unsaved buffer recovery snapshots, and atomic POSIX disk flushes (`sync_all`).
 
 ### 7. 📊 System Monitor & Git Dashboard
 - **System Monitor (`m`):** Per-core CPU load, memory utilization, swap, disk capacity, and live top processes.
@@ -130,6 +135,9 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 | <kbd>[</kbd> / <kbd>]</kbd> | Preview | Cycle active preview tab |
 | <kbd>1</kbd>–<kbd>9</kbd> | Preview (Actions) | Execute contextual action (Open with, Extract, Play) |
 | <kbd>F2</kbd> / <kbd>Enter</kbd> | Explorer / Preview | Open highlighted file in integrated code editor |
+| <kbd>Ctrl+Space</kbd> | Editor | Manually trigger 4-layer autocomplete popup |
+| <kbd>Ctrl+/</kbd> / <kbd>Ctrl+_</kbd> | Editor | Toggle line comments in code |
+| <kbd>F3</kbd> / <kbd>Shift+F3</kbd> | Editor | Find next / previous search match |
 | <kbd>Ctrl+S</kbd> | Editor | Save buffer to disk atomically with directory synchronization |
 | <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> | Editor | Multi-level Undo / Redo |
 | <kbd>Tab</kbd> | Editor | Accept autocomplete suggestion or indent |
@@ -172,7 +180,7 @@ For package prerequisites and multimedia helpers (`ffmpeg`, `poppler-utils`, `tr
 
 TermExplorer is tested thoroughly under strict systems safety criteria:
 ```bash
-# Run all 105 automated unit and integration tests across 23 test suites
+# Run all 129 automated unit and integration tests across 26 test suites
 cargo test --all-targets --all-features
 
 # Verify strict Clippy compliance (0 warnings allowed)

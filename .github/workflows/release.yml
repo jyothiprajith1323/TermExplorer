@@ -8,35 +8,79 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-release:
-    name: Build Linux Release Binary
+    name: Build & Publish Release
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout code
+      - name: Checkout tagged commit
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-      - name: Build release binary
+      - name: Check code formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run cargo check
+        run: cargo check --locked --all-targets --all-features
+
+      - name: Run automated test suites
+        run: cargo test --locked --all-targets --all-features
+
+      - name: Run Clippy linter
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Build optimized release binary
         run: cargo build --release --locked
+
+      - name: Verify release binary functionality
+        run: |
+          ./target/release/termexplorer --version
+          ./target/release/termexplorer --help
 
       - name: Package release archive
         run: |
           VERSION="${GITHUB_REF_NAME}"
           ARCH="x86_64-unknown-linux-gnu"
-          DIST="termexplorer-${VERSION}-${ARCH}"
-          mkdir "${DIST}"
-          cp target/release/termexplorer "${DIST}/"
-          cp README.md LICENSE CHANGELOG.md "${DIST}/"
-          tar -czvf "${DIST}.tar.gz" "${DIST}"
-          sha256sum "${DIST}.tar.gz" > "${DIST}.tar.gz.sha256"
+          DIST_DIR="termexplorer-${VERSION}-${ARCH}"
+          ARCHIVE="${DIST_DIR}.tar.gz"
 
-      - name: Create GitHub Release
+          mkdir -p "${DIST_DIR}"
+          cp target/release/termexplorer "${DIST_DIR}/"
+          cp README.md LICENSE CHANGELOG.md INSTALLATION.md "${DIST_DIR}/"
+          
+          # Create compressed tarball
+          tar -czvf "${ARCHIVE}" "${DIST_DIR}"
+
+          # Generate SHA256 checksums
+          sha256sum "${ARCHIVE}" > SHA256SUMS
+          sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256"
+
+      - name: Determine pre-release flag
+        id: flags
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "${TAG}" == *"-rc"* ]] || [[ "${TAG}" == *"-beta"* ]] || [[ "${TAG}" == *"-alpha"* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             termexplorer-*.tar.gz
             termexplorer-*.tar.gz.sha256
+            SHA256SUMS
+          body_path: ${{ hashFiles(format('releases/{0}.md', github.ref_name)) != '' && format('releases/{0}.md', github.ref_name) || '' }}
           generate_release_notes: true
+          prerelease: ${{ steps.flags.outputs.is_prerelease == 'true' }}

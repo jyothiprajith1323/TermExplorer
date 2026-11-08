@@ -5,19 +5,33 @@
 //! - Command Palette intelligent ranking and location navigation (`palette`)
 //! - Editor layered code autocompletion: buffer, workspace symbols, snippets, LSP (`editor`)
 //! - Latency and performance benchmarking harness (`benchmark`)
+//! - Modular 4-layer engine architecture (`engine`, `provider`, `buffer_words`, `workspace_symbols`, `snippets`, `lsp_provider`)
 
 pub mod benchmark;
+pub mod buffer_words;
+pub mod cache;
+pub mod cancellation;
 pub mod editor;
+pub mod engine;
 pub mod explorer;
+pub mod lsp_provider;
 pub mod palette;
+pub mod provider;
+pub mod ranking;
+pub mod snippets;
+pub mod workspace_symbols;
 
 pub use benchmark::CompletionBenchmarkMetrics;
 pub use editor::{
     buffer_word_completions, get_language_snippets, get_layered_completions, CodeSnippet,
     EditorCompletion, EditorCompletionKind, LspClientHook, WorkspaceIndexer, WorkspaceSymbol,
 };
+pub use engine::CentralCompletionEngine;
 pub use explorer::{complete_path, expand_tilde, suggest_locations, PathCompletion};
+pub use lsp_provider::LspProvider;
 pub use palette::{rank_palette_commands, PaletteSuggestion};
+pub use provider::{CompletionContext, CompletionItem, CompletionItemKind, CompletionProvider};
+pub use snippets::SnippetProvider;
 
 use crate::config::PinnedFolder;
 use crate::state::FocusedPanel;
@@ -27,14 +41,18 @@ use std::sync::Arc;
 /// Central completion coordinator for the application.
 #[derive(Debug, Clone, Default)]
 pub struct CompletionEngine {
+    pub central: CentralCompletionEngine,
     pub workspace_indexer: Arc<WorkspaceIndexer>,
     pub lsp_hook: Arc<LspClientHook>,
 }
 
 impl CompletionEngine {
     pub fn new() -> Self {
+        let central = CentralCompletionEngine::new();
+        let workspace_indexer = central.workspace_indexer.clone();
         Self {
-            workspace_indexer: Arc::new(WorkspaceIndexer::new()),
+            central,
+            workspace_indexer,
             lsp_hook: Arc::new(LspClientHook::new()),
         }
     }

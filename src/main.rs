@@ -17,6 +17,25 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("termexplorer {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("TermExplorer {}", env!("CARGO_PKG_VERSION"));
+        println!(
+            "A highly customizable Rust terminal developer workstation combining a file explorer,"
+        );
+        println!("intelligent code editor, interactive Linux terminal, multimedia preview engine and system monitor.\n");
+        println!("USAGE:");
+        println!("    termexplorer [PATH]\n");
+        println!("OPTIONS:");
+        println!("    -h, --help       Print help information");
+        println!("    -V, --version    Print version information");
+        return Ok(());
+    }
+
     // Initialise file-based logging (never pollutes the TUI).
     let log_dir = dirs::data_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))

@@ -44,7 +44,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - System Telemetry access: `F6` and `Ctrl+M` toggle the live hardware monitor.
   - Added Explorer shortcuts: `a` (New File), `A` (New Directory), `d` / `Del` (Delete to Trash), `r` (Rename), `c`/`y` (Copy), `x` (Cut), `p`/`v` (Paste).
   - Added dedicated test suite `tests/keybinding_and_panel_verification_tests.rs` (9 automated tests).
-  - Total automated test inventory expanded to **114 tests across 24 test suites** with 100% pass rate.
+### Advanced Editor Engine & Multi-Layer Autocomplete
+- **Rope-Backed Text Buffer**:
+  - Integrated `ropey` rope data structure for fast insertions, deletions, visual block selections, and bounded undo/redo.
+  - Multi-language line comment toggling (`Ctrl+/` or `Ctrl+_`) for 20+ file formats.
+  - Viewport-clamped syntax highlighting with tokenized styling for Rust, Python, C/C++, Java, SQL, TOML, Markdown, YAML, JSON, Go, Bash, HTML, CSS.
+  - Search and replace (`replace_current`, `replace_all`) with character-safe indexing.
+- **4-Layer Autocomplete Engine**:
+  - Layer 1: Fast in-buffer word extractor (<1 ms).
+  - Layer 2: Asynchronous workspace symbol indexer (<26 ms index, <0.2 ms queries).
+  - Layer 3: Multi-language code snippets and templates (<0.02 ms).
+  - Layer 4: Async LSP provider integration with cancellation tokens and fallback keywords.
+  - Multi-signal ranking and deduplication with floating editor completion popup.
+- **Unicode & Preview Ergonomics**:
+  - Added `src/fonts/unicode.rs` for display-column slicing, character/column bidirectional conversions, and UTF-8 panic-free rendering.
+  - Fixed preview mouse scrolling offset runaway by clamping to document total lines.
+  - Added horizontal preview navigation (`Shift+Left`/`H`, `Shift+Right`/`L`).
+  - Replaced hardcoded block glyphs in markdown preview with clean standard Markdown headings and checkboxes.
+- **Comprehensive Quality Assurance**:
+  - Total automated test inventory expanded to **129 tests across 26 test suites** with 100% pass rate.
+  - Zero compiler or Clippy warnings (`-D warnings`).
 
 ---
 

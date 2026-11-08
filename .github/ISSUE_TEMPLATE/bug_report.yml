@@ -1,0 +1,98 @@
+name: Bug Report
+description: Report an error, unexpected crash, rendering glitch, or unexpected behavior.
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug in TermExplorer! Please verify your issue hasn't already been reported.
+
+  - type: input
+    id: version
+    attributes:
+      label: TermExplorer Version
+      description: Run `termexplorer --version` or check the status line inside the application.
+      placeholder: "e.g. v1.1.0-rc2"
+    validations:
+      required: true
+
+  - type: input
+    id: os_distro
+    attributes:
+      label: Operating System & Distribution
+      description: Operating system name and version (e.g. Ubuntu 24.04 LTS, Arch Linux, Fedora 40).
+      placeholder: "e.g. Ubuntu 24.04 LTS (x86_64)"
+    validations:
+      required: true
+
+  - type: input
+    id: terminal_emulator
+    attributes:
+      label: Terminal Emulator & Font
+      description: Terminal emulator and font in use (e.g. Alacritty, Kitty, WezTerm, GNOME Terminal; JetBrainsMono Nerd Font).
+      placeholder: "e.g. Alacritty 0.13 with JetBrainsMono Nerd Font"
+    validations:
+      required: true
+
+  - type: input
+    id: rust_version
+    attributes:
+      label: Rust Toolchain Version (if building from source)
+      description: Output of `rustc --version`
+      placeholder: "e.g. rustc 1.82.0 (f6e511eec 2024-10-15)"
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction_steps
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the problem.
+      placeholder: |
+        1. Launch `termexplorer`
+        2. Navigate to `...`
+        3. Press `...`
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: Actual Behavior
+      description: A clear and concise description of what actually occurred.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Application Logs
+      description: Relevant logs from `~/.local/share/termexplorer/termexplorer.log` or console output.
+      render: text
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration (Redact all secrets)
+      description: Relevant sections from `~/.config/termexplorer/config.toml`.
+      render: toml
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I have verified this is not a duplicate issue.
+          required: true
+        - label: I have scrubbed all sensitive credentials, tokens, and personal secrets.
+          required: true

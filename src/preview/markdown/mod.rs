@@ -70,13 +70,20 @@ impl MarkdownPreview {
 
                     if formatted_lines.len() < max_lines {
                         let prefix = match hashes {
-                            1 => "█ ",
-                            2 => "▓▓ ",
-                            3 => "▒▒▒ ",
-                            _ => "• ",
+                            1 => "# ",
+                            2 => "## ",
+                            3 => "### ",
+                            4 => "#### ",
+                            5 => "##### ",
+                            _ => "###### ",
                         };
                         formatted_lines.push(String::new());
                         formatted_lines.push(format!("{}{}", prefix, title));
+                        if hashes == 1 {
+                            formatted_lines.push("═".repeat((title.len() + 2).min(80)));
+                        } else if hashes == 2 {
+                            formatted_lines.push("─".repeat((title.len() + 3).min(80)));
+                        }
                         formatted_lines.push(String::new());
                         continue;
                     }
@@ -86,7 +93,7 @@ impl MarkdownPreview {
             // Checkbox detection
             if trimmed.starts_with("- [ ] ") || trimmed.starts_with("* [ ] ") {
                 if formatted_lines.len() < max_lines {
-                    formatted_lines.push(format!("  ☐ {}", &trimmed[6..]));
+                    formatted_lines.push(format!("  [ ] {}", &trimmed[6..]));
                 }
                 continue;
             } else if trimmed.starts_with("- [x] ")
@@ -94,7 +101,7 @@ impl MarkdownPreview {
                 || trimmed.starts_with("- [X] ")
             {
                 if formatted_lines.len() < max_lines {
-                    formatted_lines.push(format!("  ☑ {}", &trimmed[6..]));
+                    formatted_lines.push(format!("  [x] {}", &trimmed[6..]));
                 }
                 continue;
             }

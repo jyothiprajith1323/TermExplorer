@@ -62,14 +62,25 @@ pub fn layered_completions(
         .collect()
 }
 
-/// Extract the word immediately before the cursor column in a line.
+/// Extract the word immediately before the cursor column in a line (char-safe).
 pub fn prefix_at(line: &str, col: usize) -> &str {
-    let bytes = line.as_bytes();
-    let end = col.min(bytes.len());
-    let start = bytes[..end]
-        .iter()
-        .rposition(|&b| !b.is_ascii_alphanumeric() && b != b'_')
+    let chars: Vec<char> = line.chars().collect();
+    let end = col.min(chars.len());
+    let start = (0..end)
+        .rev()
+        .find(|&i| !chars[i].is_alphanumeric() && chars[i] != '_')
         .map(|i| i + 1)
         .unwrap_or(0);
-    &line[start..end]
+
+    let byte_start = line
+        .char_indices()
+        .nth(start)
+        .map(|(b, _)| b)
+        .unwrap_or(line.len());
+    let byte_end = line
+        .char_indices()
+        .nth(end)
+        .map(|(b, _)| b)
+        .unwrap_or(line.len());
+    &line[byte_start..byte_end]
 }

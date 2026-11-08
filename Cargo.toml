@@ -3,7 +3,7 @@ name = "termexplorer"
 version = "1.1.0"
 edition = "2021"
 authors = ["TermExplorer Contributors"]
-description = "A modern, keyboard-driven terminal file explorer with embedded terminal, editor, and system monitor"
+description = "TermExplorer is a highly customizable Rust terminal developer workstation combining a file explorer, intelligent code editor, interactive Linux terminal, multimedia preview engine and system monitor"
 license = "MIT"
 repository = "https://github.com/jyothiprajith1323/TermExplorer"
 keywords = ["tui", "file-explorer", "terminal", "ratatui"]
@@ -64,6 +64,7 @@ shellexpand = "3"
 # Unicode / text
 unicode-width = "0.2"
 unicode-segmentation = "1"
+ropey = "1.6"
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }

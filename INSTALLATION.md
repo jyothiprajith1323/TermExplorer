@@ -13,7 +13,33 @@ This guide covers all supported installation methods, system prerequisites, and 
 
 ---
 
-## ⚡ Method 1: Automated Shell Installer (Recommended)
+## 📥 Method 1: Pre-compiled GitHub Release Binary (Fastest)
+
+Download the validated standalone binary from GitHub Releases:
+
+```bash
+# 1. Download the release archive and SHA-256 checksums
+curl -LO https://github.com/jyothiprajith1323/TermExplorer/releases/download/v1.1.0-rc2/termexplorer-v1.1.0-rc2-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/jyothiprajith1323/TermExplorer/releases/download/v1.1.0-rc2/SHA256SUMS
+
+# 2. Verify archive integrity
+sha256sum --ignore-missing -c SHA256SUMS
+
+# 3. Extract and install into ~/.local/bin
+tar -xzf termexplorer-v1.1.0-rc2-x86_64-unknown-linux-gnu.tar.gz
+mkdir -p ~/.local/bin
+install -m 755 termexplorer-v1.1.0-rc2-x86_64-unknown-linux-gnu/termexplorer ~/.local/bin/termexplorer
+```
+
+*Ensure `~/.local/bin` is in your `$PATH`:*
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+---
+
+## ⚡ Method 2: Automated Shell Installer
 
 Run our POSIX-compliant automated installation script. It verifies your Rust toolchain, fetches the latest release, compiles with optimizations, and installs `termexplorer` into `~/.local/bin/`:
 
