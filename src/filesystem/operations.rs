@@ -169,74 +169,55 @@ pub fn delete_entry(path: &Path) -> Result<()> {
     }
 }
 
-/// Send entry to FreeDesktop trash using `gio trash`, `trash-put`, or standard `~/.local/share/Trash`.
-pub fn trash_entry(path: &Path) -> Result<()> {
+/// Send entry to FreeDesktop trash using standard `~/.local/share/Trash` with `.trashinfo` metadata,
+/// returning the unique trash filename for ledger tracking and reversible restore.
+pub fn trash_entry_tracked(path: &Path) -> Result<String> {
     if !path.exists() {
         bail!("Entry to trash does not exist: {}", path.display());
     }
 
-    // 1. Try gio trash
-    if std::process::Command::new("gio")
-        .args(["trash"])
-        .arg(path)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
-        return Ok(());
+    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Home directory not found"))?;
+    let trash_files = home.join(".local/share/Trash/files");
+    let trash_info = home.join(".local/share/Trash/info");
+    std::fs::create_dir_all(&trash_files)?;
+    std::fs::create_dir_all(&trash_info)?;
+
+    let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("entry");
+
+    let dest_file = auto_rename_target(&trash_files.join(file_name));
+    let dest_name = dest_file
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(file_name)
+        .to_string();
+
+    let info_path = trash_info.join(format!("{}.trashinfo", dest_name));
+
+    // Format ISO 8601 deletion timestamp
+    let now = chrono_now_iso();
+    let abs_path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let info_content = format!(
+        "[Trash Info]\nPath={}\nDeletionDate={}\n",
+        abs_path.display(),
+        now
+    );
+
+    // Write .trashinfo first
+    std::fs::write(&info_path, info_content)
+        .with_context(|| format!("Writing trashinfo: {}", info_path.display()))?;
+
+    // Move entry to trash files directory
+    if let Err(e) = move_entry(path, &dest_file, CollisionPolicy::Overwrite) {
+        let _ = std::fs::remove_file(&info_path);
+        return Err(e);
     }
 
-    // 2. Try trash-put
-    if std::process::Command::new("trash-put")
-        .arg(path)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
-        return Ok(());
-    }
+    Ok(dest_name)
+}
 
-    // 3. Fallback: FreeDesktop standard ~/.local/share/Trash with .trashinfo metadata
-    if let Some(home) = dirs::home_dir() {
-        let trash_files = home.join(".local/share/Trash/files");
-        let trash_info = home.join(".local/share/Trash/info");
-        std::fs::create_dir_all(&trash_files)?;
-        std::fs::create_dir_all(&trash_info)?;
-
-        let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("entry");
-
-        let dest_file = auto_rename_target(&trash_files.join(file_name));
-        let dest_name = dest_file
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or(file_name);
-
-        let info_path = trash_info.join(format!("{}.trashinfo", dest_name));
-
-        // Format ISO 8601 deletion timestamp
-        let now = chrono_now_iso();
-        let abs_path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-        let info_content = format!(
-            "[Trash Info]\nPath={}\nDeletionDate={}\n",
-            abs_path.display(),
-            now
-        );
-
-        // Write .trashinfo first
-        std::fs::write(&info_path, info_content)
-            .with_context(|| format!("Writing trashinfo: {}", info_path.display()))?;
-
-        // Move entry to trash files directory
-        if let Err(e) = move_entry(path, &dest_file, CollisionPolicy::Overwrite) {
-            let _ = std::fs::remove_file(&info_path);
-            return Err(e);
-        }
-
-        return Ok(());
-    }
-
-    // If trash is unavailable, perform safe delete
-    delete_entry(path)
+/// Send entry to FreeDesktop trash.
+pub fn trash_entry(path: &Path) -> Result<()> {
+    trash_entry_tracked(path).map(|_| ())
 }
 
 /// Helper to generate ISO 8601 UTC timestamp without heavyweight external chrono dep

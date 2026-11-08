@@ -15,6 +15,7 @@ pub mod office;
 pub mod pdf;
 pub mod registry;
 pub mod rendering;
+pub mod sanitizer;
 pub mod source;
 pub mod video;
 
@@ -22,3 +23,4 @@ pub use detector::{detect_file_format, FileCategory, FileFormatInfo};
 pub use manager::{FullPreviewData, PreviewAction, PreviewManager, PreviewTab};
 pub use metadata::DetailedMetadata;
 pub use registry::CapabilityRegistry;
+pub use sanitizer::{sanitize_preview_line, sanitize_preview_text};

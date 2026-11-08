@@ -4,6 +4,9 @@ use flate2::read::GzDecoder;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
+pub const MAX_EXTRACT_BYTES: u64 = 500 * 1024 * 1024; // 500 MiB
+pub const MAX_EXTRACT_FILES: usize = 10_000;
+
 #[derive(Debug, Clone)]
 pub struct ArchiveEntryInfo {
     pub name: String,
@@ -181,7 +184,7 @@ impl ArchivePreview {
         }
     }
 
-    /// Safely extract the archive to a destination directory preventing path traversal.
+    /// Safely extract the archive to a destination directory preventing path traversal and decompression bombs.
     pub fn extract_all(&self, archive_path: &Path, target_dir: &Path) -> Result<usize, String> {
         let ext = archive_path
             .extension()
@@ -194,20 +197,58 @@ impl ArchivePreview {
             let file = File::open(archive_path).map_err(|e| e.to_string())?;
             let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
             let mut extracted = 0;
+            let mut total_extracted_bytes = 0u64;
+
             for i in 0..zip.len() {
+                if extracted >= MAX_EXTRACT_FILES {
+                    return Err(format!(
+                        "Archive extraction exceeded maximum file limit of {} entries",
+                        MAX_EXTRACT_FILES
+                    ));
+                }
+
                 let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
                 let outpath = match entry.enclosed_name() {
                     Some(path) => target_dir.join(path),
-                    None => continue, // Skip unsafe path
+                    None => continue, // Skip unsafe path traversal
                 };
+
+                // Ensure normalized destination is strictly within target directory
+                if !outpath.starts_with(target_dir) {
+                    continue; // Skip symlink or normalization escape
+                }
+
                 if entry.is_dir() {
                     std::fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
                 } else {
                     if let Some(p) = outpath.parent() {
                         std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
                     }
+
+                    let remaining_allowance =
+                        MAX_EXTRACT_BYTES.saturating_sub(total_extracted_bytes);
+                    if remaining_allowance == 0 {
+                        return Err(
+                            "Archive extraction exceeded 500 MiB safety limit (potential zip bomb)"
+                                .to_string(),
+                        );
+                    }
+
+                    use std::io::Read;
+                    let mut limited = (&mut entry).take(remaining_allowance + 1);
                     let mut outfile = File::create(&outpath).map_err(|e| e.to_string())?;
-                    std::io::copy(&mut entry, &mut outfile).map_err(|e| e.to_string())?;
+                    let copied =
+                        std::io::copy(&mut limited, &mut outfile).map_err(|e| e.to_string())?;
+
+                    total_extracted_bytes += copied;
+                    if total_extracted_bytes > MAX_EXTRACT_BYTES {
+                        let _ = std::fs::remove_file(&outpath);
+                        return Err(
+                            "Archive extraction exceeded 500 MiB safety limit (potential zip bomb)"
+                                .to_string(),
+                        );
+                    }
+
                     extracted += 1;
                 }
             }

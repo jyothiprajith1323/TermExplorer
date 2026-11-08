@@ -230,11 +230,11 @@ pub fn list_dir(path: &Path, show_hidden: bool, sort: SortOrder) -> Result<Vec<D
         });
     }
 
-    sort_entries(&mut entries, sort);
+    sort_entries_slice(&mut entries, sort);
     Ok(entries)
 }
 
-fn sort_entries(entries: &mut [DirEntry], sort: SortOrder) {
+pub fn sort_entries_slice(entries: &mut [DirEntry], sort: SortOrder) {
     // Directories always come first regardless of sort key.
     entries.sort_by(|a, b| {
         let dir_a = a.is_dir();

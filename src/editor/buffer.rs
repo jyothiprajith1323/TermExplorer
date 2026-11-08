@@ -9,6 +9,27 @@ use ropey::Rope;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use unicode_segmentation::UnicodeSegmentation;
+
+// ── File Encoding ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FileEncoding {
+    #[default]
+    Utf8,
+    Utf8Bom,
+    Latin1,
+}
+
+impl FileEncoding {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Utf8 => "UTF-8",
+            Self::Utf8Bom => "UTF-8 BOM",
+            Self::Latin1 => "Latin-1",
+        }
+    }
+}
 
 // ── Line Endings ────────────────────────────────────────────────────────────
 
@@ -107,6 +128,8 @@ pub struct Buffer {
     pub loaded_mtime: Option<SystemTime>,
     /// Line ending format.
     pub line_ending: LineEnding,
+    /// Detected or target file encoding.
+    pub encoding: FileEncoding,
     /// Internal rope structure for efficient large-document operations.
     rope: Rope,
 }
@@ -130,13 +153,30 @@ impl Buffer {
             completion: CompletionState::default(),
             loaded_mtime: None,
             line_ending: LineEnding::Lf,
+            encoding: FileEncoding::Utf8,
             rope: Rope::from_str(""),
         }
     }
 
-    /// Load a file into the buffer, recording mtime and detecting line endings.
+    /// Load a file into the buffer, recording mtime, detecting line endings, and handling encodings/BOM.
     pub fn from_file(path: PathBuf) -> Result<Self> {
-        let content = std::fs::read_to_string(&path)?;
+        let bytes = std::fs::read(&path)?;
+        let mut encoding = FileEncoding::Utf8;
+
+        let content = if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+            encoding = FileEncoding::Utf8Bom;
+            String::from_utf8_lossy(&bytes[3..]).into_owned()
+        } else {
+            match std::str::from_utf8(&bytes) {
+                Ok(s) => s.to_string(),
+                Err(_) => {
+                    // Fall back to ISO-8859-1 (Latin-1) which maps byte 0x00..=0xFF directly to Unicode chars
+                    encoding = FileEncoding::Latin1;
+                    bytes.iter().map(|&b| b as char).collect::<String>()
+                }
+            }
+        };
+
         let line_ending = if content.contains("\r\n") {
             LineEnding::Crlf
         } else {
@@ -166,6 +206,7 @@ impl Buffer {
             completion: CompletionState::default(),
             loaded_mtime,
             line_ending,
+            encoding,
             rope,
         })
     }
@@ -178,7 +219,10 @@ impl Buffer {
 
     /// Return total character length of the entire buffer.
     pub fn total_char_len(&self) -> usize {
-        self.lines.iter().map(|l| l.chars().count() + 1).sum()
+        self.lines
+            .iter()
+            .map(|l| l.graphemes(true).count() + 1)
+            .sum()
     }
 
     // ── Undo/Redo ────────────────────────────────────────────────────────────
@@ -229,8 +273,8 @@ impl Buffer {
             self.lines.push(String::new());
         }
         self.cursor.row = self.cursor.row.min(self.lines.len().saturating_sub(1));
-        let char_count = self.current_line().chars().count();
-        self.cursor.col = self.cursor.col.min(char_count);
+        let count = self.current_line().graphemes(true).count();
+        self.cursor.col = self.cursor.col.min(count);
     }
 
     pub fn current_line(&self) -> &str {
@@ -259,13 +303,13 @@ impl Buffer {
             self.cursor.col -= 1;
         } else if self.cursor.row > 0 {
             self.cursor.row -= 1;
-            self.cursor.col = self.lines[self.cursor.row].chars().count();
+            self.cursor.col = self.lines[self.cursor.row].graphemes(true).count();
         }
     }
 
     pub fn move_right(&mut self) {
-        let char_count = self.current_line().chars().count();
-        if self.cursor.col < char_count {
+        let count = self.current_line().graphemes(true).count();
+        if self.cursor.col < count {
             self.cursor.col += 1;
         } else if self.cursor.row + 1 < self.lines.len() {
             self.cursor.row += 1;
@@ -274,11 +318,11 @@ impl Buffer {
     }
 
     pub fn move_home(&mut self) {
-        // Smart home: first non-whitespace char, then column 0.
+        // Smart home: first non-whitespace grapheme, then column 0.
         let first_nonws = self
             .current_line()
-            .chars()
-            .take_while(|c| c.is_whitespace())
+            .graphemes(true)
+            .take_while(|g| g.chars().all(|c| c.is_whitespace()))
             .count();
         if self.cursor.col != first_nonws {
             self.cursor.col = first_nonws;
@@ -288,7 +332,7 @@ impl Buffer {
     }
 
     pub fn move_end(&mut self) {
-        self.cursor.col = self.current_line().chars().count();
+        self.cursor.col = self.current_line().graphemes(true).count();
     }
 
     pub fn move_page_up(&mut self, page: usize) {
@@ -338,21 +382,21 @@ impl Buffer {
 
         if start.row == end.row {
             let line = self.lines.get(start.row)?;
-            let chars: Vec<char> = line.chars().collect();
-            let start_col = start.col.min(chars.len());
-            let end_col = end.col.min(chars.len());
-            Some(chars[start_col..end_col].iter().collect())
+            let graphemes: Vec<&str> = line.graphemes(true).collect();
+            let start_col = start.col.min(graphemes.len());
+            let end_col = end.col.min(graphemes.len());
+            Some(graphemes[start_col..end_col].concat())
         } else {
             let mut result = Vec::new();
             for r in start.row..=end.row {
                 if let Some(line) = self.lines.get(r) {
-                    let chars: Vec<char> = line.chars().collect();
+                    let graphemes: Vec<&str> = line.graphemes(true).collect();
                     if r == start.row {
-                        let sc = start.col.min(chars.len());
-                        result.push(chars[sc..].iter().collect::<String>());
+                        let sc = start.col.min(graphemes.len());
+                        result.push(graphemes[sc..].concat());
                     } else if r == end.row {
-                        let ec = end.col.min(chars.len());
-                        result.push(chars[..ec].iter().collect::<String>());
+                        let ec = end.col.min(graphemes.len());
+                        result.push(graphemes[..ec].concat());
                     } else {
                         result.push(line.clone());
                     }
@@ -372,25 +416,25 @@ impl Buffer {
 
         if start.row == end.row {
             let line = &mut self.lines[start.row];
-            let mut chars: Vec<char> = line.chars().collect();
-            let sc = start.col.min(chars.len());
-            let ec = end.col.min(chars.len());
-            chars.drain(sc..ec);
-            *line = chars.into_iter().collect();
+            let mut graphemes: Vec<&str> = line.graphemes(true).collect();
+            let sc = start.col.min(graphemes.len());
+            let ec = end.col.min(graphemes.len());
+            graphemes.drain(sc..ec);
+            *line = graphemes.concat();
         } else {
             let mut new_lines = Vec::new();
             for (idx, line) in self.lines.iter().enumerate() {
                 if idx < start.row || idx > end.row {
                     new_lines.push(line.clone());
                 } else if idx == start.row {
-                    let first_chars: Vec<char> = line.chars().collect();
-                    let sc = start.col.min(first_chars.len());
-                    let prefix: String = first_chars[..sc].iter().collect();
+                    let first_graphemes: Vec<&str> = line.graphemes(true).collect();
+                    let sc = start.col.min(first_graphemes.len());
+                    let prefix: String = first_graphemes[..sc].concat();
 
                     let last_line = &self.lines[end.row];
-                    let last_chars: Vec<char> = last_line.chars().collect();
-                    let ec = end.col.min(last_chars.len());
-                    let suffix: String = last_chars[ec..].iter().collect();
+                    let last_graphemes: Vec<&str> = last_line.graphemes(true).collect();
+                    let ec = end.col.min(last_graphemes.len());
+                    let suffix: String = last_graphemes[ec..].concat();
 
                     new_lines.push(format!("{prefix}{suffix}"));
                 }
@@ -416,6 +460,19 @@ impl Buffer {
     }
 
     fn insert_char_no_undo(&mut self, c: char) {
+        let s = c.to_string();
+        self.insert_grapheme_no_undo(&s);
+    }
+
+    /// Insert a grapheme cluster at the current cursor position safely.
+    pub fn insert_grapheme(&mut self, g: &str) {
+        self.push_undo();
+        self.insert_grapheme_no_undo(g);
+        self.dirty = true;
+        self.sync_rope();
+    }
+
+    fn insert_grapheme_no_undo(&mut self, g: &str) {
         let row = self.cursor.row;
         let col = self.cursor.col;
 
@@ -423,10 +480,13 @@ impl Buffer {
             self.lines.push(String::new());
         }
 
-        let mut chars: Vec<char> = self.lines[row].chars().collect();
-        let safe_col = col.min(chars.len());
-        chars.insert(safe_col, c);
-        self.lines[row] = chars.into_iter().collect();
+        let mut graphemes: Vec<String> = self.lines[row]
+            .graphemes(true)
+            .map(str::to_string)
+            .collect();
+        let safe_col = col.min(graphemes.len());
+        graphemes.insert(safe_col, g.to_string());
+        self.lines[row] = graphemes.concat();
         self.cursor.col = safe_col + 1;
     }
 
@@ -436,11 +496,11 @@ impl Buffer {
             return;
         }
         self.push_undo();
-        for c in text.chars() {
-            if c == '\n' {
+        for g in text.graphemes(true) {
+            if g == "\n" {
                 self.insert_newline_no_undo();
-            } else if c != '\r' {
-                self.insert_char_no_undo(c);
+            } else if g != "\r" {
+                self.insert_grapheme_no_undo(g);
             }
         }
         self.dirty = true;
@@ -464,36 +524,43 @@ impl Buffer {
         }
 
         let line = &self.lines[row];
-        let chars: Vec<char> = line.chars().collect();
-        let safe_col = col.min(chars.len());
+        let graphemes: Vec<&str> = line.graphemes(true).collect();
+        let safe_col = col.min(graphemes.len());
 
-        let indent: String = chars.iter().take_while(|c| c.is_whitespace()).collect();
-        let prefix: String = chars[..safe_col].iter().collect();
-        let suffix: String = chars[safe_col..].iter().collect();
+        let indent: String = graphemes
+            .iter()
+            .take_while(|g| g.chars().all(|c| c.is_whitespace()))
+            .copied()
+            .collect();
+        let prefix: String = graphemes[..safe_col].concat();
+        let suffix: String = graphemes[safe_col..].concat();
 
         self.lines[row] = prefix;
         self.lines.insert(row + 1, format!("{indent}{suffix}"));
         self.cursor.row += 1;
-        self.cursor.col = indent.chars().count();
+        self.cursor.col = indent.graphemes(true).count();
     }
 
-    /// Backspace at the current cursor position (char-safe).
+    /// Backspace at the current cursor position (grapheme-safe).
     pub fn backspace(&mut self) {
         self.push_undo();
         let row = self.cursor.row;
         let col = self.cursor.col;
 
         if col > 0 {
-            let mut chars: Vec<char> = self.lines[row].chars().collect();
-            let safe_col = col.min(chars.len());
+            let mut graphemes: Vec<String> = self.lines[row]
+                .graphemes(true)
+                .map(str::to_string)
+                .collect();
+            let safe_col = col.min(graphemes.len());
             if safe_col > 0 {
-                chars.remove(safe_col - 1);
-                self.lines[row] = chars.into_iter().collect();
+                graphemes.remove(safe_col - 1);
+                self.lines[row] = graphemes.concat();
                 self.cursor.col = safe_col - 1;
             }
         } else if row > 0 {
             let cur = self.lines.remove(row);
-            let prev_len = self.lines[row - 1].chars().count();
+            let prev_len = self.lines[row - 1].graphemes(true).count();
             self.lines[row - 1].push_str(&cur);
             self.cursor.row -= 1;
             self.cursor.col = prev_len;
@@ -502,17 +569,20 @@ impl Buffer {
         self.sync_rope();
     }
 
-    /// Delete character under cursor (char-safe).
+    /// Delete character/grapheme under cursor (grapheme-safe).
     pub fn delete_char(&mut self) {
         self.push_undo();
         let row = self.cursor.row;
         let col = self.cursor.col;
 
         if row < self.lines.len() {
-            let mut chars: Vec<char> = self.lines[row].chars().collect();
-            if col < chars.len() {
-                chars.remove(col);
-                self.lines[row] = chars.into_iter().collect();
+            let mut graphemes: Vec<String> = self.lines[row]
+                .graphemes(true)
+                .map(str::to_string)
+                .collect();
+            if col < graphemes.len() {
+                graphemes.remove(col);
+                self.lines[row] = graphemes.concat();
             } else if row + 1 < self.lines.len() {
                 let next = self.lines.remove(row + 1);
                 self.lines[row].push_str(&next);
@@ -553,29 +623,34 @@ impl Buffer {
             if trimmed.starts_with(comment_prefix.trim()) {
                 // Uncomment: remove the comment prefix
                 if let Some(pos) = line.find(comment_prefix) {
-                    let mut chars: Vec<char> = line.chars().collect();
-                    let char_pos = line[..pos].chars().count();
-                    let prefix_len = comment_prefix.chars().count();
-                    chars.drain(char_pos..char_pos + prefix_len);
-                    self.lines[row] = chars.into_iter().collect();
+                    let mut graphemes: Vec<String> =
+                        line.graphemes(true).map(str::to_string).collect();
+                    let g_pos = line[..pos].graphemes(true).count();
+                    let prefix_len = comment_prefix.graphemes(true).count();
+                    graphemes.drain(g_pos..g_pos + prefix_len);
+                    self.lines[row] = graphemes.concat();
                     self.cursor.col = self.cursor.col.saturating_sub(prefix_len);
                 } else if let Some(pos) = line.find(comment_prefix.trim()) {
-                    let mut chars: Vec<char> = line.chars().collect();
-                    let char_pos = line[..pos].chars().count();
-                    let prefix_len = comment_prefix.trim().chars().count();
-                    chars.drain(char_pos..char_pos + prefix_len);
-                    self.lines[row] = chars.into_iter().collect();
+                    let mut graphemes: Vec<String> =
+                        line.graphemes(true).map(str::to_string).collect();
+                    let g_pos = line[..pos].graphemes(true).count();
+                    let prefix_len = comment_prefix.trim().graphemes(true).count();
+                    graphemes.drain(g_pos..g_pos + prefix_len);
+                    self.lines[row] = graphemes.concat();
                     self.cursor.col = self.cursor.col.saturating_sub(prefix_len);
                 }
             } else {
                 // Comment: insert prefix after leading whitespace
-                let indent_len = line.chars().take_while(|c| c.is_whitespace()).count();
-                let mut chars: Vec<char> = line.chars().collect();
-                for (idx, c) in comment_prefix.chars().enumerate() {
-                    chars.insert(indent_len + idx, c);
+                let indent_len = line
+                    .graphemes(true)
+                    .take_while(|g| g.chars().all(|c| c.is_whitespace()))
+                    .count();
+                let mut graphemes: Vec<String> = line.graphemes(true).map(str::to_string).collect();
+                for (idx, g) in comment_prefix.graphemes(true).enumerate() {
+                    graphemes.insert(indent_len + idx, g.to_string());
                 }
-                self.lines[row] = chars.into_iter().collect();
-                self.cursor.col += comment_prefix.chars().count();
+                self.lines[row] = graphemes.concat();
+                self.cursor.col += comment_prefix.graphemes(true).count();
             }
             self.dirty = true;
             self.sync_rope();
@@ -736,7 +811,22 @@ impl Buffer {
             .ok_or_else(|| anyhow::anyhow!("No file path set"))?;
         let sep = self.line_ending.as_str();
         let content = self.lines.join(sep);
-        save_file_atomic(&path, content.as_bytes())?;
+        let mut bytes = Vec::new();
+        if self.encoding == FileEncoding::Utf8Bom {
+            bytes.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
+        }
+        if self.encoding == FileEncoding::Latin1 {
+            let all_latin1 = content.chars().all(|c| (c as u32) <= 255);
+            if all_latin1 {
+                bytes.extend(content.chars().map(|c| c as u8));
+            } else {
+                bytes.extend_from_slice(content.as_bytes());
+            }
+        } else {
+            bytes.extend_from_slice(content.as_bytes());
+        }
+
+        save_file_atomic(&path, &bytes)?;
         self.loaded_mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
         self.dirty = false;
         self.clear_recovery_snapshot();
@@ -822,6 +912,7 @@ impl Buffer {
             completion: CompletionState::default(),
             loaded_mtime,
             line_ending,
+            encoding: FileEncoding::Utf8,
             rope,
         })
     }
@@ -853,7 +944,7 @@ impl Buffer {
             return false;
         }
         let candidate = self.completion.candidates[self.completion.selected].clone();
-        let prefix_len = self.completion.prefix.chars().count();
+        let prefix_len = self.completion.prefix.graphemes(true).count();
 
         self.push_undo();
         let row = self.cursor.row;
@@ -861,11 +952,11 @@ impl Buffer {
 
         if col >= prefix_len {
             let line = &mut self.lines[row];
-            let mut chars: Vec<char> = line.chars().collect();
+            let mut graphemes: Vec<String> = line.graphemes(true).map(str::to_string).collect();
             let start = col - prefix_len;
-            let end = col.min(chars.len());
-            chars.drain(start..end);
-            *line = chars.into_iter().collect();
+            let end = col.min(graphemes.len());
+            graphemes.drain(start..end);
+            *line = graphemes.concat();
             self.cursor.col = start;
 
             // Insert candidate label
@@ -939,5 +1030,111 @@ impl Buffer {
 impl Default for Buffer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unicode_grapheme_navigation_and_editing() {
+        let mut buf = Buffer::new();
+        // Insert complex multi-codepoint emojis:
+        // "👍🏽" is thumbs up (U+1F44D) + medium skin tone (U+1F3FD)
+        // "🇮🇳" is regional indicators (U+1F1EE, U+1F1F3)
+        // "👨‍💻" is man (U+1F468) + ZWJ (U+200D) + laptop (U+1F4BB)
+        buf.insert_text("Hi 👍🏽 🇮🇳 👨‍💻 End");
+        assert_eq!(buf.lines[0], "Hi 👍🏽 🇮🇳 👨‍💻 End");
+
+        // "Hi " = 3 graphemes
+        // "👍🏽" = 1 grapheme
+        // " " = 1 grapheme
+        // "🇮🇳" = 1 grapheme
+        // " " = 1 grapheme
+        // "👨‍💻" = 1 grapheme
+        // " End" = 4 graphemes
+        // Total = 12 graphemes
+        assert_eq!(buf.cursor.col, 12);
+
+        // Move left 4 times to land right after 👨‍💻
+        for _ in 0..4 {
+            buf.move_left();
+        }
+        assert_eq!(buf.cursor.col, 8);
+
+        // Move left across 👨‍💻 (1 grapheme move)
+        buf.move_left();
+        assert_eq!(buf.cursor.col, 7);
+
+        // Move right across 👨‍💻
+        buf.move_right();
+        assert_eq!(buf.cursor.col, 8);
+
+        // Backspace deletes entire 👨‍💻 cluster as a unit
+        buf.backspace();
+        assert_eq!(buf.cursor.col, 7);
+        assert_eq!(buf.lines[0], "Hi 👍🏽 🇮🇳  End");
+
+        // Move left past space
+        buf.move_left();
+        assert_eq!(buf.cursor.col, 6);
+
+        // Backspace deletes entire 🇮🇳 flag cluster as a unit
+        buf.backspace();
+        assert_eq!(buf.cursor.col, 5);
+        assert_eq!(buf.lines[0], "Hi 👍🏽   End");
+
+        // Move left past space
+        buf.move_left();
+        assert_eq!(buf.cursor.col, 4);
+
+        // Backspace deletes entire 👍🏽 skin-tone emoji as a unit
+        buf.backspace();
+        assert_eq!(buf.cursor.col, 3);
+        assert_eq!(buf.lines[0], "Hi    End");
+    }
+
+    #[test]
+    fn test_utf8_bom_preservation() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("bom_test.txt");
+
+        // Write file with UTF-8 BOM
+        let mut initial_bytes = vec![0xEF, 0xBB, 0xBF];
+        initial_bytes.extend_from_slice(b"Hello BOM\nWorld\n");
+        std::fs::write(&file_path, &initial_bytes).unwrap();
+
+        // Load into buffer
+        let mut buf = Buffer::from_file(file_path.clone()).unwrap();
+        assert_eq!(buf.encoding, FileEncoding::Utf8Bom);
+        assert_eq!(buf.lines[0], "Hello BOM");
+        assert_eq!(buf.lines[1], "World");
+
+        // Edit and save
+        buf.cursor.row = 0;
+        buf.cursor.col = 9;
+        buf.insert_text(" Preserved");
+        buf.save().unwrap();
+
+        // Verify written file still has UTF-8 BOM
+        let saved_bytes = std::fs::read(&file_path).unwrap();
+        assert!(saved_bytes.starts_with(&[0xEF, 0xBB, 0xBF]));
+        let saved_str = std::str::from_utf8(&saved_bytes[3..]).unwrap();
+        assert!(saved_str.starts_with("Hello BOM Preserved\nWorld"));
+    }
+
+    #[test]
+    fn test_latin1_fallback_encoding() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("latin1_test.txt");
+
+        // Write raw Latin-1 bytes with 0xE9 ('é' in ISO-8859-1) which is invalid UTF-8
+        let latin1_bytes = vec![b'C', b'a', b'f', 0xE9];
+        std::fs::write(&file_path, &latin1_bytes).unwrap();
+
+        let buf = Buffer::from_file(file_path).unwrap();
+        assert_eq!(buf.encoding, FileEncoding::Latin1);
+        assert_eq!(buf.lines[0], "Café");
     }
 }

@@ -5,6 +5,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent,
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
@@ -12,11 +14,16 @@ use crate::{
     commands::CommandRegistry,
     config::Config,
     editor::{auto_pair, buffer::Buffer},
-    events::{start_event_loop, AppEvent},
-    filesystem::{browser::list_dir, operations},
+    events::{start_event_loop_with_sender, AppEvent},
+    filesystem::{
+        browser::list_dir,
+        chunked::{load_initial_viewport, stream_dir_chunks},
+        ledger::{FsOperationLedger, RecordedOperation},
+        operations,
+    },
     git::GitRepoStatus,
     monitor::{Monitor, MonitorSnapshot},
-    preview::{PreviewManager, PreviewTab},
+    preview::{FullPreviewData, PreviewManager, PreviewTab},
     settings::{get_section_items, ProfileKind, SettingsPersistence, SettingsSection},
     shell::{input::key_to_pty_bytes, TerminalSession},
     state::{ActivePane, AppMode, AppState, FocusedPanel, ModalKind, SidebarSection, StatusKind},
@@ -56,9 +63,13 @@ pub struct App {
     terminal_scrollback: Vec<u8>,
     pty_rx: Option<mpsc::UnboundedReceiver<Vec<u8>>>,
     _watcher: Option<notify::RecommendedWatcher>,
-    fs_rx: Option<mpsc::UnboundedReceiver<notify::Result<notify::Event>>>,
+    fs_rx: Option<mpsc::UnboundedReceiver<()>>,
     hit_registry: HitRegistry,
     pub layout: AppLayout,
+    fs_ledger: FsOperationLedger,
+    preview_ticket: Arc<AtomicU64>,
+    dir_ticket: Arc<AtomicU64>,
+    event_tx: Option<mpsc::UnboundedSender<AppEvent>>,
 }
 
 impl App {
@@ -67,20 +78,23 @@ impl App {
         let max_preview_bytes = config.max_preview_bytes;
         let mut state = AppState::new(config);
 
-        // Initial directory load.
-        let entries = list_dir(
+        // Initial fast viewport directory load (<30ms)
+        let entries = load_initial_viewport(
             &state.explorer.current_dir.clone(),
             state.config.show_hidden,
             state.explorer.sort_order,
+            100,
         )
         .unwrap_or_default();
         state.explorer.entries = entries;
 
-        let (_watcher, fs_rx) =
-            match crate::filesystem::watcher::watch_directory(&state.explorer.current_dir) {
-                Ok((w, rx)) => (Some(w), Some(rx)),
-                Err(_) => (None, None),
-            };
+        let (_watcher, fs_rx) = match crate::filesystem::watcher::watch_directory_debounced(
+            &state.explorer.current_dir,
+            Duration::from_millis(150),
+        ) {
+            Ok((w, rx)) => (Some(w), Some(rx)),
+            Err(_) => (None, None),
+        };
 
         let mut app = Self {
             state,
@@ -97,6 +111,10 @@ impl App {
             fs_rx,
             hit_registry: HitRegistry::new(),
             layout: AppLayout::default(),
+            fs_ledger: FsOperationLedger::new(100),
+            preview_ticket: Arc::new(AtomicU64::new(0)),
+            dir_ticket: Arc::new(AtomicU64::new(0)),
+            event_tx: None,
         };
 
         if app.state.show_terminal {
@@ -121,7 +139,8 @@ impl App {
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     ) -> Result<()> {
-        let mut events = start_event_loop(100);
+        let (tx, mut events) = start_event_loop_with_sender(100);
+        self.event_tx = Some(tx);
 
         loop {
             // ── Render ───────────────────────────────────────────────────────
@@ -146,8 +165,8 @@ impl App {
                     }
                     continue;
                 },
-                // Filesystem changes
-                Some(_fs) = async {
+                // Filesystem changes (debounced)
+                Some(()) = async {
                     match &mut self.fs_rx {
                         Some(rx) => rx.recv().await,
                         None => std::future::pending().await,
@@ -178,6 +197,30 @@ impl App {
                 AppEvent::MonitorRefresh => {}
                 AppEvent::PtyOutput => {}
                 AppEvent::ClearStatus => self.state.clear_status(),
+                AppEvent::PreviewReady { ticket, data } => {
+                    if ticket == self.preview_ticket.load(Ordering::Relaxed) {
+                        let full_data = *data;
+                        self.preview_manager
+                            .insert_cache(full_data.path.clone(), full_data.clone());
+                        self.apply_preview_data(full_data);
+                    }
+                }
+                AppEvent::DirChunkReady { ticket, chunk } => {
+                    if ticket == self.dir_ticket.load(Ordering::Relaxed) {
+                        let exp = self.state.active_explorer_mut();
+                        if chunk.is_initial {
+                            exp.entries = chunk.entries;
+                        } else {
+                            exp.entries.extend(chunk.entries);
+                        }
+                        if chunk.is_final {
+                            crate::filesystem::browser::sort_entries_slice(
+                                &mut exp.entries,
+                                exp.sort_order,
+                            );
+                        }
+                    }
+                }
             }
         }
 
@@ -417,6 +460,16 @@ impl App {
                 self.monitor_last_refresh = Instant::now();
             }
         }
+
+        // Detect external modifications in open editor buffer
+        if let Some(buf) = &self.editor_buf {
+            if buf.check_external_modification() {
+                self.state.set_status(
+                    "Warning: File modified externally! Press Ctrl+R to reload or Ctrl+S to overwrite.",
+                    StatusKind::Warning,
+                );
+            }
+        }
     }
 
     fn on_resize(&mut self, w: u16, _h: u16) {
@@ -449,17 +502,44 @@ impl App {
         };
         let show_hidden = self.state.config.show_hidden;
 
-        match list_dir(&dir, show_hidden, sort) {
-            Ok(entries) => {
-                let exp = self.state.active_explorer_mut();
-                exp.entries = entries;
-                exp.selected_index = exp.selected_index.min(exp.entries.len().saturating_sub(1));
-                self.update_preview().await;
-            }
-            Err(e) => {
-                self.state
-                    .set_status(format!("Cannot read directory: {e}"), StatusKind::Error);
-            }
+        // Sub-30ms first-viewport loading for instant responsiveness
+        let initial = load_initial_viewport(&dir, show_hidden, sort, 100).unwrap_or_default();
+        let exp = self.state.active_explorer_mut();
+        exp.entries = initial;
+        exp.selected_index = exp.selected_index.min(exp.entries.len().saturating_sub(1));
+        self.update_preview().await;
+
+        // Monotonic cancellation background streaming
+        let ticket = self.dir_ticket.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Some(tx) = &self.event_tx {
+            let tx = tx.clone();
+            let token = Arc::clone(&self.dir_ticket);
+            let dir_clone = dir.clone();
+            tokio::spawn(async move {
+                let (chunk_tx, mut chunk_rx) = mpsc::channel(16);
+                let token_bg = Arc::clone(&token);
+                tokio::spawn(async move {
+                    stream_dir_chunks(
+                        dir_clone,
+                        show_hidden,
+                        sort,
+                        250,
+                        token_bg,
+                        ticket,
+                        chunk_tx,
+                    )
+                    .await;
+                });
+                while let Some(chunk) = chunk_rx.recv().await {
+                    if token.load(Ordering::Relaxed) != ticket {
+                        break;
+                    }
+                    let _ = tx.send(AppEvent::DirChunkReady {
+                        ticket,
+                        chunk: Box::new(chunk),
+                    });
+                }
+            });
         }
     }
 
@@ -478,7 +558,10 @@ impl App {
             self.state.explorer.current_dir = dir.clone();
             self.state.explorer.selected_index = 0;
             self.state.explorer.scroll_offset = 0;
-            if let Ok((w, rx)) = crate::filesystem::watcher::watch_directory(&dir) {
+            if let Ok((w, rx)) = crate::filesystem::watcher::watch_directory_debounced(
+                &dir,
+                Duration::from_millis(150),
+            ) {
                 self._watcher = Some(w);
                 self.fs_rx = Some(rx);
             }
@@ -583,10 +666,56 @@ impl App {
 
         self.state.preview.dir_data = None;
 
-        let full_data =
-            self.preview_manager
-                .load_file(&path, self.state.preview.active_tab, 60, 30);
+        // Instant hit if already present in LRU cache
+        if let Some(cached) = self
+            .preview_manager
+            .get_cached(&path, self.state.preview.active_tab)
+        {
+            self.apply_preview_data(cached);
+            return;
+        }
 
+        let ticket = self.preview_ticket.fetch_add(1, Ordering::SeqCst) + 1;
+
+        // Set responsive placeholder preview
+        self.state.preview.lines = vec!["  Loading preview...".to_string()];
+        self.state.preview.highlighted_spans.clear();
+        self.state.preview.total_lines = 1;
+        self.state.preview.full_data = None;
+
+        if let Some(tx) = &self.event_tx {
+            let tx = tx.clone();
+            let token = Arc::clone(&self.preview_ticket);
+            let path_clone = path.clone();
+            let tab = self.state.preview.active_tab;
+            let max_bytes = self.state.config.max_preview_bytes;
+
+            tokio::task::spawn_blocking(move || {
+                if let Some(data) = PreviewManager::generate_preview_cancellable(
+                    &path_clone,
+                    tab,
+                    max_bytes,
+                    60,
+                    30,
+                    Some((&token, ticket)),
+                ) {
+                    if token.load(Ordering::Relaxed) == ticket {
+                        let _ = tx.send(AppEvent::PreviewReady {
+                            ticket,
+                            data: Box::new(data),
+                        });
+                    }
+                }
+            });
+        } else {
+            let full_data =
+                self.preview_manager
+                    .load_file(&path, self.state.preview.active_tab, 60, 30);
+            self.apply_preview_data(full_data);
+        }
+    }
+
+    fn apply_preview_data(&mut self, full_data: FullPreviewData) {
         self.state.preview.file_size = full_data
             .metadata
             .as_ref()
@@ -1128,6 +1257,30 @@ impl App {
                     .state
                     .set_status(format!("Save error: {e}"), StatusKind::Error),
             },
+            (KeyModifiers::CONTROL | KeyModifiers::SHIFT, KeyCode::Char('S'))
+            | (KeyModifiers::ALT, KeyCode::Char('s')) => match buf.save_force() {
+                Ok(_) => self
+                    .state
+                    .set_status("File force saved (overwritten)", StatusKind::Success),
+                Err(e) => self
+                    .state
+                    .set_status(format!("Save error: {e}"), StatusKind::Error),
+            },
+            (KeyModifiers::CONTROL, KeyCode::Char('r')) => {
+                if let Some(path) = buf.path.clone() {
+                    match Buffer::from_file(path) {
+                        Ok(new_buf) => {
+                            self.editor_buf = Some(new_buf);
+                            self.state
+                                .set_status("File reloaded from disk", StatusKind::Info);
+                        }
+                        Err(e) => {
+                            self.state
+                                .set_status(format!("Reload error: {e}"), StatusKind::Error);
+                        }
+                    }
+                }
+            }
             (KeyModifiers::CONTROL, KeyCode::Char('z')) => buf.undo(),
             (KeyModifiers::CONTROL, KeyCode::Char('y')) => buf.redo(),
             (KeyModifiers::CONTROL, KeyCode::Char('c')) => buf.copy_line(),
@@ -1275,8 +1428,14 @@ impl App {
                     let dst = src.parent().unwrap_or(&src).join(input);
                     match operations::rename_entry(&src, &dst) {
                         Ok(_) => {
-                            self.state
-                                .set_status(format!("Renamed → {}", input), StatusKind::Success);
+                            self.fs_ledger.record(RecordedOperation::Rename {
+                                from: src.clone(),
+                                to: dst.clone(),
+                            });
+                            self.state.set_status(
+                                format!("Renamed → {} (Press 'u' to undo)", input),
+                                StatusKind::Success,
+                            );
                             self.refresh_dir().await;
                         }
                         Err(e) => self
@@ -1288,10 +1447,17 @@ impl App {
             ModalKind::Delete => {
                 if input.to_lowercase() == "y" || input.to_lowercase() == "yes" {
                     if let Some(path) = self.state.selected_path() {
-                        match operations::delete_entry(&path) {
-                            Ok(_) => {
+                        match operations::trash_entry_tracked(&path) {
+                            Ok(trash_filename) => {
+                                self.fs_ledger.record(RecordedOperation::Trash {
+                                    original_path: path.clone(),
+                                    trash_filename,
+                                });
                                 self.state.set_status(
-                                    format!("Deleted: {}", path.display()),
+                                    format!(
+                                        "Moved to trash: {} (Press 'u' to undo)",
+                                        path.display()
+                                    ),
                                     StatusKind::Success,
                                 );
                                 self.refresh_dir().await;
@@ -1302,7 +1468,27 @@ impl App {
                         }
                     }
                 } else {
-                    self.state.set_status("Delete cancelled", StatusKind::Info);
+                    self.state.set_status("Trash cancelled", StatusKind::Info);
+                }
+            }
+            ModalKind::DeletePermanent { path, .. } => {
+                let trimmed = input.trim().to_uppercase();
+                if trimmed == "DELETE" || trimmed == "Y" || trimmed == "YES" {
+                    match operations::delete_entry(&path) {
+                        Ok(_) => {
+                            self.state.set_status(
+                                format!("Permanently deleted: {}", path.display()),
+                                StatusKind::Warning,
+                            );
+                            self.refresh_dir().await;
+                        }
+                        Err(e) => self
+                            .state
+                            .set_status(format!("Permanent delete error: {e}"), StatusKind::Error),
+                    }
+                } else {
+                    self.state
+                        .set_status("Permanent delete cancelled", StatusKind::Info);
                 }
             }
             ModalKind::PinFolder => {
@@ -1462,16 +1648,53 @@ impl App {
             }
             (KeyModifiers::NONE, KeyCode::F(8))
             | (KeyModifiers::NONE, KeyCode::Char('d'))
-            | (KeyModifiers::NONE, KeyCode::Delete)
-            | (KeyModifiers::SHIFT, KeyCode::Char('D'))
-            | (KeyModifiers::NONE, KeyCode::Char('D')) => {
+            | (KeyModifiers::NONE, KeyCode::Delete) => {
                 if let Some(path) = self.state.selected_path() {
                     self.state.mode = AppMode::Modal(ModalKind::Delete);
                     self.state.modal_input.clear();
                     self.state.set_status(
-                        format!("Delete {}? Type y to confirm.", path.display()),
+                        format!("Move {} to trash? Type y to confirm.", path.display()),
                         StatusKind::Warning,
                     );
+                }
+            }
+            (KeyModifiers::SHIFT, KeyCode::Char('D')) | (KeyModifiers::SHIFT, KeyCode::Delete) => {
+                if let Some(path) = self.state.selected_path() {
+                    let is_dir = path.is_dir();
+                    let item_count = if is_dir {
+                        std::fs::read_dir(&path).map(|rd| rd.count()).unwrap_or(0)
+                    } else {
+                        1
+                    };
+                    self.state.mode = AppMode::Modal(ModalKind::DeletePermanent {
+                        path: path.clone(),
+                        is_dir,
+                        item_count,
+                    });
+                    self.state.modal_input.clear();
+                    self.state.set_status(
+                        format!(
+                            "PERMANENT DELETE: {} (Type 'DELETE' to confirm)",
+                            path.display()
+                        ),
+                        StatusKind::Warning,
+                    );
+                }
+            }
+            (KeyModifiers::NONE, KeyCode::Char('u')) => {
+                if self.fs_ledger.can_undo() {
+                    match self.fs_ledger.undo() {
+                        Ok(msg) => {
+                            self.state.set_status(msg, StatusKind::Success);
+                            self.refresh_dir().await;
+                        }
+                        Err(e) => {
+                            self.state
+                                .set_status(format!("Undo failed: {e}"), StatusKind::Error);
+                        }
+                    }
+                } else {
+                    self.state.set_status("Nothing to undo", StatusKind::Info);
                 }
             }
             (KeyModifiers::NONE, KeyCode::Char('g')) => {
@@ -1566,11 +1789,24 @@ impl App {
                             match res {
                                 Ok(_) => {
                                     if is_cut {
+                                        self.fs_ledger.record(RecordedOperation::Move {
+                                            from: src.clone(),
+                                            to: dst.clone(),
+                                            was_cross_device: false,
+                                        });
                                         self.state.clipboard_entry = None;
+                                    } else {
+                                        self.fs_ledger.record(RecordedOperation::Copy {
+                                            src: src.clone(),
+                                            dest: dst.clone(),
+                                        });
                                     }
                                     self.refresh_dir().await;
                                     self.state.set_status(
-                                        format!("Pasted '{}'", filename.to_string_lossy()),
+                                        format!(
+                                            "Pasted '{}' (Press 'u' to undo)",
+                                            filename.to_string_lossy()
+                                        ),
                                         StatusKind::Success,
                                     );
                                 }
@@ -3177,19 +3413,36 @@ fn render_modal(
         widgets::{Block, BorderType, Borders, Clear, Paragraph},
     };
 
-    let (title, prompt) = match kind {
-        ModalKind::NewFile => ("New File", "Enter filename:"),
-        ModalKind::NewDir => ("New Directory", "Enter directory name:"),
-        ModalKind::Rename => ("Rename", "New name:"),
-        ModalKind::Delete => ("Confirm Delete", "Type 'y' to confirm:"),
-        ModalKind::PinFolder => ("Pin Folder", "Path to pin:"),
-        ModalKind::GoToLine => ("Go to Line", "Line number:"),
-        ModalKind::Message(m) => ("Info", m.as_str()),
-        ModalKind::Error(m) => ("Error", m.as_str()),
+    let (title, prompt, extra_info) = match kind {
+        ModalKind::NewFile => ("New File", "Enter filename:", None),
+        ModalKind::NewDir => ("New Directory", "Enter directory name:", None),
+        ModalKind::Rename => ("Rename", "New name:", None),
+        ModalKind::Delete => ("Move to Trash", "Type 'y' to send to Trash:", None),
+        ModalKind::DeletePermanent {
+            path,
+            is_dir,
+            item_count,
+        } => {
+            let info = format!(
+                "Target: {}\nContains: {} {} (Permanent, bypasses trash)",
+                path.display(),
+                item_count,
+                if *is_dir { "item(s)" } else { "file" }
+            );
+            (
+                "PERMANENT DELETE WARNING",
+                "Type 'DELETE' to confirm destruction:",
+                Some(info),
+            )
+        }
+        ModalKind::PinFolder => ("Pin Folder", "Path to pin:", None),
+        ModalKind::GoToLine => ("Go to Line", "Line number:", None),
+        ModalKind::Message(m) => ("Info", m.as_str(), None),
+        ModalKind::Error(m) => ("Error", m.as_str(), None),
     };
 
-    let popup_w = area.width.min(50);
-    let popup_h = 5u16;
+    let popup_w = area.width.min(65);
+    let popup_h = if extra_info.is_some() { 7u16 } else { 5u16 };
     let popup = Rect {
         x: area.x + (area.width.saturating_sub(popup_w)) / 2,
         y: area.y + (area.height / 2).saturating_sub(popup_h / 2),
@@ -3199,22 +3452,35 @@ fn render_modal(
 
     frame.render_widget(Clear, popup);
 
+    let border_style = if matches!(kind, ModalKind::DeletePermanent { .. }) {
+        theme.warning_style()
+    } else {
+        theme.border_focused_style()
+    };
+
     let block = Block::default()
         .title(Span::styled(format!(" {} ", title), theme.header_style()))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(theme.border_focused_style());
+        .border_style(border_style);
 
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
 
-    let lines = vec![
-        Line::from(Span::styled(prompt, theme.normal_style())),
-        Line::from(vec![
-            Span::styled("> ", theme.accent_style()),
-            Span::styled(input, Style::default().fg(ratatui::style::Color::White)),
-            Span::styled("█", theme.accent_style()),
-        ]),
-    ];
+    let mut lines = Vec::new();
+    if let Some(info) = extra_info {
+        for info_line in info.lines() {
+            lines.push(Line::from(Span::styled(
+                info_line.to_string(),
+                theme.warning_style(),
+            )));
+        }
+    }
+    lines.push(Line::from(Span::styled(prompt, theme.normal_style())));
+    lines.push(Line::from(vec![
+        Span::styled("> ", theme.accent_style()),
+        Span::styled(input, Style::default().fg(ratatui::style::Color::White)),
+        Span::styled("█", theme.accent_style()),
+    ]));
     frame.render_widget(Paragraph::new(lines), inner);
 }

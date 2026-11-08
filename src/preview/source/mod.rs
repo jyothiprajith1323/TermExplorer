@@ -34,8 +34,9 @@ impl SourcePreview {
         for line_result in reader.lines() {
             match line_result {
                 Ok(line) => {
-                    bytes_read += line.len() as u64 + 1;
-                    lines.push(line);
+                    let sanitized = crate::preview::sanitizer::sanitize_preview_line(&line);
+                    bytes_read += sanitized.len() as u64 + 1;
+                    lines.push(sanitized);
                     if lines.len() >= max_lines || bytes_read >= max_bytes {
                         truncated = true;
                         break;

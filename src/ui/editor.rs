@@ -32,8 +32,12 @@ pub fn render_editor(
         crate::editor::buffer::LineEnding::Lf => "LF",
         crate::editor::buffer::LineEnding::Crlf => "CRLF",
     };
+    let encoding_str = buf.encoding.label();
 
-    let title = format!(" ✏  {} {} [{}] ", file_name, dirty_marker, line_ending_str);
+    let title = format!(
+        " ✏  {} {} [{} | {}] ",
+        file_name, dirty_marker, encoding_str, line_ending_str
+    );
 
     let block = Block::default()
         .title(Span::styled(title, theme.header_style()))

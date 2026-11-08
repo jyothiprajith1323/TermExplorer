@@ -15,6 +15,7 @@ use crate::preview::pdf::PdfPreview;
 use crate::preview::source::SourcePreview;
 use crate::preview::video::VideoPreview;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PreviewTab {
@@ -93,6 +94,22 @@ impl PreviewManager {
         }
     }
 
+    pub fn get_cached(&mut self, path: &Path, tab: PreviewTab) -> Option<FullPreviewData> {
+        let modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();
+        if let Some(mut cached) = self.cache.get(path, modified) {
+            cached.active_tab = tab;
+            Some(cached)
+        } else {
+            None
+        }
+    }
+
+    pub fn insert_cache(&mut self, path: PathBuf, data: FullPreviewData) {
+        let modified = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
+        self.cache.insert(path, modified, data);
+    }
+
+    /// Load file using LRU cache or synchronous generation.
     pub fn load_file(
         &mut self,
         path: &Path,
@@ -115,8 +132,54 @@ impl PreviewManager {
             return cached;
         }
 
+        let full_data = Self::generate_preview_cancellable(
+            path,
+            tab,
+            self.max_preview_bytes,
+            preview_width,
+            preview_height,
+            None,
+        )
+        .unwrap_or_else(|| FullPreviewData::empty(path.to_path_buf()));
+
+        self.cache
+            .insert(path.to_path_buf(), modified, full_data.clone());
+        full_data
+    }
+
+    /// Generate full preview data with monotonic cancellation checking.
+    pub fn generate_preview_cancellable(
+        path: &Path,
+        tab: PreviewTab,
+        max_preview_bytes: u64,
+        preview_width: u32,
+        preview_height: u32,
+        cancel_token: Option<(&AtomicU64, u64)>,
+    ) -> Option<FullPreviewData> {
+        if !path.exists() {
+            let mut empty = FullPreviewData::empty(path.to_path_buf());
+            empty.active_tab = tab;
+            return Some(empty);
+        }
+
+        let is_cancelled = || -> bool {
+            if let Some((token, expected)) = cancel_token {
+                token.load(Ordering::Relaxed) != expected
+            } else {
+                false
+            }
+        };
+
+        if is_cancelled() {
+            return None;
+        }
+
         let format_info = detect_file_format(path);
         let metadata = DetailedMetadata::from_path(path);
+
+        if is_cancelled() {
+            return None;
+        }
 
         let mut source = None;
         let mut markdown = None;
@@ -133,7 +196,7 @@ impl PreviewManager {
         // Limit initial preview lines to 120 for fast syntax highlighting and rendering
         match format_info.category {
             FileCategory::SourceCode => {
-                source = Some(SourcePreview::load(path, self.max_preview_bytes, 120));
+                source = Some(SourcePreview::load(path, max_preview_bytes, 120));
             }
             FileCategory::Markdown => {
                 markdown = Some(MarkdownPreview::load(path, 120));
@@ -165,6 +228,10 @@ impl PreviewManager {
             FileCategory::BinaryHex | FileCategory::Other => {
                 // Will populate hex below
             }
+        }
+
+        if is_cancelled() {
+            return None;
         }
 
         // Always load Hex view for Hex tab or Binary files
@@ -207,7 +274,7 @@ impl PreviewManager {
             });
         }
 
-        let full_data = FullPreviewData {
+        Some(FullPreviewData {
             path: path.to_path_buf(),
             active_tab: tab,
             format_info,
@@ -224,10 +291,6 @@ impl PreviewManager {
             hex,
             database,
             actions,
-        };
-
-        self.cache
-            .insert(path.to_path_buf(), modified, full_data.clone());
-        full_data
+        })
     }
 }

@@ -73,6 +73,11 @@ pub enum AppMode {
 pub enum ModalKind {
     Rename,
     Delete,
+    DeletePermanent {
+        path: PathBuf,
+        is_dir: bool,
+        item_count: usize,
+    },
     NewFile,
     NewDir,
     PinFolder,
