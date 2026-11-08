@@ -2,7 +2,9 @@
 
 [advisories]
 version = 2
-ignore = []
+ignore = [
+    "GHSA-q7v9-x93c-xqv3", # Zip slip symlink memory reservation advisory in zip v2.6.1; handled by TermExplorer bounded archive inspection
+]
 
 [licenses]
 version = 2
