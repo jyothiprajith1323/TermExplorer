@@ -38,13 +38,19 @@ TermExplorer provides an integrated code editor built into the primary 75% Previ
 
 ## 2. Core Text Buffer Architecture
 
-### 2.1 Dual-Model Synchronized Engine: $O(\log N)$ Rope + $O(1)$ Line Cache
+### 2.1 Single Authoritative Source of Truth: $O(\log N)$ Rope with Synchronized Line-View Cache
 
 Traditional terminal text inputs either store flat strings ($O(N)$ copies on edits) or raw line vectors `Vec<String>`. In a 100,000-line source document, inserting a character into a flat string or cloning the line vector for undo operations duplicates tens of megabytes of RAM per keystroke.
 
-TermExplorer uses a synchronized dual-layer architecture:
-1. **Ropey B-Tree Rope (`ropey::Rope`):** Authoritative character B-Tree storage supporting $O(\log N)$ inserts, deletions, char-to-line, and line-to-char lookups across millions of characters.
-2. **Viewport Grapheme Line Cache (`Vec<String>`):** Provides zero-allocation random-access line slicing for Ratatui viewport rendering and Unicode grapheme cluster calculations.
+In Sprint 2.1, TermExplorer established a formal single source of truth hierarchy:
+1. **Authoritative B-Tree Rope (`self.rope: ropey::Rope`):** The single immutable truth for all document text, character indices, line breaks, and POSIX line terminators. All buffer mutations either directly mutate the rope or immediately synchronize back to it.
+2. **Synchronized Viewport Line Cache (`self.lines: Vec<String>`):** Maintained synchronously for zero-allocation random-access line slicing, Ratatui viewport rendering, and Unicode grapheme cluster calculations.
+3. **Trailing Newline Tracking (`self.has_trailing_newline: bool`):** Explicitly tracks whether the document ends with a POSIX trailing newline. This prevents fence-post errors where `ropey::Rope` creates a virtual trailing empty slice that would otherwise inflate document line counts by 1.
+4. **Invariant Assertion (`assert_invariants()`):** In development and property testing, every mutation guarantees:
+   - `self.lines.join(line_ending) == self.rope.to_string()`
+   - `self.cursor.row < self.lines.len()`
+   - `self.cursor.col <= self.lines[row].graphemes().count()`
+   - All secondary cursors remain within valid document and line boundaries.
 
 ### 2.2 Keystroke Execution Flow & Latency
 

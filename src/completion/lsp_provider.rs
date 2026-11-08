@@ -4,8 +4,10 @@
 
 use super::cancellation::CancellationToken;
 use super::provider::{CompletionContext, CompletionItem, CompletionItemKind, CompletionProvider};
+use crate::editor::lsp::{cursor_to_lsp_position, LspClient};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct LspServerInfo {
@@ -18,6 +20,7 @@ pub struct LspServerInfo {
 pub struct LspProvider {
     cancellation: Arc<CancellationToken>,
     servers: RwLock<HashMap<&'static str, Option<String>>>,
+    active_client: RwLock<Option<Arc<LspClient>>>,
 }
 
 impl LspProvider {
@@ -25,9 +28,24 @@ impl LspProvider {
         let provider = Self {
             cancellation: Arc::new(CancellationToken::new()),
             servers: RwLock::new(HashMap::new()),
+            active_client: RwLock::new(None),
         };
         provider.probe_system_servers();
         provider
+    }
+
+    /// Attach an active LSP client instance to this provider.
+    pub fn attach_client(&self, client: Arc<LspClient>) {
+        if let Ok(mut lock) = self.active_client.write() {
+            *lock = Some(client);
+        }
+    }
+
+    /// Detach the active LSP client.
+    pub fn detach_client(&self) {
+        if let Ok(mut lock) = self.active_client.write() {
+            *lock = None;
+        }
     }
 
     /// Probe PATH for known language server binaries.
@@ -103,6 +121,70 @@ impl CompletionProvider for LspProvider {
         let prefix = ctx.prefix;
         if prefix.len() < 2 {
             return Vec::new();
+        }
+
+        // 1. Try real LSP client if attached and ready
+        if let Ok(lock) = self.active_client.read() {
+            if let Some(ref client) = *lock {
+                if client.is_ready() {
+                    if let Some(file_path) = ctx.file_path {
+                        let line_str = ctx
+                            .lines
+                            .get(ctx.cursor_row)
+                            .map(String::as_str)
+                            .unwrap_or("");
+                        let (_, utf16_col) = cursor_to_lsp_position(line_str, ctx.cursor_col);
+                        let client_clone = Arc::clone(client);
+                        let p = file_path.to_path_buf();
+                        let row = ctx.cursor_row as u32;
+
+                        let lsp_res = std::thread::scope(|s| {
+                            s.spawn(move || {
+                                if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                                    .enable_all()
+                                    .build()
+                                {
+                                    rt.block_on(async {
+                                        tokio::time::timeout(
+                                            Duration::from_millis(150),
+                                            client_clone.completion(&p, row, utf16_col),
+                                        )
+                                        .await
+                                        .ok()?
+                                        .ok()
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
+                            .join()
+                            .ok()
+                            .flatten()
+                        });
+
+                        if let Some(items) = lsp_res {
+                            if !items.is_empty() {
+                                let mut real_results = Vec::new();
+                                for it in items {
+                                    if it.label.to_lowercase().starts_with(&prefix.to_lowercase()) {
+                                        real_results.push(CompletionItem {
+                                            label: it.label,
+                                            detail: it.detail.unwrap_or_else(|| "LSP".to_string()),
+                                            snippet_body: it.insert_text,
+                                            documentation: it.documentation,
+                                            kind: CompletionItemKind::Lsp,
+                                            score: 1100,
+                                        });
+                                    }
+                                }
+                                if !real_results.is_empty() {
+                                    return real_results;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         let mut results = Vec::new();

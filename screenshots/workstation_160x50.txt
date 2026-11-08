@@ -1,4 +1,4 @@
- ◆ TERMEXPLORER  󰲋 Workstation [🦀  R~ › TermExplorer │ 󰊢 master ● 55                           │ 󰻠 13% 󰍛 1.7 GB [ 󰍉 Search ]    [ ◇ Plugins ]   [ ⚙ Settings ]  
+ ◆ TERMEXPLORER  󰲋 Workstation [🦀  R~ › TermExplorer │ 󰊢 master ● 11                           │ 󰻠 12% 󰍛 2.5 GB [ 󰍉 Search ]    [ ◇ Plugins ]   [ ⚙ Settings ]  
 ╭ 󰝰 TermExplorer  │  󰒺 Name ▲ ─────────╮╭ [󰈈 Preview]  󰋽 Info  󰘳 Metadata  󰌒 Actions ──────────────────────────────────────────────────────────────────────────╮
 │ Name              Size     Modified  ││                                                                                                                      │
 │                                      ││                                                                                                                      │

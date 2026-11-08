@@ -1,8 +1,14 @@
-# TermExplorer Incremental Syntax Highlighting & Token Coloring
+# TermExplorer Syntax Highlighting & Tree-sitter Roadmap
 
 **Module:** `termexplorer::editor::syntax`  
-**Architecture Version:** V1.1.0-Sprint 2  
+**Architecture Version:** V1.1.0-Sprint 2.1  
+**Primary Engine:** Syntect Checkpointed Engine (See [SYNTAX_ENGINE_AUDIT.md](file:///home/prajith/TermExplorer/docs/SYNTAX_ENGINE_AUDIT.md))  
 **Theme:** Canonical Catppuccin Mocha  
+
+---
+
+> [!NOTE] Engine Clarification
+> Following the comprehensive Sprint 2.1 syntax audit, TermExplorer employs a high-performance **Syntect-based checkpointed regex engine** for syntax tokenization in the quick-edit pane. This provides zero-external-dependency builds, instant out-of-the-box support for 15+ languages, and sub-millisecond render latencies. Tree-sitter is preserved as a roadmap milestone for future structural code refactoring features.
 
 ---
 

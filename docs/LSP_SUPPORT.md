@@ -58,11 +58,36 @@ TermExplorer automatically probes the system `PATH` for the following servers:
 
 ---
 
-## Asynchronous Architecture & Stale Cancellation
+## Asynchronous Architecture, Framing & Cancellation (Sprint 2.1 Hardening)
 
-1. **Non-Blocking Execution**: Completion requests are dispatched asynchronously. The terminal UI never waits or blocks on LSP socket or pipe communication.
-2. **Generation Tokens (`CancellationToken`)**: Each keystroke increments an atomic generation token. When an asynchronous LSP response arrives, its token is compared against the active token. Stale responses from previous keystrokes are discarded immediately.
-3. **Graceful Fallback**: If no LSP binary is installed for a language, TermExplorer gracefully falls back to Layer 1 (Buffer Words), Layer 2 (Workspace Symbols), and Layer 3 (Snippets) without showing error banners or disrupting workflow.
+In Sprint 2.1, the LSP engine was upgraded to a production-grade, asynchronous JSON-RPC 2.0 client (`src/editor/lsp.rs`):
+
+### 1. HTTP-Style Header Framing
+LSP specifications mandate HTTP-style header framing over stdio pipes:
+* Format: `Content-Length: <size>\r\n\r\n<payload>`
+* The client implements dedicated streaming buffer parsing (`parse_content_length`) capable of handling chunked and batched stdout streams without data loss.
+
+### 2. UTF-16 Position Translation (LSP 3.17 Specification)
+The LSP specification requires line/character positions to be encoded in **UTF-16 code units**, whereas Rust buffers operate on Unicode grapheme clusters and character offsets:
+* `cursor_to_lsp_position(line, col)`: Converts buffer line and grapheme column into a zero-based LSP `Position { line, character }` where character is in UTF-16 code units (surrogate pairs count as 2).
+* `lsp_position_to_cursor_col(line, lsp_character)`: Converts incoming LSP UTF-16 character offsets back to buffer grapheme cluster indices.
+
+### 3. Tokio Actor Pattern
+* **Child Process Management:** Spawns language server subprocesses using `tokio::process::Command` with piped `stdin`, `stdout`, and `stderr`.
+* **Reader Task:** A dedicated background task reads stdio frames, routes server notifications (such as `textDocument/publishDiagnostics`), and fulfills pending request promises via `tokio::sync::oneshot`.
+* **Writer Task:** Manages a thread-safe MPSC channel for outbound requests.
+* **Pending Request Map:** Uses an `Arc<Mutex<HashMap<u64, oneshot::Sender<Value>>>>` to match responses to request IDs with configurable timeouts (default 500ms for completions).
+
+### 4. Cancellation Token Protocol
+When a user types rapidly, previous completion queries are superseded:
+* The client sends `$/cancelRequest` notification with `{ id: old_request_id }`.
+* Stale in-flight results are cleanly dropped, preventing outdated completion menus from flashing onto the screen.
+
+### 5. Verified Real Server Integration
+The implementation is validated against the real host `rust-analyzer 1.99.1` binary (`tests/lsp_real_tests.rs`):
+* `test_real_rust_analyzer_lifecycle_and_completions`: Full handshake (`initialize` -> `initialized` -> `textDocument/didOpen` -> `textDocument/completion` -> `shutdown` -> `exit`).
+* `test_lsp_server_missing_binary_resilience`: Seamless, crash-free fallback when server binary is absent.
+* `test_lsp_utf16_position_conversions`: Exact handling of ASCII, Cyrillic, CJK, and emoji surrogate pairs.
 
 ---
 

@@ -6,11 +6,14 @@ pub use crate::completion::editor::{
 };
 use std::path::Path;
 
+use unicode_segmentation::UnicodeSegmentation;
+
 /// A single completion candidate.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Completion {
     pub label: String,
     pub detail: Option<String>,
+    pub snippet_body: Option<String>,
     pub kind: CompletionKind,
 }
 
@@ -31,6 +34,7 @@ pub fn word_completions(lines: &[String], prefix: &str, max: usize) -> Vec<Compl
         .map(|it| Completion {
             label: it.label,
             detail: Some(it.detail),
+            snippet_body: it.snippet_body,
             kind: CompletionKind::Word,
         })
         .collect()
@@ -56,31 +60,36 @@ pub fn layered_completions(
             Completion {
                 label: it.label,
                 detail: Some(it.detail),
+                snippet_body: it.snippet_body,
                 kind,
             }
         })
         .collect()
 }
 
-/// Extract the word immediately before the cursor column in a line (char-safe).
+/// Extract the word immediately before the grapheme cursor column in a line.
+/// Unicode- and grapheme-safe for emoji, combining marks, and multibyte scripts.
 pub fn prefix_at(line: &str, col: usize) -> &str {
-    let chars: Vec<char> = line.chars().collect();
-    let end = col.min(chars.len());
-    let start = (0..end)
-        .rev()
-        .find(|&i| !chars[i].is_alphanumeric() && chars[i] != '_')
-        .map(|i| i + 1)
-        .unwrap_or(0);
-
-    let byte_start = line
-        .char_indices()
-        .nth(start)
-        .map(|(b, _)| b)
-        .unwrap_or(line.len());
-    let byte_end = line
-        .char_indices()
-        .nth(end)
-        .map(|(b, _)| b)
-        .unwrap_or(line.len());
+    let graphemes: Vec<(usize, &str)> = line.grapheme_indices(true).collect();
+    let col = col.min(graphemes.len());
+    let mut start_grapheme = col;
+    while start_grapheme > 0 {
+        let g = graphemes[start_grapheme - 1].1;
+        if g.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            start_grapheme -= 1;
+        } else {
+            break;
+        }
+    }
+    let byte_start = if start_grapheme < graphemes.len() {
+        graphemes[start_grapheme].0
+    } else {
+        line.len()
+    };
+    let byte_end = if col < graphemes.len() {
+        graphemes[col].0
+    } else {
+        line.len()
+    };
     &line[byte_start..byte_end]
 }

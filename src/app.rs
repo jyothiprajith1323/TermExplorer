@@ -1363,14 +1363,24 @@ impl App {
             (KeyModifiers::NONE, KeyCode::PageUp) => buf.move_page_up(20),
             (KeyModifiers::NONE, KeyCode::PageDown) => buf.move_page_down(20),
             (KeyModifiers::NONE, KeyCode::Enter) => {
-                buf.insert_newline();
-                buf.dismiss_completion();
+                if buf.completion.active {
+                    buf.accept_completion();
+                } else {
+                    buf.insert_newline();
+                    buf.dismiss_completion();
+                }
             }
             (KeyModifiers::NONE, KeyCode::Tab) => {
-                buf.insert_tab(self.state.config.editor.tab_width);
+                if buf.completion.active {
+                    buf.accept_completion();
+                } else if !buf.jump_next_snippet_tab_stop() {
+                    buf.insert_tab(self.state.config.editor.tab_width);
+                }
             }
             (KeyModifiers::NONE, KeyCode::Backspace) => {
-                if !auto_pair::handle_backspace(buf) {
+                if !buf.secondary_cursors.is_empty() {
+                    buf.backspace_multicursor();
+                } else if !auto_pair::handle_backspace(buf) {
                     buf.backspace();
                 }
                 buf.update_completion();
@@ -1380,7 +1390,9 @@ impl App {
                 buf.update_completion();
             }
             (KeyModifiers::NONE | KeyModifiers::SHIFT, KeyCode::Char(c)) => {
-                if self.state.config.editor.auto_pair {
+                if !buf.secondary_cursors.is_empty() {
+                    buf.insert_char_multicursor(c);
+                } else if self.state.config.editor.auto_pair {
                     if !auto_pair::handle_char(buf, c) {
                         buf.insert_char(c);
                     }

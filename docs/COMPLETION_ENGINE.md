@@ -78,14 +78,28 @@ flowchart TD
 
 ---
 
-## 3. Suggestion Popup UI & Interaction
+## 3. Suggestion Popup UI, Grapheme Safety & Snippet Expansion
 
+### 3.1 Grapheme-Safe Prefix Extraction (Sprint 2.1)
+Earlier implementations relied on simple ASCII byte/char scanning for prefix extraction. In Sprint 2.1, prefix extraction was upgraded to use `UnicodeSegmentation::grapheme_indices(true)`:
+* Safely slices the line up to the current cursor column without byte-boundary panics.
+* Identifies alphanumeric and underscore token boundaries (`[a-zA-Z0-9_]`).
+* Correctly handles identifiers immediately adjacent to multibyte emojis or punctuation.
+
+### 3.2 Snippet Placeholder Expansion & Tab Stops
+Snippets support dynamic placeholder tab stops (e.g., `${1:name}`, `${2:Type}`, `$0`):
+1. **Parsing:** `parse_snippet_tab_stops` strips placeholder markers during insertion and records the relative row and column offsets of each tab stop.
+2. **Tab Navigation:** The editor maintains `snippet_tab_stops: Vec<Cursor>`. Pressing `Tab` when no suggestion menu is active invokes `jump_next_snippet_tab_stop()`, sequentially navigating through placeholders until the final `$0` exit point.
+3. **Single Transactional Delta:** When accepting a completion, prefix deletion and body insertion are committed in a single atomic `UndoTransaction`, guaranteeing that `undo` reverses both the expanded text and the cursor jump cleanly.
+
+### 3.3 Visual Presentation & Interaction
 The floating suggestion popup is rendered inside `src/ui/editor.rs`:
 * **Smart Clamped Positioning:** Dynamically positioned adjacent to the cursor (below if room exists, otherwise above). Viewport-clamped horizontally and vertically so it never overflows off-screen.
 * **Badges & Visual Highlighting:** Clearly displays `[buf]`, `[snip]`, `[sym]`, and `[lsp]` in corresponding Catppuccin Mocha colors.
 * **Keyboard Interaction:**
   * `Down` / `Up`: Navigate candidate list with wrap-around.
-  * `Tab` / `Enter`: Accept selected completion and expand snippet.
+  * `Tab` / `Enter`: Accept selected completion, insert replacement, and focus first snippet tab stop.
+  * `Tab` (post-completion): Advance cursor to next snippet placeholder.
   * `Esc`: Dismiss suggestion box and return to normal editing.
   * Keystrokes: Automatically re-filter candidate list dynamically.
 

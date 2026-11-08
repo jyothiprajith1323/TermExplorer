@@ -1,4 +1,4 @@
- ◆ TERMEXPLORER  󰲋 IronKV [🦀  Rust (~ › TermExplorer │ │ 󰻠 13% 󰍛 1.7 GB [ 󰍉 Search ]    [ ◇ Plugins ]   [ ⚙ Settings ]  
+ ◆ TERMEXPLORER  󰲋 IronKV [🦀  Rust (~ › TermExplorer │ │ 󰻠 12% 󰍛 2.5 GB [ 󰍉 Search ]    [ ◇ Plugins ]   [ ⚙ Settings ]  
 ╭ 󰝰 TermExplorer ────────────╮╭ [󰈈 Preview]  󰋽 Info  󰘳 Metadata  󰌒 Actions ────────────────────────────────────────────╮
 │ Name               Size    ││                                                                                        │
 │                            ││                                                                                        │

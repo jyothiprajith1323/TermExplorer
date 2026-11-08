@@ -6,9 +6,45 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
 use std::sync::{OnceLock, RwLock};
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{Color as SynColor, Style, ThemeSet};
-use syntect::parsing::SyntaxSet;
+use syntect::highlighting::{
+    Color as SynColor, HighlightIterator, HighlightState, Highlighter as SynHighlighter, Style,
+    ThemeSet,
+};
+use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
 use syntect::util::LinesWithEndings;
+
+#[derive(Clone)]
+pub struct LineSyntaxState {
+    pub parse_state: ParseState,
+    pub highlight_state: HighlightState,
+}
+
+impl LineSyntaxState {
+    pub fn new(syntax: &SyntaxReference, highlighter: &SynHighlighter) -> Self {
+        let parse_state = ParseState::new(syntax);
+        let highlight_state = HighlightState::new(highlighter, ScopeStack::new());
+        Self {
+            parse_state,
+            highlight_state,
+        }
+    }
+
+    pub fn highlight_line<'a>(
+        &mut self,
+        line: &'a str,
+        syntax_set: &SyntaxSet,
+        highlighter: &SynHighlighter,
+    ) -> Vec<(Style, &'a str)> {
+        match self.parse_state.parse_line(line, syntax_set) {
+            Ok(ops) => {
+                let iter =
+                    HighlightIterator::new(&mut self.highlight_state, &ops[..], line, highlighter);
+                iter.collect()
+            }
+            Err(_) => vec![(Style::default(), line)],
+        }
+    }
+}
 
 /// A highlighted span: (foreground RGB: r, g, b, text content).
 pub type Span = (u8, u8, u8, String);
@@ -44,7 +80,8 @@ pub fn syntect_to_mocha(fg: SynColor) -> (u8, u8, u8) {
     let min_val = r.min(g).min(b);
     let delta = max_val - min_val;
 
-    if delta < 18 {
+    // Comments / Grayscale / Muted text (Base16-ocean comment is #65737e: 101, 115, 126 -> delta=25)
+    if delta <= 28 {
         if max_val < 140 {
             return mocha::OVERLAY0; // comments
         } else {
@@ -67,7 +104,7 @@ pub fn syntect_to_mocha(fg: SynColor) -> (u8, u8, u8) {
         mocha::SKY // operators
     } else if b > 160 && r < 150 {
         mocha::BLUE // functions / methods
-    } else if r > 150 && b > 150 && g < 140 {
+    } else if r > 150 && b > 150 && g < 160 {
         mocha::MAUVE // keywords
     } else {
         mocha::TEXT
@@ -88,18 +125,126 @@ pub fn get_highlighter() -> &'static Highlighter {
     })
 }
 
-// ── Incremental Line-Level Syntax Cache ─────────────────────────────────────
+// ── Incremental Line-Level Syntax Cache with LRU Eviction & Checkpoints ────
+
+pub const MAX_SYNTAX_CACHE_ENTRIES: usize = 4096;
+pub const CHECKPOINT_INTERVAL: usize = 64;
 
 #[derive(Debug, Clone)]
-struct CachedLine {
-    line_hash: u64,
-    spans: Vec<Span>,
+pub struct CachedLine {
+    pub line_hash: u64,
+    pub spans: Vec<Span>,
+    pub access_tick: u64,
 }
 
-static SYNTAX_CACHE: OnceLock<RwLock<HashMap<(u64, usize), CachedLine>>> = OnceLock::new();
+pub struct BoundedSyntaxCache {
+    entries: HashMap<(u64, usize), CachedLine>,
+    max_entries: usize,
+    clock: u64,
+}
 
-fn get_syntax_cache() -> &'static RwLock<HashMap<(u64, usize), CachedLine>> {
-    SYNTAX_CACHE.get_or_init(|| RwLock::new(HashMap::with_capacity(1024)))
+impl BoundedSyntaxCache {
+    pub fn new(max_entries: usize) -> Self {
+        Self {
+            entries: HashMap::with_capacity(max_entries),
+            max_entries,
+            clock: 0,
+        }
+    }
+
+    pub fn get(&mut self, key: &(u64, usize), current_line_hash: u64) -> Option<Vec<Span>> {
+        self.clock = self.clock.wrapping_add(1);
+        if let Some(entry) = self.entries.get_mut(key) {
+            if entry.line_hash == current_line_hash {
+                entry.access_tick = self.clock;
+                return Some(entry.spans.clone());
+            }
+        }
+        None
+    }
+
+    pub fn insert(&mut self, key: (u64, usize), line_hash: u64, spans: Vec<Span>) {
+        self.clock = self.clock.wrapping_add(1);
+        if self.entries.len() >= self.max_entries {
+            // Evict oldest 25% of entries by access_tick
+            let evict_count = self.max_entries / 4;
+            let mut items: Vec<((u64, usize), u64)> = self
+                .entries
+                .iter()
+                .map(|(&k, v)| (k, v.access_tick))
+                .collect();
+            items.sort_by_key(|&(_, tick)| tick);
+            for (k, _) in items.into_iter().take(evict_count) {
+                self.entries.remove(&k);
+            }
+        }
+        self.entries.insert(
+            key,
+            CachedLine {
+                line_hash,
+                spans,
+                access_tick: self.clock,
+            },
+        );
+    }
+
+    pub fn invalidate_from_line(&mut self, path_hash: u64, from_line: usize) {
+        self.entries
+            .retain(|&(p, row), _| p != path_hash || row < from_line);
+    }
+
+    pub fn invalidate_path(&mut self, path_hash: u64) {
+        self.entries.retain(|&(p, _), _| p != path_hash);
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
+static SYNTAX_CACHE: OnceLock<RwLock<BoundedSyntaxCache>> = OnceLock::new();
+static SYNTAX_CHECKPOINTS: OnceLock<
+    RwLock<HashMap<u64, std::collections::BTreeMap<usize, LineSyntaxState>>>,
+> = OnceLock::new();
+
+fn get_syntax_cache() -> &'static RwLock<BoundedSyntaxCache> {
+    SYNTAX_CACHE.get_or_init(|| RwLock::new(BoundedSyntaxCache::new(MAX_SYNTAX_CACHE_ENTRIES)))
+}
+
+fn get_checkpoints(
+) -> &'static RwLock<HashMap<u64, std::collections::BTreeMap<usize, LineSyntaxState>>> {
+    SYNTAX_CHECKPOINTS.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
+/// Invalidate cache and syntax checkpoints for a given path from a starting line index.
+pub fn invalidate_syntax_from_line(path: Option<&Path>, from_line: usize) {
+    let p_hash = hash_path(path);
+    if let Ok(mut cache) = get_syntax_cache().write() {
+        cache.invalidate_from_line(p_hash, from_line);
+    }
+    if let Ok(mut cp_map) = get_checkpoints().write() {
+        if let Some(tree) = cp_map.get_mut(&p_hash) {
+            let keys_to_remove: Vec<usize> = tree.range(from_line..).map(|(&k, _)| k).collect();
+            for k in keys_to_remove {
+                tree.remove(&k);
+            }
+        }
+    }
+}
+
+/// Invalidate entire syntax cache and checkpoints for a given path (e.g. tab close, rename).
+pub fn invalidate_syntax_cache_for_path(path: Option<&Path>) {
+    let p_hash = hash_path(path);
+    if let Ok(mut cache) = get_syntax_cache().write() {
+        cache.invalidate_path(p_hash);
+    }
+    if let Ok(mut cp_map) = get_checkpoints().write() {
+        cp_map.remove(&p_hash);
+    }
 }
 
 fn hash_path(path: Option<&Path>) -> u64 {
@@ -229,24 +374,21 @@ pub fn highlight_viewport(
     }
 
     let p_hash = hash_path(path);
-    let cache_lock = get_syntax_cache();
 
     // Check if entire viewport is already cached
     let mut all_cached = true;
     let mut cached_results = Vec::with_capacity(count);
 
-    if let Ok(cache) = cache_lock.read() {
+    if let Ok(mut cache) = get_syntax_cache().write() {
         for row in start_row..start_row + count {
             if let Some(line) = lines.get(row) {
                 let l_hash = hash_str(line);
-                if let Some(entry) = cache.get(&(p_hash, row)) {
-                    if entry.line_hash == l_hash {
-                        cached_results.push(entry.spans.clone());
-                        continue;
-                    }
+                if let Some(spans) = cache.get(&(p_hash, row), l_hash) {
+                    cached_results.push(spans);
+                } else {
+                    all_cached = false;
+                    break;
                 }
-                all_cached = false;
-                break;
             } else {
                 break;
             }
@@ -259,7 +401,7 @@ pub fn highlight_viewport(
         return cached_results;
     }
 
-    // Compute syntax highlighting
+    // Compute syntax highlighting using verified checkpoints for 100% multiline correctness
     let h = get_highlighter();
     let ext = path
         .and_then(|p| p.extension())
@@ -288,27 +430,43 @@ pub fn highlight_viewport(
             .get(theme_name)
             .or_else(|| h.ts.themes.values().next())
             .unwrap();
+    let syn_highlighter = SynHighlighter::new(theme);
 
-    let mut hl = HighlightLines::new(syntax, theme);
-    let mut result = Vec::with_capacity(count);
+    // Retrieve closest verified checkpoint <= start_row
+    let (mut current_row, mut state) = {
+        let mut found = None;
+        if let Ok(cp_map) = get_checkpoints().read() {
+            if let Some(tree) = cp_map.get(&p_hash) {
+                if let Some((&cp_line, cp_state)) = tree.range(..=start_row).next_back() {
+                    found = Some((cp_line, cp_state.clone()));
+                }
+            }
+        }
+        found.unwrap_or_else(|| (0, LineSyntaxState::new(syntax, &syn_highlighter)))
+    };
 
-    // Warm up state up to start_row for accurate multi-line parsing
-    let warmup_start = start_row.saturating_sub(100);
-    for row in warmup_start..start_row {
-        if let Some(line) = lines.get(row) {
-            let _ = hl.highlight_line(&format!("{line}\n"), &h.ss);
+    // Advance state from checkpoint up to start_row, capturing intermediate checkpoints
+    let mut intermediate_checkpoints = Vec::new();
+    while current_row < start_row {
+        if let Some(line) = lines.get(current_row) {
+            let line_with_nl = format!("{line}\n");
+            let _ = state.highlight_line(&line_with_nl, &h.ss, &syn_highlighter);
+            current_row += 1;
+            if current_row % CHECKPOINT_INTERVAL == 0 {
+                intermediate_checkpoints.push((current_row, state.clone()));
+            }
+        } else {
+            break;
         }
     }
 
+    let mut result = Vec::with_capacity(count);
     let mut new_entries = Vec::with_capacity(count);
 
     for row in start_row..start_row + count {
         if let Some(line) = lines.get(row) {
             let line_ending_str = format!("{line}\n");
-            let ranges: Vec<(Style, &str)> = match hl.highlight_line(&line_ending_str, &h.ss) {
-                Ok(r) => r,
-                Err(_) => vec![(Style::default(), &line_ending_str)],
-            };
+            let ranges = state.highlight_line(&line_ending_str, &h.ss, &syn_highlighter);
             let spans: Vec<Span> = ranges
                 .into_iter()
                 .map(|(style, text)| {
@@ -318,26 +476,32 @@ pub fn highlight_viewport(
                 .collect();
 
             let l_hash = hash_str(line);
-            new_entries.push((
-                (p_hash, row),
-                CachedLine {
-                    line_hash: l_hash,
-                    spans: spans.clone(),
-                },
-            ));
+            new_entries.push(((p_hash, row), l_hash, spans.clone()));
             result.push(spans);
+
+            let next_row = row + 1;
+            if next_row % CHECKPOINT_INTERVAL == 0 {
+                intermediate_checkpoints.push((next_row, state.clone()));
+            }
         } else {
             break;
         }
     }
 
-    // Populate incremental cache
-    if let Ok(mut cache) = cache_lock.write() {
-        if cache.len() > 8192 {
-            cache.clear();
+    // Save checkpoints
+    if !intermediate_checkpoints.is_empty() {
+        if let Ok(mut cp_map) = get_checkpoints().write() {
+            let tree = cp_map.entry(p_hash).or_default();
+            for (ck_row, ck_state) in intermediate_checkpoints {
+                tree.insert(ck_row, ck_state);
+            }
         }
-        for (k, v) in new_entries {
-            cache.insert(k, v);
+    }
+
+    // Populate bounded LRU cache
+    if let Ok(mut cache) = get_syntax_cache().write() {
+        for (k, l_hash, v) in new_entries {
+            cache.insert(k, l_hash, v);
         }
     }
 

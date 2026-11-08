@@ -51,13 +51,13 @@ impl LineEnding {
 
 // ── Cursor & Selection ──────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Cursor {
     pub row: usize,
     pub col: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Selection {
     pub anchor: Cursor,
     pub head: Cursor,
@@ -148,14 +148,18 @@ pub struct Buffer {
     pub line_ending: LineEnding,
     /// Detected or target file encoding.
     pub encoding: FileEncoding,
+    /// Whether the file has a trailing newline at EOF.
+    pub has_trailing_newline: bool,
     /// Internal rope structure for efficient large-document operations.
     pub rope: Rope,
+    /// Ordered tab stops for active snippet expansion.
+    pub snippet_tab_stops: Vec<Cursor>,
 }
 
 impl Buffer {
     /// Create a new, empty buffer.
     pub fn new() -> Self {
-        Self {
+        let mut buf = Self {
             path: None,
             lines: vec![String::new()],
             cursor: Cursor::default(),
@@ -173,8 +177,12 @@ impl Buffer {
             loaded_mtime: None,
             line_ending: LineEnding::Lf,
             encoding: FileEncoding::Utf8,
+            has_trailing_newline: false,
             rope: Rope::from_str(""),
-        }
+            snippet_tab_stops: Vec::new(),
+        };
+        buf.sync_lines_from_rope();
+        buf
     }
 
     /// Load a file into the buffer, recording mtime, detecting line endings, and handling encodings/BOM.
@@ -201,17 +209,13 @@ impl Buffer {
         } else {
             LineEnding::Lf
         };
+        let has_trailing_newline = content.ends_with('\n');
         let rope = Rope::from_str(&content);
-        let lines: Vec<String> = if content.is_empty() {
-            vec![String::new()]
-        } else {
-            content.lines().map(str::to_string).collect()
-        };
         let loaded_mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
 
-        Ok(Self {
+        let mut buf = Self {
             path: Some(path),
-            lines,
+            lines: Vec::new(),
             cursor: Cursor::default(),
             secondary_cursors: Vec::new(),
             selection: None,
@@ -227,14 +231,30 @@ impl Buffer {
             loaded_mtime,
             line_ending,
             encoding,
+            has_trailing_newline,
             rope,
-        })
+            snippet_tab_stops: Vec::new(),
+        };
+        buf.sync_lines_from_rope();
+        Ok(buf)
     }
 
-    /// Synchronize the internal rope with the current lines.
-    pub fn sync_rope(&mut self) {
+    /// Return the full serialized document text directly from lines and line endings.
+    pub fn text(&self) -> String {
+        if self.lines.is_empty() {
+            return String::new();
+        }
         let sep = self.line_ending.as_str();
-        self.rope = Rope::from_str(&self.lines.join(sep));
+        let mut s = self.lines.join(sep);
+        if self.has_trailing_newline {
+            s.push_str(sep);
+        }
+        s
+    }
+
+    /// Synchronize the internal rope with the current document text.
+    pub fn sync_rope(&mut self) {
+        self.rope = Rope::from_str(&self.text());
     }
 
     /// Ensure rope is synchronized if external code mutated `lines` directly.
@@ -244,9 +264,9 @@ impl Buffer {
         }
     }
 
-    /// Synchronize lines from the internal rope.
+    /// Synchronize lines from the authoritative internal rope.
     pub fn sync_lines_from_rope(&mut self) {
-        self.lines = self
+        let mut lines: Vec<String> = self
             .rope
             .lines()
             .map(|slice| {
@@ -260,8 +280,57 @@ impl Buffer {
                 s
             })
             .collect();
-        if self.lines.is_empty() {
-            self.lines.push(String::new());
+        if self.has_trailing_newline
+            && lines.len() > 1
+            && lines.last().map(|l| l.is_empty()).unwrap_or(false)
+        {
+            lines.pop();
+        }
+        if lines.is_empty() {
+            lines.push(String::new());
+        }
+        self.lines = lines;
+    }
+
+    /// Invariant check for tests: verifies that rope, line cache, and serialized
+    /// representations are in exact lockstep, and cursors are within valid bounds.
+    pub fn assert_invariants(&self) {
+        let text = self.text();
+        let rope_str = self.rope.to_string();
+        assert_eq!(
+            text, rope_str,
+            "Invariant violation: text() != rope.to_string()"
+        );
+        assert!(
+            self.cursor.row < self.lines.len(),
+            "Cursor row {} >= lines.len() {}",
+            self.cursor.row,
+            self.lines.len()
+        );
+        let cur_line = &self.lines[self.cursor.row];
+        let grapheme_count = cur_line.graphemes(true).count();
+        assert!(
+            self.cursor.col <= grapheme_count,
+            "Cursor col {} > graphemes {} on line {}",
+            self.cursor.col,
+            grapheme_count,
+            self.cursor.row
+        );
+        for (idx, sc) in self.secondary_cursors.iter().enumerate() {
+            assert!(
+                sc.row < self.lines.len(),
+                "Secondary cursor {idx} row {} >= lines.len() {}",
+                sc.row,
+                self.lines.len()
+            );
+            let sc_line = &self.lines[sc.row];
+            let sc_graphemes = sc_line.graphemes(true).count();
+            assert!(
+                sc.col <= sc_graphemes,
+                "Secondary cursor {idx} col {} > graphemes {}",
+                sc.col,
+                sc_graphemes
+            );
         }
     }
 
@@ -324,6 +393,11 @@ impl Buffer {
         self.redo_stack.clear();
     }
 
+    pub fn mark_dirty_and_invalidate_syntax(&mut self, from_row: usize) {
+        self.dirty = true;
+        crate::editor::syntax::invalidate_syntax_from_line(self.path.as_deref(), from_row);
+    }
+
     pub fn push_undo(&mut self) {
         self.redo_stack.clear();
     }
@@ -333,7 +407,7 @@ impl Buffer {
             self.apply_inverse_transaction(&tx);
             self.cursor = tx.cursor_before;
             self.clamp_cursor();
-            self.dirty = true;
+            self.mark_dirty_and_invalidate_syntax(tx.cursor_before.row.min(self.cursor.row));
             self.redo_stack.push(tx);
         }
     }
@@ -343,7 +417,7 @@ impl Buffer {
             self.apply_forward_transaction(&tx);
             self.cursor = tx.cursor_after;
             self.clamp_cursor();
-            self.dirty = true;
+            self.mark_dirty_and_invalidate_syntax(tx.cursor_after.row.min(self.cursor.row));
             self.undo_stack.push(tx);
         }
     }
@@ -809,7 +883,7 @@ impl Buffer {
             cursor_after,
         });
 
-        self.dirty = true;
+        self.mark_dirty_and_invalidate_syntax(start.row);
         self.clamp_cursor();
         Some(text)
     }
@@ -854,7 +928,7 @@ impl Buffer {
             cursor_before,
             cursor_after,
         });
-        self.dirty = true;
+        self.mark_dirty_and_invalidate_syntax(row);
     }
 
     pub fn insert_text(&mut self, text: &str) {
@@ -881,7 +955,7 @@ impl Buffer {
             cursor_before,
             cursor_after,
         });
-        self.dirty = true;
+        self.mark_dirty_and_invalidate_syntax(cursor_before.row);
     }
 
     pub fn insert_newline(&mut self) {
@@ -914,7 +988,8 @@ impl Buffer {
         self.cursor.col = indent.graphemes(true).count();
         let cursor_after = self.cursor;
 
-        let newline_text = format!("\n{indent}");
+        let sep = self.line_ending.as_str();
+        let newline_text = format!("{sep}{indent}");
         let insert_idx = char_idx.min(self.rope.len_chars());
         self.rope.insert(insert_idx, &newline_text);
 
@@ -926,7 +1001,7 @@ impl Buffer {
             cursor_before,
             cursor_after,
         });
-        self.dirty = true;
+        self.mark_dirty_and_invalidate_syntax(row);
     }
 
     pub fn backspace(&mut self) {
@@ -961,12 +1036,14 @@ impl Buffer {
                     cursor_before,
                     cursor_after,
                 });
-                self.dirty = true;
+                self.mark_dirty_and_invalidate_syntax(row);
             }
         } else if row > 0 {
             let cursor_before = self.cursor;
             let prev_len = self.lines[row - 1].graphemes(true).count();
             let char_idx = self.char_offset_for_cursor(row - 1, prev_len);
+            let sep = self.line_ending.as_str();
+            let sep_len = sep.chars().count();
 
             let cur = self.lines.remove(row);
             self.lines[row - 1].push_str(&cur);
@@ -974,19 +1051,19 @@ impl Buffer {
             self.cursor.col = prev_len;
             let cursor_after = self.cursor;
 
-            if char_idx < self.rope.len_chars() {
-                self.rope.remove(char_idx..char_idx + 1);
+            if char_idx + sep_len <= self.rope.len_chars() {
+                self.rope.remove(char_idx..char_idx + sep_len);
             }
 
             self.push_transaction(UndoTransaction {
                 deltas: vec![EditDelta::Delete {
                     char_idx,
-                    text: "\n".to_string(),
+                    text: sep.to_string(),
                 }],
                 cursor_before,
                 cursor_after,
             });
-            self.dirty = true;
+            self.mark_dirty_and_invalidate_syntax(row - 1);
         }
     }
 
@@ -1020,27 +1097,29 @@ impl Buffer {
                     cursor_before,
                     cursor_after,
                 });
-                self.dirty = true;
+                self.mark_dirty_and_invalidate_syntax(row);
             } else if row + 1 < self.lines.len() {
                 let cursor_before = self.cursor;
                 let char_idx = self.char_offset_for_cursor(row, graphemes.len());
+                let sep = self.line_ending.as_str();
+                let sep_len = sep.chars().count();
                 let next = self.lines.remove(row + 1);
                 self.lines[row].push_str(&next);
                 let cursor_after = self.cursor;
 
-                if char_idx < self.rope.len_chars() {
-                    self.rope.remove(char_idx..char_idx + 1);
+                if char_idx + sep_len <= self.rope.len_chars() {
+                    self.rope.remove(char_idx..char_idx + sep_len);
                 }
 
                 self.push_transaction(UndoTransaction {
                     deltas: vec![EditDelta::Delete {
                         char_idx,
-                        text: "\n".to_string(),
+                        text: sep.to_string(),
                     }],
                     cursor_before,
                     cursor_after,
                 });
-                self.dirty = true;
+                self.mark_dirty_and_invalidate_syntax(row);
             }
         }
     }
@@ -1122,7 +1201,7 @@ impl Buffer {
                 cursor_before,
                 cursor_after,
             });
-            self.dirty = true;
+            self.mark_dirty_and_invalidate_syntax(row);
             self.sync_rope();
         }
     }
@@ -1181,6 +1260,9 @@ impl Buffer {
         let char_idx = self.char_offset_for_cursor(row, 0);
         let cursor_before = self.cursor;
 
+        let sep = self.line_ending.as_str();
+        let sep_len = sep.chars().count();
+
         if self.lines.len() > 1 {
             let removed = self.lines.remove(row);
             self.clipboard = removed.clone();
@@ -1189,7 +1271,7 @@ impl Buffer {
             }
             let cursor_after = self.cursor;
 
-            let del_len = removed.chars().count() + 1; // +1 for newline
+            let del_len = removed.chars().count() + sep_len;
             if char_idx + del_len <= self.rope.len_chars() {
                 self.rope.remove(char_idx..char_idx + del_len);
             }
@@ -1197,7 +1279,7 @@ impl Buffer {
             self.push_transaction(UndoTransaction {
                 deltas: vec![EditDelta::Delete {
                     char_idx,
-                    text: format!("{removed}\n"),
+                    text: format!("{removed}{sep}"),
                 }],
                 cursor_before,
                 cursor_after,
@@ -1222,7 +1304,7 @@ impl Buffer {
                 cursor_after,
             });
         }
-        self.dirty = true;
+        self.mark_dirty_and_invalidate_syntax(row);
     }
 
     pub fn paste(&mut self) {
@@ -1303,7 +1385,7 @@ impl Buffer {
                     cursor_before,
                     cursor_after,
                 });
-                self.dirty = true;
+                self.mark_dirty_and_invalidate_syntax(row);
                 self.sync_rope();
                 return true;
             }
@@ -1340,7 +1422,7 @@ impl Buffer {
                 cursor_before: self.cursor,
                 cursor_after: self.cursor,
             });
-            self.dirty = true;
+            self.mark_dirty_and_invalidate_syntax(0);
             self.clamp_cursor();
             self.sync_rope();
         }
@@ -1454,16 +1536,11 @@ impl Buffer {
             LineEnding::Lf
         };
         let rope = Rope::from_str(&content);
-        let lines: Vec<String> = if content.is_empty() {
-            vec![String::new()]
-        } else {
-            content.lines().map(str::to_string).collect()
-        };
         let loaded_mtime = std::fs::metadata(path).and_then(|m| m.modified()).ok();
 
-        Ok(Self {
+        let mut buf = Self {
             path: Some(path.to_path_buf()),
-            lines,
+            lines: Vec::new(),
             cursor: Cursor::default(),
             secondary_cursors: Vec::new(),
             selection: None,
@@ -1479,8 +1556,12 @@ impl Buffer {
             loaded_mtime,
             line_ending,
             encoding: FileEncoding::Utf8,
+            has_trailing_newline: content.ends_with('\n'),
             rope,
-        })
+            snippet_tab_stops: Vec::new(),
+        };
+        buf.sync_lines_from_rope();
+        Ok(buf)
     }
 
     // ── Autocompletion ───────────────────────────────────────────────────────
@@ -1508,50 +1589,224 @@ impl Buffer {
         if !self.completion.active || self.completion.candidates.is_empty() {
             return false;
         }
+        self.ensure_rope_synced();
         let candidate = self.completion.candidates[self.completion.selected].clone();
-        let prefix_len = self.completion.prefix.graphemes(true).count();
+        let prefix_graphemes = self.completion.prefix.graphemes(true).count();
 
         let row = self.cursor.row;
         let col = self.cursor.col;
 
-        if col >= prefix_len {
+        if col >= prefix_graphemes {
             let cursor_before = self.cursor;
-            let char_idx = self.char_offset_for_cursor(row, col - prefix_len);
+            let start_col = col - prefix_graphemes;
+            let char_idx = self.char_offset_for_cursor(row, start_col);
 
-            let line = &mut self.lines[row];
-            let mut graphemes: Vec<String> = line.graphemes(true).map(str::to_string).collect();
-            let start = col - prefix_len;
-            let end = col.min(graphemes.len());
-            let deleted_prefix = graphemes.drain(start..end).collect::<String>();
-            *line = graphemes.concat();
-            self.cursor.col = start;
+            let (insert_text, tab_offsets) = if let Some(ref body) = candidate.snippet_body {
+                parse_snippet_tab_stops(body)
+            } else {
+                (candidate.label.clone(), Vec::new())
+            };
 
-            // Insert candidate label
-            let label = candidate.label.clone();
-            self.insert_text(&label);
+            let prefix_char_count = self.completion.prefix.chars().count();
+            if char_idx + prefix_char_count <= self.rope.len_chars() {
+                self.rope.remove(char_idx..char_idx + prefix_char_count);
+            }
+            self.rope.insert(char_idx, &insert_text);
+            self.sync_lines_from_rope();
+
+            if let Some(&first_tab) = tab_offsets.first() {
+                self.cursor = self.cursor_for_char_offset(char_idx + first_tab);
+                self.snippet_tab_stops = tab_offsets[1..]
+                    .iter()
+                    .map(|&off| self.cursor_for_char_offset(char_idx + off))
+                    .collect();
+            } else {
+                let end_char = char_idx + insert_text.chars().count();
+                self.cursor = self.cursor_for_char_offset(end_char);
+                self.snippet_tab_stops.clear();
+            }
             let cursor_after = self.cursor;
 
             self.push_transaction(UndoTransaction {
                 deltas: vec![
                     EditDelta::Delete {
                         char_idx,
-                        text: deleted_prefix,
+                        text: self.completion.prefix.clone(),
                     },
                     EditDelta::Insert {
                         char_idx,
-                        text: label,
+                        text: insert_text,
                     },
                 ],
                 cursor_before,
                 cursor_after,
             });
-            self.dirty = true;
-            self.sync_rope();
+            self.mark_dirty_and_invalidate_syntax(row);
+            self.clamp_cursor();
         }
 
         self.completion.active = false;
         self.completion.candidates.clear();
         true
+    }
+
+    /// Advance cursor to the next active snippet tab stop, if any.
+    pub fn jump_next_snippet_tab_stop(&mut self) -> bool {
+        if !self.snippet_tab_stops.is_empty() {
+            self.cursor = self.snippet_tab_stops.remove(0);
+            self.clamp_cursor();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Insert character across primary and all secondary cursors atomically.
+    pub fn insert_char_multicursor(&mut self, c: char) {
+        if self.secondary_cursors.is_empty() {
+            self.insert_char(c);
+            return;
+        }
+        self.ensure_rope_synced();
+        let s = c.to_string();
+        let mut cursors = self.all_cursors();
+        cursors.sort_by_key(|cur| (cur.row, cur.col));
+        cursors.dedup();
+
+        let s_len = s.chars().count();
+        let mut new_positions = std::collections::HashMap::new();
+        for (k, cur) in cursors.iter().enumerate() {
+            let orig_off = self.char_offset_for_cursor(cur.row, cur.col);
+            let new_off = orig_off + (k + 1) * s_len;
+            new_positions.insert(*cur, new_off);
+        }
+
+        let mut offset_cursors: Vec<(usize, Cursor)> = cursors
+            .into_iter()
+            .map(|cur| (self.char_offset_for_cursor(cur.row, cur.col), cur))
+            .collect();
+        offset_cursors.sort_by_key(|a| std::cmp::Reverse(a.0));
+
+        let mut deltas = Vec::new();
+        let cursor_before = self.cursor;
+
+        for (char_idx, _cur) in &offset_cursors {
+            let idx = (*char_idx).min(self.rope.len_chars());
+            self.rope.insert(idx, &s);
+            deltas.push(EditDelta::Insert {
+                char_idx: idx,
+                text: s.clone(),
+            });
+        }
+
+        self.sync_lines_from_rope();
+
+        if let Some(&new_off) = new_positions.get(&self.cursor) {
+            self.cursor = self.cursor_for_char_offset(new_off);
+        }
+        self.secondary_cursors = self
+            .secondary_cursors
+            .iter()
+            .map(|sc| {
+                if let Some(&new_off) = new_positions.get(sc) {
+                    self.cursor_for_char_offset(new_off)
+                } else {
+                    *sc
+                }
+            })
+            .collect();
+        let cursor_after = self.cursor;
+
+        self.push_transaction(UndoTransaction {
+            deltas: vec![EditDelta::Batch(deltas)],
+            cursor_before,
+            cursor_after,
+        });
+        self.mark_dirty_and_invalidate_syntax(0);
+    }
+
+    /// Backspace across primary and all secondary cursors atomically.
+    pub fn backspace_multicursor(&mut self) {
+        if self.secondary_cursors.is_empty() {
+            self.backspace();
+            return;
+        }
+        self.ensure_rope_synced();
+        let mut cursors = self.all_cursors();
+        cursors.sort_by_key(|cur| (cur.row, cur.col));
+        cursors.dedup();
+
+        let mut del_count = 0;
+        let mut new_positions = std::collections::HashMap::new();
+        for cur in &cursors {
+            let orig_off = self.char_offset_for_cursor(cur.row, cur.col);
+            if orig_off > 0 || cur.row > 0 {
+                del_count += 1;
+            }
+            let new_off = orig_off.saturating_sub(del_count);
+            new_positions.insert(*cur, new_off);
+        }
+
+        let mut offset_cursors: Vec<(usize, Cursor)> = cursors
+            .into_iter()
+            .map(|cur| (self.char_offset_for_cursor(cur.row, cur.col), cur))
+            .collect();
+        offset_cursors.sort_by_key(|a| std::cmp::Reverse(a.0));
+
+        let mut deltas = Vec::new();
+        let cursor_before = self.cursor;
+
+        for (char_idx, cur) in &offset_cursors {
+            if *char_idx > 0 {
+                let del_idx = char_idx - 1;
+                if del_idx < self.rope.len_chars() {
+                    let del_char = self.rope.char(del_idx).to_string();
+                    self.rope.remove(del_idx..del_idx + 1);
+                    deltas.push(EditDelta::Delete {
+                        char_idx: del_idx,
+                        text: del_char,
+                    });
+                }
+            } else if cur.row > 0 {
+                let sep = self.line_ending.as_str();
+                let sep_len = sep.chars().count();
+                let prev_offset = self.char_offset_for_cursor(cur.row - 1, 0);
+                if prev_offset + sep_len <= self.rope.len_chars() {
+                    self.rope.remove(prev_offset..prev_offset + sep_len);
+                    deltas.push(EditDelta::Delete {
+                        char_idx: prev_offset,
+                        text: sep.to_string(),
+                    });
+                }
+            }
+        }
+
+        self.sync_lines_from_rope();
+
+        if let Some(&new_off) = new_positions.get(&self.cursor) {
+            self.cursor = self.cursor_for_char_offset(new_off);
+        }
+        self.secondary_cursors = self
+            .secondary_cursors
+            .iter()
+            .map(|sc| {
+                if let Some(&new_off) = new_positions.get(sc) {
+                    self.cursor_for_char_offset(new_off)
+                } else {
+                    *sc
+                }
+            })
+            .collect();
+        let cursor_after = self.cursor;
+
+        if !deltas.is_empty() {
+            self.push_transaction(UndoTransaction {
+                deltas: vec![EditDelta::Batch(deltas)],
+                cursor_before,
+                cursor_after,
+            });
+            self.mark_dirty_and_invalidate_syntax(0);
+        }
     }
 
     pub fn completion_next(&mut self) {
@@ -1669,6 +1924,7 @@ impl EditorWorkspace {
             return None;
         }
         let removed = self.tabs.remove(idx);
+        crate::editor::syntax::invalidate_syntax_cache_for_path(removed.path.as_deref());
         if self.active_tab >= self.tabs.len() && !self.tabs.is_empty() {
             self.active_tab = self.tabs.len() - 1;
         }
@@ -1712,6 +1968,57 @@ impl EditorWorkspace {
     pub fn has_dirty_tabs(&self) -> bool {
         self.tabs.iter().any(|b| b.dirty)
     }
+}
+
+/// Parse snippet template into insertion string and ordered char offsets for tab stops.
+pub fn parse_snippet_tab_stops(snippet: &str) -> (String, Vec<usize>) {
+    let mut text = String::with_capacity(snippet.len());
+    let mut tab_stops: std::collections::BTreeMap<usize, usize> = std::collections::BTreeMap::new();
+    let chars: Vec<char> = snippet.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        if chars[i] == '$' && i + 1 < chars.len() {
+            if chars[i + 1] == '{' {
+                if let Some(close_brace) = chars[i + 2..].iter().position(|&c| c == '}') {
+                    let inner: String = chars[i + 2..i + 2 + close_brace].iter().collect();
+                    i = i + 3 + close_brace;
+                    if let Some(colon_pos) = inner.find(':') {
+                        let num_str = &inner[..colon_pos];
+                        let default_val = &inner[colon_pos + 1..];
+                        let num: usize = num_str.parse().unwrap_or(0);
+                        let offset = text.chars().count();
+                        tab_stops.insert(num, offset);
+                        text.push_str(default_val);
+                    } else {
+                        let num: usize = inner.parse().unwrap_or(0);
+                        let offset = text.chars().count();
+                        tab_stops.insert(num, offset);
+                    }
+                    continue;
+                }
+            } else if chars[i + 1].is_ascii_digit() {
+                let num: usize = chars[i + 1].to_digit(10).unwrap_or(0) as usize;
+                let offset = text.chars().count();
+                tab_stops.insert(num, offset);
+                i += 2;
+                continue;
+            }
+        }
+        text.push(chars[i]);
+        i += 1;
+    }
+
+    let mut ordered = Vec::new();
+    for (&k, &off) in &tab_stops {
+        if k > 0 {
+            ordered.push(off);
+        }
+    }
+    if let Some(&final_off) = tab_stops.get(&0) {
+        ordered.push(final_off);
+    }
+    (text, ordered)
 }
 
 #[cfg(test)]
