@@ -756,7 +756,11 @@ impl Buffer {
             .join("termexplorer/recovery");
         let mut hasher = Sha256::new();
         hasher.update(path.to_string_lossy().as_bytes());
-        let hash = format!("{:x}", hasher.finalize());
+        let hash: String = hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect();
         dir.join(format!("{}.rec", hash))
     }
 

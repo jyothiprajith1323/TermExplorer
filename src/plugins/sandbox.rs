@@ -77,7 +77,11 @@ impl PluginInstance {
         if let Some(expected_sha) = &manifest.sha256 {
             let mut hasher = Sha256::new();
             hasher.update(wasm_bytes);
-            let calculated = format!("{:x}", hasher.finalize());
+            let calculated: String = hasher
+                .finalize()
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect();
             if !calculated.eq_ignore_ascii_case(expected_sha.trim()) {
                 return Err(format!(
                     "Plugin integrity check failed: expected sha256 '{}', found '{}'",
