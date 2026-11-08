@@ -57,7 +57,10 @@ impl ArchivePreview {
 
         for i in 0..total_entries {
             if let Ok(entry) = archive.by_index(i) {
-                let name = entry.name().to_string();
+                let name = match entry.name() {
+                    Ok(n) => n.to_string(),
+                    Err(_) => continue,
+                };
                 let uncompressed_size = entry.size();
                 let compressed_size = Some(entry.compressed_size());
                 let is_dir = entry.is_dir();
