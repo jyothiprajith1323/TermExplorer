@@ -140,8 +140,10 @@ impl OfficePreview {
         let mut slide_count = 0;
         for i in 0..archive.len() {
             if let Ok(entry) = archive.by_index(i) {
-                if entry.name().starts_with("ppt/slides/slide") && entry.name().ends_with(".xml") {
-                    slide_count += 1;
+                if let Ok(name) = entry.name() {
+                    if name.starts_with("ppt/slides/slide") && name.ends_with(".xml") {
+                        slide_count += 1;
+                    }
                 }
             }
         }
