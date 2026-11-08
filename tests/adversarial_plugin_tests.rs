@@ -50,9 +50,11 @@ fn test_adversarial_infinite_loop_stopped_by_fuel_metering() {
         "Error message must indicate fuel exhaustion or trap, got: {}",
         err_msg
     );
+    let max_duration_ms = if cfg!(debug_assertions) { 2500 } else { 500 };
     assert!(
-        elapsed.as_millis() < 500,
-        "Fuel exhaustion should terminate in < 500ms (took {}ms)",
+        elapsed.as_millis() < max_duration_ms,
+        "Fuel exhaustion should terminate in < {}ms (took {}ms)",
+        max_duration_ms,
         elapsed.as_millis()
     );
 }
