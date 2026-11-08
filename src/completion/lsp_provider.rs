@@ -138,12 +138,58 @@ impl CompletionProvider for LspProvider {
                 ("strip()", "str.strip()", "Strip whitespace"),
                 ("split(sep)", "str.split()", "Split string"),
             ],
-            "c" | "cpp" => vec![
+            "c" | "cpp" | "h" | "hpp" => vec![
                 ("size()", "size_t size() const", "Container element count"),
                 ("push_back(val)", "void push_back()", "Add element to end"),
                 ("clear()", "void clear()", "Remove all elements"),
                 ("begin()", "iterator begin()", "Start iterator"),
                 ("end()", "iterator end()", "Past-the-end iterator"),
+            ],
+            "java" => vec![
+                (
+                    "equals(Object o)",
+                    "boolean equals()",
+                    "Check object equality",
+                ),
+                (
+                    "toString()",
+                    "String toString()",
+                    "Return string representation",
+                ),
+                ("hashCode()", "int hashCode()", "Return hash code"),
+                (
+                    "stream()",
+                    "Stream<T> stream()",
+                    "Sequential stream from collection",
+                ),
+            ],
+            "go" => vec![
+                ("Error()", "Error() string", "Format error message"),
+                ("Len()", "Len() int", "Return slice or collection length"),
+                ("Close()", "Close() error", "Close resource"),
+            ],
+            "js" | "ts" | "jsx" | "tsx" => vec![
+                (
+                    "forEach(fn)",
+                    "Array.forEach()",
+                    "Iterate over array elements",
+                ),
+                ("map(fn)", "Array.map()", "Transform array elements"),
+                ("filter(fn)", "Array.filter()", "Filter matching elements"),
+                (
+                    "reduce(fn, init)",
+                    "Array.reduce()",
+                    "Accumulate array values",
+                ),
+            ],
+            "sql" => vec![
+                ("COUNT(*)", "COUNT() -> integer", "Aggregate count of rows"),
+                (
+                    "COALESCE(a, b)",
+                    "COALESCE() -> expr",
+                    "First non-null expression",
+                ),
+                ("NOW()", "NOW() -> timestamp", "Current timestamp"),
             ],
             _ => vec![],
         };

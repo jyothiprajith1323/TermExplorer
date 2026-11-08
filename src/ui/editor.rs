@@ -33,10 +33,16 @@ pub fn render_editor(
         crate::editor::buffer::LineEnding::Crlf => "CRLF",
     };
     let encoding_str = buf.encoding.label();
+    let lang = buf
+        .path
+        .as_ref()
+        .and_then(|p| p.extension())
+        .map(|e| e.to_string_lossy().to_string())
+        .unwrap_or_else(|| "text".to_string());
 
     let title = format!(
-        " ✏  {} {} [{} | {}] ",
-        file_name, dirty_marker, encoding_str, line_ending_str
+        " ✏  {} {} [{} | {} | {} | 󰒍 LSP] ",
+        file_name, dirty_marker, lang, encoding_str, line_ending_str
     );
 
     let block = Block::default()
@@ -260,7 +266,7 @@ pub fn render_editor(
         .unwrap_or_else(|| "text".to_string());
 
     let status = format!(
-        " Ln {}, Col {} │ {} │ {} │ {} │ Ctrl+S Save │ Tab Accept │ Ctrl+Space Complete │ Esc Exit",
+        " Ln {}, Col {} │ {} │ {} │ {} │ Ctrl+S Save │ F2/Esc Exit │ Tab Accept │ Ctrl+Space Complete",
         buf.cursor.row + 1,
         buf.cursor.col + 1,
         lang,

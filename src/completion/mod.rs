@@ -22,6 +22,7 @@ pub mod snippets;
 pub mod workspace_symbols;
 
 pub use benchmark::CompletionBenchmarkMetrics;
+pub use buffer_words::BufferWordProvider;
 pub use editor::{
     buffer_word_completions, get_language_snippets, get_layered_completions, CodeSnippet,
     EditorCompletion, EditorCompletionKind, LspClientHook, WorkspaceIndexer, WorkspaceSymbol,

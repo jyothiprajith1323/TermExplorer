@@ -260,8 +260,8 @@ impl App {
                 return;
             }
 
-            // ── Full-screen editor mode ───────────────────────────────────
-            if matches!(state.mode, AppMode::Edit) {
+            // ── Full-screen editor mode (only when preview_maximized is active) ──
+            if matches!(state.mode, AppMode::Edit) && state.preview_maximized {
                 if let Some(buf) = editor_buf {
                     render_editor(frame, area, buf, state, theme);
                     return;
@@ -320,9 +320,15 @@ impl App {
                 render_secondary_explorer(frame, sec_area, state, theme);
             }
 
-            // ── Preview ───────────────────────────────────────────────────
+            // ── Preview / Embedded Editor Workspace (75% Panel) ───────────
             if let Some(prev_area) = areas.preview {
-                render_preview(frame, prev_area, state, theme, &mut hit_registry);
+                if matches!(state.mode, AppMode::Edit) {
+                    if let Some(buf) = editor_buf {
+                        render_editor(frame, prev_area, buf, state, theme);
+                    }
+                } else {
+                    render_preview(frame, prev_area, state, theme, &mut hit_registry);
+                }
             }
 
             // ── Bottom panel ──────────────────────────────────────────────
@@ -1296,6 +1302,47 @@ impl App {
             }
             (KeyModifiers::CONTROL, KeyCode::Char(' ') | KeyCode::Null) => {
                 buf.update_completion();
+            }
+            (KeyModifiers::NONE, KeyCode::F(2)) => {
+                if buf.dirty {
+                    self.state.mode = AppMode::Modal(ModalKind::Message(
+                        "Unsaved changes. Press Esc/F2 again to discard, Ctrl+S to save."
+                            .to_string(),
+                    ));
+                } else {
+                    self.state.mode = AppMode::Browse;
+                    self.state.focused = FocusedPanel::Explorer;
+                }
+            }
+            (KeyModifiers::ALT, KeyCode::Left) | (KeyModifiers::CONTROL, KeyCode::Left) => {
+                buf.move_word_left();
+            }
+            (KeyModifiers::ALT, KeyCode::Right) | (KeyModifiers::CONTROL, KeyCode::Right) => {
+                buf.move_word_right();
+            }
+            (KeyModifiers::ALT, KeyCode::Up) | (KeyModifiers::CONTROL, KeyCode::Up) => {
+                buf.move_paragraph_prev();
+            }
+            (KeyModifiers::ALT, KeyCode::Down) | (KeyModifiers::CONTROL, KeyCode::Down) => {
+                buf.move_paragraph_next();
+            }
+            (KeyModifiers::ALT, KeyCode::Backspace)
+            | (KeyModifiers::CONTROL, KeyCode::Backspace) => {
+                buf.delete_word_backward();
+                buf.update_completion();
+            }
+            (KeyModifiers::ALT, KeyCode::Delete) | (KeyModifiers::CONTROL, KeyCode::Delete) => {
+                buf.delete_word_forward();
+                buf.update_completion();
+            }
+            (KeyModifiers::CONTROL, KeyCode::Char('a')) => {
+                buf.select_all();
+            }
+            (KeyModifiers::CONTROL, KeyCode::Char('l')) => {
+                buf.select_line();
+            }
+            (KeyModifiers::CONTROL, KeyCode::Char('d')) => {
+                buf.select_word_at_cursor();
             }
             (KeyModifiers::NONE, KeyCode::Esc) => {
                 if buf.dirty {

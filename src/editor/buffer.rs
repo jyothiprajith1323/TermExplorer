@@ -1,6 +1,6 @@
 //! Text editor buffer — stores content using an efficient rope structure,
-//! handles cursor movement, undo/redo, visual selection, search/replace,
-//! Unicode grapheme safety, and atomic saving.
+//! handles cursor movement, transactional delta undo/redo, visual selection,
+//! search/replace, Unicode grapheme safety, and atomic saving.
 
 use crate::editor::completion::{layered_completions, prefix_at, Completion};
 use crate::filesystem::operations::save_file_atomic;
@@ -93,6 +93,22 @@ impl Selection {
     }
 }
 
+// ── Transactional Delta Undo/Redo ───────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EditDelta {
+    Insert { char_idx: usize, text: String },
+    Delete { char_idx: usize, text: String },
+    Batch(Vec<EditDelta>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UndoTransaction {
+    pub deltas: Vec<EditDelta>,
+    pub cursor_before: Cursor,
+    pub cursor_after: Cursor,
+}
+
 // ── Completion State ────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default)]
@@ -105,17 +121,19 @@ pub struct CompletionState {
 
 // ── Editor Buffer ───────────────────────────────────────────────────────────
 
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct Buffer {
     pub path: Option<PathBuf>,
     pub lines: Vec<String>,
     pub cursor: Cursor,
+    pub secondary_cursors: Vec<Cursor>,
     pub selection: Option<Selection>,
     pub dirty: bool,
     pub scroll_row: usize,
     pub scroll_col: usize,
-    undo_stack: Vec<(Vec<String>, Cursor)>,
-    redo_stack: Vec<(Vec<String>, Cursor)>,
+    undo_stack: Vec<UndoTransaction>,
+    redo_stack: Vec<UndoTransaction>,
     /// Clipboard (application-internal).
     clipboard: String,
     /// Active search query.
@@ -131,7 +149,7 @@ pub struct Buffer {
     /// Detected or target file encoding.
     pub encoding: FileEncoding,
     /// Internal rope structure for efficient large-document operations.
-    rope: Rope,
+    pub rope: Rope,
 }
 
 impl Buffer {
@@ -141,6 +159,7 @@ impl Buffer {
             path: None,
             lines: vec![String::new()],
             cursor: Cursor::default(),
+            secondary_cursors: Vec::new(),
             selection: None,
             dirty: false,
             scroll_row: 0,
@@ -194,6 +213,7 @@ impl Buffer {
             path: Some(path),
             lines,
             cursor: Cursor::default(),
+            secondary_cursors: Vec::new(),
             selection: None,
             dirty: false,
             scroll_row: 0,
@@ -217,44 +237,168 @@ impl Buffer {
         self.rope = Rope::from_str(&self.lines.join(sep));
     }
 
-    /// Return total character length of the entire buffer.
-    pub fn total_char_len(&self) -> usize {
-        self.lines
-            .iter()
-            .map(|l| l.graphemes(true).count() + 1)
-            .sum()
+    /// Ensure rope is synchronized if external code mutated `lines` directly.
+    pub fn ensure_rope_synced(&mut self) {
+        if self.rope.len_chars() == 0 && (self.lines.len() > 1 || !self.lines[0].is_empty()) {
+            self.sync_rope();
+        }
     }
 
-    // ── Undo/Redo ────────────────────────────────────────────────────────────
+    /// Synchronize lines from the internal rope.
+    pub fn sync_lines_from_rope(&mut self) {
+        self.lines = self
+            .rope
+            .lines()
+            .map(|slice| {
+                let mut s = slice.to_string();
+                if s.ends_with("\r\n") {
+                    s.pop();
+                    s.pop();
+                } else if s.ends_with('\n') {
+                    s.pop();
+                }
+                s
+            })
+            .collect();
+        if self.lines.is_empty() {
+            self.lines.push(String::new());
+        }
+    }
 
-    fn push_undo(&mut self) {
-        self.undo_stack.push((self.lines.clone(), self.cursor));
-        // Bound stack depth to prevent unbounded memory growth.
-        if self.undo_stack.len() > 300 {
+    /// Return total character length of the entire buffer.
+    pub fn total_char_len(&self) -> usize {
+        self.rope.len_chars()
+    }
+
+    /// Convert row and grapheme column into absolute char index in rope.
+    pub fn char_offset_for_cursor(&self, row: usize, col: usize) -> usize {
+        if row >= self.lines.len() {
+            return self.rope.len_chars();
+        }
+        let line_start = if row < self.rope.len_lines() {
+            self.rope.line_to_char(row)
+        } else {
+            self.rope.len_chars()
+        };
+        let char_in_line: usize = self.lines[row]
+            .graphemes(true)
+            .take(col)
+            .map(|g| g.chars().count())
+            .sum();
+        (line_start + char_in_line).min(self.rope.len_chars())
+    }
+
+    /// Convert char index in rope into Cursor (row and grapheme col).
+    pub fn cursor_for_char_offset(&self, char_idx: usize) -> Cursor {
+        let clamped_idx = char_idx.min(self.rope.len_chars());
+        let row = self.rope.char_to_line(clamped_idx);
+        let line_start = self.rope.line_to_char(row);
+        let char_in_line = clamped_idx.saturating_sub(line_start);
+
+        let col = if row < self.lines.len() {
+            let mut count = 0;
+            let mut accumulated_chars = 0;
+            for g in self.lines[row].graphemes(true) {
+                let g_chars = g.chars().count();
+                if accumulated_chars + g_chars > char_in_line {
+                    break;
+                }
+                accumulated_chars += g_chars;
+                count += 1;
+            }
+            count
+        } else {
+            0
+        };
+
+        Cursor { row, col }
+    }
+
+    // ── Transactional Undo/Redo ──────────────────────────────────────────────
+
+    pub fn push_transaction(&mut self, tx: UndoTransaction) {
+        self.undo_stack.push(tx);
+        if self.undo_stack.len() > 1000 {
             self.undo_stack.remove(0);
         }
         self.redo_stack.clear();
     }
 
+    pub fn push_undo(&mut self) {
+        self.redo_stack.clear();
+    }
+
     pub fn undo(&mut self) {
-        if let Some((lines, cursor)) = self.undo_stack.pop() {
-            self.redo_stack.push((self.lines.clone(), self.cursor));
-            self.lines = lines;
-            self.cursor = cursor;
-            self.dirty = true;
+        if let Some(tx) = self.undo_stack.pop() {
+            self.apply_inverse_transaction(&tx);
+            self.cursor = tx.cursor_before;
             self.clamp_cursor();
-            self.sync_rope();
+            self.dirty = true;
+            self.redo_stack.push(tx);
         }
     }
 
     pub fn redo(&mut self) {
-        if let Some((lines, cursor)) = self.redo_stack.pop() {
-            self.undo_stack.push((self.lines.clone(), self.cursor));
-            self.lines = lines;
-            self.cursor = cursor;
-            self.dirty = true;
+        if let Some(tx) = self.redo_stack.pop() {
+            self.apply_forward_transaction(&tx);
+            self.cursor = tx.cursor_after;
             self.clamp_cursor();
-            self.sync_rope();
+            self.dirty = true;
+            self.undo_stack.push(tx);
+        }
+    }
+
+    fn apply_inverse_transaction(&mut self, tx: &UndoTransaction) {
+        for delta in tx.deltas.iter().rev() {
+            self.invert_delta(delta);
+        }
+        self.sync_lines_from_rope();
+    }
+
+    fn invert_delta(&mut self, delta: &EditDelta) {
+        match delta {
+            EditDelta::Insert { char_idx, text } => {
+                let len = text.chars().count();
+                if *char_idx + len <= self.rope.len_chars() {
+                    self.rope.remove(*char_idx..*char_idx + len);
+                }
+            }
+            EditDelta::Delete { char_idx, text } => {
+                let idx = (*char_idx).min(self.rope.len_chars());
+                self.rope.insert(idx, text);
+            }
+            EditDelta::Batch(sub_deltas) => {
+                for sub in sub_deltas.iter().rev() {
+                    self.invert_delta(sub);
+                }
+            }
+        }
+    }
+
+    fn apply_forward_transaction(&mut self, tx: &UndoTransaction) {
+        for delta in &tx.deltas {
+            self.apply_delta(delta);
+        }
+        self.sync_lines_from_rope();
+    }
+
+    fn apply_delta(&mut self, delta: &EditDelta) {
+        match delta {
+            EditDelta::Insert { char_idx, text } => {
+                let idx = (*char_idx).min(self.rope.len_chars());
+                self.rope.insert(idx, text);
+            }
+            EditDelta::Delete { char_idx, text } => {
+                let len = text.chars().count();
+                if *char_idx + len <= self.rope.len_chars() {
+                    self.rope.remove(*char_idx..*char_idx + len);
+                }
+            }
+            EditDelta::Batch(sub_deltas) => {
+                for sub in sub_deltas {
+                    self.apply_delta(sub);
+                }
+            }
         }
     }
 
@@ -266,7 +410,7 @@ impl Buffer {
         !self.redo_stack.is_empty()
     }
 
-    // ── Cursor Movement ──────────────────────────────────────────────────────
+    // ── Cursor & Selection Management ────────────────────────────────────────
 
     pub fn clamp_cursor(&mut self) {
         if self.lines.is_empty() {
@@ -282,6 +426,14 @@ impl Buffer {
             .get(self.cursor.row)
             .map(|s| s.as_str())
             .unwrap_or("")
+    }
+
+    pub fn goto_line(&mut self, line: usize) {
+        if line > 0 && line <= self.lines.len() {
+            self.cursor.row = line - 1;
+            self.cursor.col = 0;
+            self.clamp_cursor();
+        }
     }
 
     pub fn move_up(&mut self) {
@@ -318,7 +470,6 @@ impl Buffer {
     }
 
     pub fn move_home(&mut self) {
-        // Smart home: first non-whitespace grapheme, then column 0.
         let first_nonws = self
             .current_line()
             .graphemes(true)
@@ -345,21 +496,157 @@ impl Buffer {
         self.clamp_cursor();
     }
 
-    pub fn goto_line(&mut self, line: usize) {
-        self.cursor.row = line
-            .saturating_sub(1)
-            .min(self.lines.len().saturating_sub(1));
+    pub fn move_word_left(&mut self) {
+        if self.cursor.col == 0 {
+            if self.cursor.row > 0 {
+                self.cursor.row -= 1;
+                self.cursor.col = self.lines[self.cursor.row].graphemes(true).count();
+            }
+            return;
+        }
+        let graphemes: Vec<&str> = self.current_line().graphemes(true).collect();
+        let mut col = self.cursor.col.min(graphemes.len());
+        while col > 0 && graphemes[col - 1].chars().all(|c| c.is_whitespace()) {
+            col -= 1;
+        }
+        while col > 0
+            && graphemes[col - 1]
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_')
+        {
+            col -= 1;
+        }
+        self.cursor.col = col;
+    }
+
+    pub fn move_word_right(&mut self) {
+        let graphemes: Vec<&str> = self.current_line().graphemes(true).collect();
+        let count = graphemes.len();
+        if self.cursor.col >= count {
+            if self.cursor.row + 1 < self.lines.len() {
+                self.cursor.row += 1;
+                self.cursor.col = 0;
+            }
+            return;
+        }
+        let mut col = self.cursor.col;
+        while col < count
+            && graphemes[col]
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_')
+        {
+            col += 1;
+        }
+        while col < count && graphemes[col].chars().all(|c| c.is_whitespace()) {
+            col += 1;
+        }
+        self.cursor.col = col;
+    }
+
+    pub fn delete_word_backward(&mut self) {
+        if self.cursor.col == 0 && self.cursor.row == 0 {
+            return;
+        }
+        let start_cursor = self.cursor;
+        self.move_word_left();
+        let target_cursor = self.cursor;
+        self.cursor = start_cursor;
+        self.selection = Some(Selection::new(target_cursor, start_cursor));
+        self.delete_selection();
+    }
+
+    pub fn delete_word_forward(&mut self) {
+        let start_cursor = self.cursor;
+        self.move_word_right();
+        let target_cursor = self.cursor;
+        self.cursor = start_cursor;
+        self.selection = Some(Selection::new(start_cursor, target_cursor));
+        self.delete_selection();
+    }
+
+    pub fn move_paragraph_prev(&mut self) {
+        if self.cursor.row == 0 {
+            self.cursor.col = 0;
+            return;
+        }
+        let mut r = self.cursor.row.saturating_sub(1);
+        while r > 0
+            && self
+                .lines
+                .get(r)
+                .map(|l| l.trim().is_empty())
+                .unwrap_or(false)
+        {
+            r -= 1;
+        }
+        while r > 0
+            && self
+                .lines
+                .get(r)
+                .map(|l| !l.trim().is_empty())
+                .unwrap_or(false)
+        {
+            r -= 1;
+        }
+        self.cursor.row = r;
         self.cursor.col = 0;
+    }
+
+    pub fn move_paragraph_next(&mut self) {
+        let max = self.lines.len().saturating_sub(1);
+        if self.cursor.row >= max {
+            self.cursor.col = self.current_line().graphemes(true).count();
+            return;
+        }
+        let mut r = self.cursor.row + 1;
+        while r < max
+            && self
+                .lines
+                .get(r)
+                .map(|l| !l.trim().is_empty())
+                .unwrap_or(false)
+        {
+            r += 1;
+        }
+        while r < max
+            && self
+                .lines
+                .get(r)
+                .map(|l| l.trim().is_empty())
+                .unwrap_or(false)
+        {
+            r += 1;
+        }
+        self.cursor.row = r;
+        self.cursor.col = 0;
+    }
+
+    pub fn add_cursor(&mut self, cursor: Cursor) {
+        if cursor != self.cursor && !self.secondary_cursors.contains(&cursor) {
+            self.secondary_cursors.push(cursor);
+        }
+    }
+
+    pub fn clear_secondary_cursors(&mut self) {
+        self.secondary_cursors.clear();
+    }
+
+    pub fn all_cursors(&self) -> Vec<Cursor> {
+        let mut all = vec![self.cursor];
+        all.extend(self.secondary_cursors.iter().copied());
+        all
     }
 
     // ── Visual Selection ─────────────────────────────────────────────────────
 
     pub fn start_selection(&mut self) {
-        self.selection = Some(Selection::new(self.cursor, self.cursor));
+        if self.selection.is_none() {
+            self.selection = Some(Selection::new(self.cursor, self.cursor));
+        }
     }
 
     pub fn update_selection(&mut self) {
-        if let Some(sel) = &mut self.selection {
+        if let Some(ref mut sel) = self.selection {
             sel.head = self.cursor;
         }
     }
@@ -370,6 +657,67 @@ impl Buffer {
 
     pub fn has_selection(&self) -> bool {
         self.selection.as_ref().is_some_and(|s| !s.is_empty())
+    }
+
+    pub fn select_all(&mut self) {
+        let start = Cursor { row: 0, col: 0 };
+        let end_row = self.lines.len().saturating_sub(1);
+        let end_col = self
+            .lines
+            .last()
+            .map(|l| l.graphemes(true).count())
+            .unwrap_or(0);
+        let end = Cursor {
+            row: end_row,
+            col: end_col,
+        };
+        self.selection = Some(Selection::new(start, end));
+        self.cursor = end;
+    }
+
+    pub fn select_line(&mut self) {
+        let row = self.cursor.row;
+        let start = Cursor { row, col: 0 };
+        let end = Cursor {
+            row,
+            col: self.current_line().graphemes(true).count(),
+        };
+        self.selection = Some(Selection::new(start, end));
+        self.cursor = end;
+    }
+
+    pub fn select_word_at_cursor(&mut self) {
+        let graphemes: Vec<&str> = self.current_line().graphemes(true).collect();
+        if graphemes.is_empty() {
+            return;
+        }
+        let col = self.cursor.col.min(graphemes.len().saturating_sub(1));
+        let mut start_col = col;
+        while start_col > 0
+            && graphemes[start_col - 1]
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_')
+        {
+            start_col -= 1;
+        }
+        let mut end_col = col;
+        while end_col < graphemes.len()
+            && graphemes[end_col]
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_')
+        {
+            end_col += 1;
+        }
+        let start = Cursor {
+            row: self.cursor.row,
+            col: start_col,
+        };
+        let end = Cursor {
+            row: self.cursor.row,
+            col: end_col,
+        };
+        self.selection = Some(Selection::new(start, end));
+        self.cursor = end;
     }
 
     pub fn selected_text(&self) -> Option<String> {
@@ -407,12 +755,14 @@ impl Buffer {
     }
 
     pub fn delete_selection(&mut self) -> Option<String> {
+        self.ensure_rope_synced();
         let text = self.selected_text()?;
         let sel = self.selection.take()?;
         let start = sel.start();
         let end = sel.end();
 
-        self.push_undo();
+        let cursor_before = self.cursor;
+        let char_idx = self.char_offset_for_cursor(start.row, start.col);
 
         if start.row == end.row {
             let line = &mut self.lines[start.row];
@@ -443,42 +793,45 @@ impl Buffer {
         }
 
         self.cursor = start;
+        let cursor_after = self.cursor;
+
+        let del_len = text.chars().count();
+        if char_idx + del_len <= self.rope.len_chars() {
+            self.rope.remove(char_idx..char_idx + del_len);
+        }
+
+        self.push_transaction(UndoTransaction {
+            deltas: vec![EditDelta::Delete {
+                char_idx,
+                text: text.clone(),
+            }],
+            cursor_before,
+            cursor_after,
+        });
+
         self.dirty = true;
         self.clamp_cursor();
-        self.sync_rope();
         Some(text)
     }
 
-    // ── Editing Operations (Unicode / Grapheme Safe) ─────────────────────────
+    // ── Editing Operations (Unicode / Grapheme Safe & Delta Tracked) ─────────
 
-    /// Insert a character at the current cursor position safely without UTF-8 slicing panics.
     pub fn insert_char(&mut self, c: char) {
-        self.push_undo();
-        self.insert_char_no_undo(c);
-        self.dirty = true;
-        self.sync_rope();
-    }
-
-    fn insert_char_no_undo(&mut self, c: char) {
         let s = c.to_string();
-        self.insert_grapheme_no_undo(&s);
+        self.insert_grapheme(&s);
     }
 
-    /// Insert a grapheme cluster at the current cursor position safely.
     pub fn insert_grapheme(&mut self, g: &str) {
-        self.push_undo();
-        self.insert_grapheme_no_undo(g);
-        self.dirty = true;
-        self.sync_rope();
-    }
-
-    fn insert_grapheme_no_undo(&mut self, g: &str) {
+        self.ensure_rope_synced();
         let row = self.cursor.row;
         let col = self.cursor.col;
 
         while self.lines.len() <= row {
             self.lines.push(String::new());
         }
+
+        let char_idx = self.char_offset_for_cursor(row, col);
+        let cursor_before = self.cursor;
 
         let mut graphemes: Vec<String> = self.lines[row]
             .graphemes(true)
@@ -488,34 +841,51 @@ impl Buffer {
         graphemes.insert(safe_col, g.to_string());
         self.lines[row] = graphemes.concat();
         self.cursor.col = safe_col + 1;
+        let cursor_after = self.cursor;
+
+        let insert_idx = char_idx.min(self.rope.len_chars());
+        self.rope.insert(insert_idx, g);
+
+        self.push_transaction(UndoTransaction {
+            deltas: vec![EditDelta::Insert {
+                char_idx: insert_idx,
+                text: g.to_string(),
+            }],
+            cursor_before,
+            cursor_after,
+        });
+        self.dirty = true;
     }
 
-    /// Insert arbitrary multi-line text at cursor (for snippets, completions, paste).
     pub fn insert_text(&mut self, text: &str) {
         if text.is_empty() {
             return;
         }
-        self.push_undo();
-        for g in text.graphemes(true) {
-            if g == "\n" {
-                self.insert_newline_no_undo();
-            } else if g != "\r" {
-                self.insert_grapheme_no_undo(g);
-            }
-        }
+        self.ensure_rope_synced();
+        let cursor_before = self.cursor;
+        let char_idx = self.char_offset_for_cursor(cursor_before.row, cursor_before.col);
+
+        let insert_idx = char_idx.min(self.rope.len_chars());
+        self.rope.insert(insert_idx, text);
+        self.sync_lines_from_rope();
+
+        let new_cursor_char = insert_idx + text.chars().count();
+        self.cursor = self.cursor_for_char_offset(new_cursor_char);
+        let cursor_after = self.cursor;
+
+        self.push_transaction(UndoTransaction {
+            deltas: vec![EditDelta::Insert {
+                char_idx: insert_idx,
+                text: text.to_string(),
+            }],
+            cursor_before,
+            cursor_after,
+        });
         self.dirty = true;
-        self.sync_rope();
     }
 
-    /// Insert a newline with auto-indentation matching the current line.
     pub fn insert_newline(&mut self) {
-        self.push_undo();
-        self.insert_newline_no_undo();
-        self.dirty = true;
-        self.sync_rope();
-    }
-
-    fn insert_newline_no_undo(&mut self) {
+        self.ensure_rope_synced();
         let row = self.cursor.row;
         let col = self.cursor.col;
 
@@ -535,15 +905,32 @@ impl Buffer {
         let prefix: String = graphemes[..safe_col].concat();
         let suffix: String = graphemes[safe_col..].concat();
 
+        let cursor_before = self.cursor;
+        let char_idx = self.char_offset_for_cursor(row, col);
+
         self.lines[row] = prefix;
         self.lines.insert(row + 1, format!("{indent}{suffix}"));
         self.cursor.row += 1;
         self.cursor.col = indent.graphemes(true).count();
+        let cursor_after = self.cursor;
+
+        let newline_text = format!("\n{indent}");
+        let insert_idx = char_idx.min(self.rope.len_chars());
+        self.rope.insert(insert_idx, &newline_text);
+
+        self.push_transaction(UndoTransaction {
+            deltas: vec![EditDelta::Insert {
+                char_idx: insert_idx,
+                text: newline_text,
+            }],
+            cursor_before,
+            cursor_after,
+        });
+        self.dirty = true;
     }
 
-    /// Backspace at the current cursor position (grapheme-safe).
     pub fn backspace(&mut self) {
-        self.push_undo();
+        self.ensure_rope_synced();
         let row = self.cursor.row;
         let col = self.cursor.col;
 
@@ -554,24 +941,57 @@ impl Buffer {
                 .collect();
             let safe_col = col.min(graphemes.len());
             if safe_col > 0 {
-                graphemes.remove(safe_col - 1);
+                let cursor_before = self.cursor;
+                let char_idx = self.char_offset_for_cursor(row, safe_col - 1);
+                let deleted_g = graphemes.remove(safe_col - 1);
                 self.lines[row] = graphemes.concat();
                 self.cursor.col = safe_col - 1;
+                let cursor_after = self.cursor;
+
+                let del_len = deleted_g.chars().count();
+                if char_idx + del_len <= self.rope.len_chars() {
+                    self.rope.remove(char_idx..char_idx + del_len);
+                }
+
+                self.push_transaction(UndoTransaction {
+                    deltas: vec![EditDelta::Delete {
+                        char_idx,
+                        text: deleted_g,
+                    }],
+                    cursor_before,
+                    cursor_after,
+                });
+                self.dirty = true;
             }
         } else if row > 0 {
-            let cur = self.lines.remove(row);
+            let cursor_before = self.cursor;
             let prev_len = self.lines[row - 1].graphemes(true).count();
+            let char_idx = self.char_offset_for_cursor(row - 1, prev_len);
+
+            let cur = self.lines.remove(row);
             self.lines[row - 1].push_str(&cur);
             self.cursor.row -= 1;
             self.cursor.col = prev_len;
+            let cursor_after = self.cursor;
+
+            if char_idx < self.rope.len_chars() {
+                self.rope.remove(char_idx..char_idx + 1);
+            }
+
+            self.push_transaction(UndoTransaction {
+                deltas: vec![EditDelta::Delete {
+                    char_idx,
+                    text: "\n".to_string(),
+                }],
+                cursor_before,
+                cursor_after,
+            });
+            self.dirty = true;
         }
-        self.dirty = true;
-        self.sync_rope();
     }
 
-    /// Delete character/grapheme under cursor (grapheme-safe).
     pub fn delete_char(&mut self) {
-        self.push_undo();
+        self.ensure_rope_synced();
         let row = self.cursor.row;
         let col = self.cursor.col;
 
@@ -581,25 +1001,56 @@ impl Buffer {
                 .map(str::to_string)
                 .collect();
             if col < graphemes.len() {
-                graphemes.remove(col);
+                let cursor_before = self.cursor;
+                let char_idx = self.char_offset_for_cursor(row, col);
+                let deleted_g = graphemes.remove(col);
                 self.lines[row] = graphemes.concat();
+                let cursor_after = self.cursor;
+
+                let del_len = deleted_g.chars().count();
+                if char_idx + del_len <= self.rope.len_chars() {
+                    self.rope.remove(char_idx..char_idx + del_len);
+                }
+
+                self.push_transaction(UndoTransaction {
+                    deltas: vec![EditDelta::Delete {
+                        char_idx,
+                        text: deleted_g,
+                    }],
+                    cursor_before,
+                    cursor_after,
+                });
+                self.dirty = true;
             } else if row + 1 < self.lines.len() {
+                let cursor_before = self.cursor;
+                let char_idx = self.char_offset_for_cursor(row, graphemes.len());
                 let next = self.lines.remove(row + 1);
                 self.lines[row].push_str(&next);
+                let cursor_after = self.cursor;
+
+                if char_idx < self.rope.len_chars() {
+                    self.rope.remove(char_idx..char_idx + 1);
+                }
+
+                self.push_transaction(UndoTransaction {
+                    deltas: vec![EditDelta::Delete {
+                        char_idx,
+                        text: "\n".to_string(),
+                    }],
+                    cursor_before,
+                    cursor_after,
+                });
+                self.dirty = true;
             }
         }
-        self.dirty = true;
-        self.sync_rope();
     }
 
-    /// Insert spaces for tab width.
     pub fn insert_tab(&mut self, tab_width: usize) {
         for _ in 0..tab_width {
             self.insert_char(' ');
         }
     }
 
-    /// Toggle line comment for the current line based on file extension.
     pub fn toggle_comment(&mut self) {
         let ext = self
             .path
@@ -617,44 +1068,94 @@ impl Buffer {
 
         let row = self.cursor.row;
         if row < self.lines.len() {
-            self.push_undo();
-            let line = &self.lines[row];
-            let trimmed = line.trim_start();
+            let old_line = self.lines[row].clone();
+            let trimmed = old_line.trim_start();
+            let cursor_before = self.cursor;
+
             if trimmed.starts_with(comment_prefix.trim()) {
-                // Uncomment: remove the comment prefix
-                if let Some(pos) = line.find(comment_prefix) {
+                if let Some(pos) = old_line.find(comment_prefix) {
                     let mut graphemes: Vec<String> =
-                        line.graphemes(true).map(str::to_string).collect();
-                    let g_pos = line[..pos].graphemes(true).count();
+                        old_line.graphemes(true).map(str::to_string).collect();
+                    let g_pos = old_line[..pos].graphemes(true).count();
                     let prefix_len = comment_prefix.graphemes(true).count();
                     graphemes.drain(g_pos..g_pos + prefix_len);
                     self.lines[row] = graphemes.concat();
                     self.cursor.col = self.cursor.col.saturating_sub(prefix_len);
-                } else if let Some(pos) = line.find(comment_prefix.trim()) {
+                } else if let Some(pos) = old_line.find(comment_prefix.trim()) {
                     let mut graphemes: Vec<String> =
-                        line.graphemes(true).map(str::to_string).collect();
-                    let g_pos = line[..pos].graphemes(true).count();
+                        old_line.graphemes(true).map(str::to_string).collect();
+                    let g_pos = old_line[..pos].graphemes(true).count();
                     let prefix_len = comment_prefix.trim().graphemes(true).count();
                     graphemes.drain(g_pos..g_pos + prefix_len);
                     self.lines[row] = graphemes.concat();
                     self.cursor.col = self.cursor.col.saturating_sub(prefix_len);
                 }
             } else {
-                // Comment: insert prefix after leading whitespace
-                let indent_len = line
+                let indent_len = old_line
                     .graphemes(true)
                     .take_while(|g| g.chars().all(|c| c.is_whitespace()))
                     .count();
-                let mut graphemes: Vec<String> = line.graphemes(true).map(str::to_string).collect();
+                let mut graphemes: Vec<String> =
+                    old_line.graphemes(true).map(str::to_string).collect();
                 for (idx, g) in comment_prefix.graphemes(true).enumerate() {
                     graphemes.insert(indent_len + idx, g.to_string());
                 }
                 self.lines[row] = graphemes.concat();
                 self.cursor.col += comment_prefix.graphemes(true).count();
             }
+
+            let new_line = self.lines[row].clone();
+            let char_idx = self.char_offset_for_cursor(row, 0);
+            let cursor_after = self.cursor;
+
+            self.push_transaction(UndoTransaction {
+                deltas: vec![
+                    EditDelta::Delete {
+                        char_idx,
+                        text: old_line,
+                    },
+                    EditDelta::Insert {
+                        char_idx,
+                        text: new_line,
+                    },
+                ],
+                cursor_before,
+                cursor_after,
+            });
             self.dirty = true;
             self.sync_rope();
         }
+    }
+
+    pub fn wrapped_lines(&self, max_width: usize) -> Vec<(usize, String)> {
+        if max_width == 0 {
+            return self.lines.iter().cloned().enumerate().collect();
+        }
+        let mut result = Vec::new();
+        for (line_idx, line) in self.lines.iter().enumerate() {
+            if line.is_empty() {
+                result.push((line_idx, String::new()));
+                continue;
+            }
+            let words: Vec<&str> = line.split_inclusive(' ').collect();
+            let mut cur = String::new();
+            let mut cur_len = 0;
+            for w in words {
+                let w_len = w.chars().count();
+                if cur_len + w_len > max_width && cur_len > 0 {
+                    result.push((line_idx, cur));
+                    cur = w.to_string();
+                    cur_len = w_len;
+                } else {
+                    cur.push_str(w);
+                    cur_len += w_len;
+                }
+            }
+            if !cur.is_empty() || result.is_empty() {
+                result.push((line_idx, cur));
+            }
+        }
+        result
     }
 
     // ── Clipboard ────────────────────────────────────────────────────────────
@@ -669,25 +1170,59 @@ impl Buffer {
     }
 
     pub fn cut_line(&mut self) {
+        self.ensure_rope_synced();
         if self.has_selection() {
             if let Some(text) = self.delete_selection() {
                 self.clipboard = text;
             }
             return;
         }
-        self.push_undo();
         let row = self.cursor.row;
+        let char_idx = self.char_offset_for_cursor(row, 0);
+        let cursor_before = self.cursor;
+
         if self.lines.len() > 1 {
-            self.clipboard = self.lines.remove(row);
+            let removed = self.lines.remove(row);
+            self.clipboard = removed.clone();
             if self.cursor.row >= self.lines.len() {
                 self.cursor.row = self.lines.len() - 1;
             }
+            let cursor_after = self.cursor;
+
+            let del_len = removed.chars().count() + 1; // +1 for newline
+            if char_idx + del_len <= self.rope.len_chars() {
+                self.rope.remove(char_idx..char_idx + del_len);
+            }
+
+            self.push_transaction(UndoTransaction {
+                deltas: vec![EditDelta::Delete {
+                    char_idx,
+                    text: format!("{removed}\n"),
+                }],
+                cursor_before,
+                cursor_after,
+            });
         } else {
-            self.clipboard = std::mem::take(&mut self.lines[0]);
+            let old_line = std::mem::take(&mut self.lines[0]);
+            self.clipboard = old_line.clone();
             self.cursor.col = 0;
+            let cursor_after = self.cursor;
+
+            let del_len = old_line.chars().count();
+            if char_idx + del_len <= self.rope.len_chars() {
+                self.rope.remove(char_idx..char_idx + del_len);
+            }
+
+            self.push_transaction(UndoTransaction {
+                deltas: vec![EditDelta::Delete {
+                    char_idx,
+                    text: old_line,
+                }],
+                cursor_before,
+                cursor_after,
+            });
         }
         self.dirty = true;
-        self.sync_rope();
     }
 
     pub fn paste(&mut self) {
@@ -733,7 +1268,6 @@ impl Buffer {
         }
     }
 
-    /// Replace current match at cursor with replacement string.
     pub fn replace_current(&mut self, replacement: &str) -> bool {
         if self.search_query.is_empty() {
             return false;
@@ -747,11 +1281,28 @@ impl Buffer {
         if col + query_chars <= chars.len() {
             let sub: String = chars[col..col + query_chars].iter().collect();
             if sub.eq_ignore_ascii_case(&self.search_query) {
-                self.push_undo();
+                let char_idx = self.char_offset_for_cursor(row, col);
                 let prefix: String = chars[..col].iter().collect();
                 let suffix: String = chars[col + query_chars..].iter().collect();
                 self.lines[row] = format!("{prefix}{replacement}{suffix}");
+                let cursor_before = self.cursor;
                 self.cursor.col = col + replacement.chars().count();
+                let cursor_after = self.cursor;
+
+                self.push_transaction(UndoTransaction {
+                    deltas: vec![
+                        EditDelta::Delete {
+                            char_idx,
+                            text: sub,
+                        },
+                        EditDelta::Insert {
+                            char_idx,
+                            text: replacement.to_string(),
+                        },
+                    ],
+                    cursor_before,
+                    cursor_after,
+                });
                 self.dirty = true;
                 self.sync_rope();
                 return true;
@@ -760,12 +1311,11 @@ impl Buffer {
         false
     }
 
-    /// Replace all occurrences of query with replacement throughout the buffer.
     pub fn replace_all(&mut self, query: &str, replacement: &str) -> usize {
         if query.is_empty() {
             return 0;
         }
-        self.push_undo();
+        let old_content = self.lines.join(self.line_ending.as_str());
         let mut count = 0;
         for line in &mut self.lines {
             if line.contains(query) {
@@ -775,6 +1325,21 @@ impl Buffer {
             }
         }
         if count > 0 {
+            let new_content = self.lines.join(self.line_ending.as_str());
+            self.push_transaction(UndoTransaction {
+                deltas: vec![
+                    EditDelta::Delete {
+                        char_idx: 0,
+                        text: old_content,
+                    },
+                    EditDelta::Insert {
+                        char_idx: 0,
+                        text: new_content,
+                    },
+                ],
+                cursor_before: self.cursor,
+                cursor_after: self.cursor,
+            });
             self.dirty = true;
             self.clamp_cursor();
             self.sync_rope();
@@ -900,6 +1465,7 @@ impl Buffer {
             path: Some(path.to_path_buf()),
             lines,
             cursor: Cursor::default(),
+            secondary_cursors: Vec::new(),
             selection: None,
             dirty: true,
             scroll_row: 0,
@@ -938,7 +1504,6 @@ impl Buffer {
         self.completion.candidates.clear();
     }
 
-    /// Accept selected completion item, supporting rich multi-line snippet expansions.
     pub fn accept_completion(&mut self) -> bool {
         if !self.completion.active || self.completion.candidates.is_empty() {
             return false;
@@ -946,22 +1511,40 @@ impl Buffer {
         let candidate = self.completion.candidates[self.completion.selected].clone();
         let prefix_len = self.completion.prefix.graphemes(true).count();
 
-        self.push_undo();
         let row = self.cursor.row;
         let col = self.cursor.col;
 
         if col >= prefix_len {
+            let cursor_before = self.cursor;
+            let char_idx = self.char_offset_for_cursor(row, col - prefix_len);
+
             let line = &mut self.lines[row];
             let mut graphemes: Vec<String> = line.graphemes(true).map(str::to_string).collect();
             let start = col - prefix_len;
             let end = col.min(graphemes.len());
-            graphemes.drain(start..end);
+            let deleted_prefix = graphemes.drain(start..end).collect::<String>();
             *line = graphemes.concat();
             self.cursor.col = start;
 
             // Insert candidate label
             let label = candidate.label.clone();
             self.insert_text(&label);
+            let cursor_after = self.cursor;
+
+            self.push_transaction(UndoTransaction {
+                deltas: vec![
+                    EditDelta::Delete {
+                        char_idx,
+                        text: deleted_prefix,
+                    },
+                    EditDelta::Insert {
+                        char_idx,
+                        text: label,
+                    },
+                ],
+                cursor_before,
+                cursor_after,
+            });
             self.dirty = true;
             self.sync_rope();
         }
@@ -999,13 +1582,11 @@ impl Buffer {
         if visible_rows == 0 || visible_cols == 0 {
             return;
         }
-        // Vertical scroll
         if self.cursor.row < self.scroll_row {
             self.scroll_row = self.cursor.row;
         } else if self.cursor.row >= self.scroll_row + visible_rows {
             self.scroll_row = self.cursor.row + 1 - visible_rows;
         }
-        // Horizontal scroll
         if self.cursor.col < self.scroll_col {
             self.scroll_col = self.cursor.col;
         } else if self.cursor.col >= self.scroll_col + visible_cols {
@@ -1033,6 +1614,106 @@ impl Default for Buffer {
     }
 }
 
+// ── Editor Workspace (Multi-Document Tab Manager) ───────────────────────────
+
+#[derive(Debug, Default)]
+pub struct EditorWorkspace {
+    pub tabs: Vec<Buffer>,
+    pub active_tab: usize,
+}
+
+impl EditorWorkspace {
+    pub fn new() -> Self {
+        Self {
+            tabs: Vec::new(),
+            active_tab: 0,
+        }
+    }
+
+    pub fn with_buffer(buf: Buffer) -> Self {
+        Self {
+            tabs: vec![buf],
+            active_tab: 0,
+        }
+    }
+
+    pub fn open_buffer(&mut self, buf: Buffer) -> usize {
+        if let Some(ref path) = buf.path {
+            if let Some(idx) = self.tabs.iter().position(|b| b.path.as_ref() == Some(path)) {
+                self.active_tab = idx;
+                return idx;
+            }
+        }
+        self.tabs.push(buf);
+        self.active_tab = self.tabs.len() - 1;
+        self.active_tab
+    }
+
+    pub fn open_file(&mut self, path: PathBuf) -> Result<usize> {
+        if let Some(idx) = self
+            .tabs
+            .iter()
+            .position(|b| b.path.as_ref() == Some(&path))
+        {
+            self.active_tab = idx;
+            return Ok(idx);
+        }
+        let buf = Buffer::from_file(path)?;
+        self.tabs.push(buf);
+        self.active_tab = self.tabs.len() - 1;
+        Ok(self.active_tab)
+    }
+
+    pub fn close_tab(&mut self, idx: usize) -> Option<Buffer> {
+        if idx >= self.tabs.len() {
+            return None;
+        }
+        let removed = self.tabs.remove(idx);
+        if self.active_tab >= self.tabs.len() && !self.tabs.is_empty() {
+            self.active_tab = self.tabs.len() - 1;
+        }
+        Some(removed)
+    }
+
+    pub fn active(&self) -> Option<&Buffer> {
+        self.tabs.get(self.active_tab)
+    }
+
+    pub fn active_mut(&mut self) -> Option<&mut Buffer> {
+        self.tabs.get_mut(self.active_tab)
+    }
+
+    pub fn next_tab(&mut self) {
+        if !self.tabs.is_empty() {
+            self.active_tab = (self.active_tab + 1) % self.tabs.len();
+        }
+    }
+
+    pub fn prev_tab(&mut self) {
+        if !self.tabs.is_empty() {
+            if self.active_tab == 0 {
+                self.active_tab = self.tabs.len() - 1;
+            } else {
+                self.active_tab -= 1;
+            }
+        }
+    }
+
+    pub fn switch_tab(&mut self, idx: usize) {
+        if idx < self.tabs.len() {
+            self.active_tab = idx;
+        }
+    }
+
+    pub fn tab_count(&self) -> usize {
+        self.tabs.len()
+    }
+
+    pub fn has_dirty_tabs(&self) -> bool {
+        self.tabs.iter().any(|b| b.dirty)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1040,56 +1721,35 @@ mod tests {
     #[test]
     fn test_unicode_grapheme_navigation_and_editing() {
         let mut buf = Buffer::new();
-        // Insert complex multi-codepoint emojis:
-        // "👍🏽" is thumbs up (U+1F44D) + medium skin tone (U+1F3FD)
-        // "🇮🇳" is regional indicators (U+1F1EE, U+1F1F3)
-        // "👨‍💻" is man (U+1F468) + ZWJ (U+200D) + laptop (U+1F4BB)
         buf.insert_text("Hi 👍🏽 🇮🇳 👨‍💻 End");
         assert_eq!(buf.lines[0], "Hi 👍🏽 🇮🇳 👨‍💻 End");
-
-        // "Hi " = 3 graphemes
-        // "👍🏽" = 1 grapheme
-        // " " = 1 grapheme
-        // "🇮🇳" = 1 grapheme
-        // " " = 1 grapheme
-        // "👨‍💻" = 1 grapheme
-        // " End" = 4 graphemes
-        // Total = 12 graphemes
         assert_eq!(buf.cursor.col, 12);
 
-        // Move left 4 times to land right after 👨‍💻
         for _ in 0..4 {
             buf.move_left();
         }
         assert_eq!(buf.cursor.col, 8);
 
-        // Move left across 👨‍💻 (1 grapheme move)
         buf.move_left();
         assert_eq!(buf.cursor.col, 7);
 
-        // Move right across 👨‍💻
         buf.move_right();
         assert_eq!(buf.cursor.col, 8);
 
-        // Backspace deletes entire 👨‍💻 cluster as a unit
         buf.backspace();
         assert_eq!(buf.cursor.col, 7);
         assert_eq!(buf.lines[0], "Hi 👍🏽 🇮🇳  End");
 
-        // Move left past space
         buf.move_left();
         assert_eq!(buf.cursor.col, 6);
 
-        // Backspace deletes entire 🇮🇳 flag cluster as a unit
         buf.backspace();
         assert_eq!(buf.cursor.col, 5);
         assert_eq!(buf.lines[0], "Hi 👍🏽   End");
 
-        // Move left past space
         buf.move_left();
         assert_eq!(buf.cursor.col, 4);
 
-        // Backspace deletes entire 👍🏽 skin-tone emoji as a unit
         buf.backspace();
         assert_eq!(buf.cursor.col, 3);
         assert_eq!(buf.lines[0], "Hi    End");
@@ -1098,43 +1758,88 @@ mod tests {
     #[test]
     fn test_utf8_bom_preservation() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("bom_test.txt");
+        let file_path = temp_dir.path().join("test_bom.txt");
 
-        // Write file with UTF-8 BOM
-        let mut initial_bytes = vec![0xEF, 0xBB, 0xBF];
-        initial_bytes.extend_from_slice(b"Hello BOM\nWorld\n");
-        std::fs::write(&file_path, &initial_bytes).unwrap();
+        let mut content_bytes = vec![0xEF, 0xBB, 0xBF];
+        content_bytes.extend_from_slice(b"Hello BOM\nWorld");
+        std::fs::write(&file_path, content_bytes).unwrap();
 
-        // Load into buffer
         let mut buf = Buffer::from_file(file_path.clone()).unwrap();
         assert_eq!(buf.encoding, FileEncoding::Utf8Bom);
         assert_eq!(buf.lines[0], "Hello BOM");
         assert_eq!(buf.lines[1], "World");
 
-        // Edit and save
-        buf.cursor.row = 0;
-        buf.cursor.col = 9;
-        buf.insert_text(" Preserved");
+        buf.lines[0] = "Modified BOM".to_string();
         buf.save().unwrap();
 
-        // Verify written file still has UTF-8 BOM
-        let saved_bytes = std::fs::read(&file_path).unwrap();
-        assert!(saved_bytes.starts_with(&[0xEF, 0xBB, 0xBF]));
-        let saved_str = std::str::from_utf8(&saved_bytes[3..]).unwrap();
-        assert!(saved_str.starts_with("Hello BOM Preserved\nWorld"));
+        let saved = std::fs::read(&file_path).unwrap();
+        assert_eq!(&saved[0..3], &[0xEF, 0xBB, 0xBF]);
+        assert_eq!(&saved[3..], b"Modified BOM\nWorld");
     }
 
     #[test]
     fn test_latin1_fallback_encoding() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("latin1_test.txt");
+        let file_path = temp_dir.path().join("test_latin1.txt");
 
-        // Write raw Latin-1 bytes with 0xE9 ('é' in ISO-8859-1) which is invalid UTF-8
         let latin1_bytes = vec![b'C', b'a', b'f', 0xE9];
-        std::fs::write(&file_path, &latin1_bytes).unwrap();
+        std::fs::write(&file_path, latin1_bytes).unwrap();
 
-        let buf = Buffer::from_file(file_path).unwrap();
+        let mut buf = Buffer::from_file(file_path.clone()).unwrap();
         assert_eq!(buf.encoding, FileEncoding::Latin1);
         assert_eq!(buf.lines[0], "Café");
+
+        buf.save().unwrap();
+        let saved = std::fs::read(&file_path).unwrap();
+        assert_eq!(saved, vec![b'C', b'a', b'f', 0xE9]);
+    }
+
+    #[test]
+    fn test_word_and_paragraph_navigation() {
+        let mut buf = Buffer::new();
+        buf.lines = vec![
+            "fn calculate_total_sum() -> u64 {".to_string(),
+            "    let x = 100;".to_string(),
+            "".to_string(),
+            "    x * 2".to_string(),
+            "}".to_string(),
+        ];
+        buf.sync_rope();
+
+        buf.cursor = Cursor { row: 0, col: 0 };
+        buf.move_word_right();
+        assert_eq!(buf.cursor.col, 3); // after "fn "
+        buf.move_word_right();
+        assert_eq!(buf.cursor.col, 22); // after "calculate_total_sum", at "("
+
+        buf.move_word_left();
+        assert_eq!(buf.cursor.col, 3); // back to "calculate_total_sum"
+
+        buf.move_paragraph_next();
+        assert_eq!(buf.cursor.row, 3); // next paragraph block
+    }
+
+    #[test]
+    fn test_editor_workspace_tabs() {
+        let mut ws = EditorWorkspace::new();
+        let mut buf1 = Buffer::new();
+        buf1.path = Some(PathBuf::from("/tmp/file1.rs"));
+        let mut buf2 = Buffer::new();
+        buf2.path = Some(PathBuf::from("/tmp/file2.py"));
+
+        ws.open_buffer(buf1);
+        ws.open_buffer(buf2);
+        assert_eq!(ws.tab_count(), 2);
+        assert_eq!(ws.active_tab, 1);
+
+        ws.prev_tab();
+        assert_eq!(ws.active_tab, 0);
+        ws.next_tab();
+        assert_eq!(ws.active_tab, 1);
+
+        let closed = ws.close_tab(1);
+        assert!(closed.is_some());
+        assert_eq!(ws.tab_count(), 1);
+        assert_eq!(ws.active_tab, 0);
     }
 }

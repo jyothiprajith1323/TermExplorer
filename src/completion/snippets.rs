@@ -46,6 +46,8 @@ impl CompletionProvider for SnippetProvider {
             "go" => "go",
             "sh" | "bash" => "bash",
             "js" | "ts" | "jsx" | "tsx" => "javascript",
+            "json" => "json",
+            "yaml" | "yml" => "yaml",
             "html" | "htm" => "html",
             "css" | "scss" => "css",
             _ => "rust",
@@ -329,6 +331,63 @@ pub fn all_builtin_snippets() -> Vec<CodeSnippet> {
             description: "TypeScript interface",
             body: "export interface Config {\n    id: string;\n    enabled: boolean;\n}",
             language: "javascript",
+        },
+
+        // ── JSON ──
+        CodeSnippet {
+            prefix: "package",
+            label: "package.json skeleton",
+            description: "NPM package.json template",
+            body: "{\n  \"name\": \"app\",\n  \"version\": \"1.0.0\",\n  \"main\": \"index.js\",\n  \"scripts\": {\n    \"test\": \"echo \\\"Error: no test specified\\\" && exit 1\"\n  }\n}",
+            language: "json",
+        },
+        CodeSnippet {
+            prefix: "config",
+            label: "JSON configuration object",
+            description: "Key-value JSON config",
+            body: "{\n  \"port\": 8080,\n  \"host\": \"127.0.0.1\",\n  \"debug\": true\n}",
+            language: "json",
+        },
+
+        // ── YAML ──
+        CodeSnippet {
+            prefix: "action",
+            label: "GitHub Actions workflow",
+            description: "CI workflow YAML",
+            body: "name: CI\non: [push, pull_request]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4",
+            language: "yaml",
+        },
+        CodeSnippet {
+            prefix: "service",
+            label: "Docker compose service",
+            description: "Docker service definition",
+            body: "services:\n  web:\n    image: nginx:alpine\n    ports:\n      - \"80:80\"",
+            language: "yaml",
+        },
+
+        // ── HTML ──
+        CodeSnippet {
+            prefix: "html5",
+            label: "<!DOCTYPE html> template",
+            description: "HTML5 document skeleton",
+            body: "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Document</title>\n</head>\n<body>\n  \n</body>\n</html>",
+            language: "html",
+        },
+
+        // ── CSS ──
+        CodeSnippet {
+            prefix: "flex",
+            label: "display: flex; center",
+            description: "Flexbox center container",
+            body: "display: flex;\njustify-content: center;\nalign-items: center;",
+            language: "css",
+        },
+        CodeSnippet {
+            prefix: "media",
+            label: "@media screen",
+            description: "Responsive media query",
+            body: "@media (max-width: 768px) {\n  \n}",
+            language: "css",
         },
     ]
 }
