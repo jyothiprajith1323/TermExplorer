@@ -62,15 +62,8 @@ pub fn search_content(
         .git_exclude(filters.respect_gitignore)
         .filter_entry(|entry| {
             let name = entry.file_name().to_string_lossy();
-            if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
-                && (name == ".git"
-                    || name == "node_modules"
-                    || name == "target"
-                    || name == ".cargo")
-            {
-                return false;
-            }
-            true
+            !(entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
+                && matches!(name.as_ref(), ".git" | "node_modules" | "target" | ".cargo"))
         });
 
     let mut matches = Vec::new();
