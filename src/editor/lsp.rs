@@ -401,7 +401,7 @@ impl LspClient {
         });
 
         let init_result = self
-            .request("initialize", params, Duration::from_secs(5))
+            .request("initialize", params, Duration::from_secs(15))
             .await?;
 
         // Send 'initialized' notification
