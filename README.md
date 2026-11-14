@@ -119,6 +119,13 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 | <kbd>↓</kbd> / <kbd>↑</kbd> (or <kbd>j</kbd>/<kbd>k</kbd>) | Explorer | Move selection down / up in directory |
 | <kbd>→</kbd> / <kbd>Enter</kbd> / <kbd>l</kbd> | Explorer | Navigate into directory (or preview file) |
 | <kbd>←</kbd> / <kbd>Backspace</kbd> / <kbd>h</kbd> | Explorer | Navigate out to parent directory |
+| <kbd>/</kbd> / <kbd>Ctrl+F</kbd> | Global | Open Unified Workspace Fuzzy File Search modal |
+| <kbd>Ctrl+Shift+F</kbd> | Global | Open Unified Full-Text Regex Content Grep modal |
+| <kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd> | Preview (Image) | Zoom in / Zoom out / Reset zoom (24-bit Truecolor half-blocks) |
+| <kbd>f</kbd> | Preview (Image) | Toggle fit-to-panel vs original-scale image preview |
+| <kbd>[</kbd> / <kbd>]</kbd> | Preview (Video) | Step to previous / next extracted video frame |
+| <kbd>g</kbd> / <kbd>m</kbd> | Preview (Video) | Jump to beginning (1s) / 50% midpoint frame |
+| <kbd>n</kbd> / <kbd>p</kbd> | Preview (PDF) | Navigate to next / previous page |
 | <kbd>Space</kbd> | Explorer | Focus directly into Contextual Preview |
 | <kbd>/</kbd> | Explorer | Real-time fuzzy filter files |
 | <kbd>.</kbd> / <kbd>Ctrl+H</kbd> | Explorer | Toggle hidden dotfiles |
