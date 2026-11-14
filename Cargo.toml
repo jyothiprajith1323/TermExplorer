@@ -35,7 +35,7 @@ futures = "0.3"
 notify = { version = "7", features = ["serde"] }
 
 # System monitoring
-sysinfo = "0.33"
+sysinfo = "0.40"
 
 # Configuration
 serde = { version = "1", features = ["derive"] }
