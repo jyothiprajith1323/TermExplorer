@@ -40,15 +40,8 @@ pub fn search_files_fuzzy(
         .filter_entry(|entry| {
             let name = entry.file_name().to_string_lossy();
             // Prune heavy directories early
-            if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
-                && (name == ".git"
-                    || name == "node_modules"
-                    || name == "target"
-                    || name == ".cargo")
-            {
-                return false;
-            }
-            true
+            !(entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
+                && matches!(name.as_ref(), ".git" | "node_modules" | "target" | ".cargo"))
         });
 
     let mut results = Vec::new();
