@@ -66,6 +66,8 @@ pub enum AppMode {
         confirm_install: Option<String>,
         inspecting_logs: bool,
     },
+    /// Unified workspace search modal (Ctrl+P for files, Ctrl+Shift+F for live content grep).
+    UnifiedSearch,
 }
 
 #[allow(dead_code)]
@@ -122,7 +124,7 @@ pub struct DirectoryPreviewData {
     pub items: Vec<(String, bool, u64)>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct PreviewState {
     pub path: Option<PathBuf>,
     pub active_tab: PreviewTab,
@@ -136,6 +138,35 @@ pub struct PreviewState {
     pub file_size: u64,
     pub mime_type: String,
     pub is_binary: bool,
+    pub zoom_level: f32,
+    pub pan_x: i32,
+    pub pan_y: i32,
+    pub fit_to_panel: bool,
+    pub search_term: Option<String>,
+}
+
+impl Default for PreviewState {
+    fn default() -> Self {
+        Self {
+            path: None,
+            active_tab: PreviewTab::default(),
+            full_data: None,
+            dir_data: None,
+            lines: Vec::new(),
+            highlighted_spans: Vec::new(),
+            scroll_offset: 0,
+            horizontal_offset: 0,
+            total_lines: 0,
+            file_size: 0,
+            mime_type: String::new(),
+            is_binary: false,
+            zoom_level: 1.0,
+            pan_x: 0,
+            pan_y: 0,
+            fit_to_panel: true,
+            search_term: None,
+        }
+    }
 }
 
 /// Recent directory list (up to 20 entries).
@@ -186,6 +217,7 @@ pub struct AppState {
     pub debug_hitboxes: bool,
     pub help_category: usize,
     pub help_scroll: usize,
+    pub search_engine: crate::search::SearchEngine,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -268,6 +300,7 @@ impl AppState {
             debug_hitboxes: false,
             help_category: 0,
             help_scroll: 0,
+            search_engine: crate::search::SearchEngine::new(),
         }
     }
 

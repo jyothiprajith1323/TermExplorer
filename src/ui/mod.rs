@@ -12,6 +12,7 @@ pub mod layout;
 pub mod onboarding;
 pub mod plugin_center;
 pub mod preview;
+pub mod search_modal;
 pub mod settings;
 pub mod sidebar;
 pub mod status_bar;

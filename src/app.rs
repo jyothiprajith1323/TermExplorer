@@ -41,6 +41,7 @@ use crate::{
         onboarding::{render_onboarding, OnboardingStep},
         plugin_center::render_plugin_center,
         preview::render_preview,
+        search_modal::render_search_modal,
         settings::render_settings_studio,
         sidebar::render_sidebar,
         status_bar::render_status_bar,
@@ -429,6 +430,11 @@ impl App {
                 render_plugin_center(frame, area, state, theme, &view);
             }
 
+            // ── Unified Search Modal ──────────────────────────────────────
+            if let AppMode::UnifiedSearch = &state.mode {
+                render_search_modal(frame, area, state, theme);
+            }
+
             // ── Screen Hitbox Visualizer (Debug overlay) ──────────────────
             if state.debug_hitboxes {
                 for r in hit_registry.regions() {
@@ -476,6 +482,9 @@ impl App {
                 );
             }
         }
+
+        // Poll asynchronous unified search background results
+        self.state.search_engine.poll_events();
     }
 
     fn on_resize(&mut self, w: u16, _h: u16) {
@@ -605,7 +614,12 @@ impl App {
     // ── Preview loading ──────────────────────────────────────────────────────
 
     async fn update_preview(&mut self) {
-        let path = match self.state.selected_path() {
+        let path = if matches!(self.state.mode, AppMode::UnifiedSearch) {
+            self.state.search_engine.selected_target().map(|(p, _)| p)
+        } else {
+            self.state.selected_path()
+        };
+        let path = match path {
             Some(p) => p,
             None => {
                 self.state.preview.path = None;
@@ -745,7 +759,15 @@ impl App {
         }
 
         self.state.preview.full_data = Some(full_data);
-        self.state.preview.scroll_offset = 0;
+        if matches!(self.state.mode, AppMode::UnifiedSearch) {
+            if let Some((_, Some(line))) = self.state.search_engine.selected_target() {
+                self.state.preview.scroll_offset = line.saturating_sub(5);
+            } else {
+                self.state.preview.scroll_offset = 0;
+            }
+        } else {
+            self.state.preview.scroll_offset = 0;
+        }
     }
 
     // ── Terminal session ──────────────────────────────────────────────────────
@@ -843,6 +865,11 @@ impl App {
             return self.handle_plugin_center_key(key).await;
         }
 
+        // ── Unified Search Modal ──────────────────────────────────────────
+        if matches!(self.state.mode, AppMode::UnifiedSearch) {
+            return self.handle_unified_search_key(key).await;
+        }
+
         // ── Global shortcuts (always active) ──────────────────────────────
         // Ctrl+, or F10: Interactive Settings Studio
         if (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char(','))
@@ -901,6 +928,41 @@ impl App {
             return Ok(false);
         }
 
+        // Ctrl+Shift+P: Command Palette
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.modifiers.contains(KeyModifiers::SHIFT)
+            && (key.code == KeyCode::Char('P') || key.code == KeyCode::Char('p'))
+        {
+            self.state.mode = AppMode::CommandPalette {
+                query: String::new(),
+                selected_idx: 0,
+            };
+            return Ok(false);
+        }
+
+        // Ctrl+Shift+F: Unified Content Grep Search
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.modifiers.contains(KeyModifiers::SHIFT)
+            && (key.code == KeyCode::Char('F') || key.code == KeyCode::Char('f'))
+        {
+            self.state.mode = AppMode::UnifiedSearch;
+            self.state.search_engine.mode = crate::search::engine::SearchMode::Content;
+            self.state.search_engine.query.clear();
+            return Ok(false);
+        }
+
+        // Ctrl+P: Unified File Search
+        if key.modifiers == KeyModifiers::CONTROL
+            && (key.code == KeyCode::Char('p') || key.code == KeyCode::Char('P'))
+        {
+            self.state.mode = AppMode::UnifiedSearch;
+            self.state.search_engine.mode = crate::search::engine::SearchMode::Files;
+            self.state.search_engine.query.clear();
+            let root = self.state.explorer.current_dir.clone();
+            self.state.search_engine.trigger_search(root);
+            return Ok(false);
+        }
+
         // ── Global shortcuts (always active) ──────────────────────────────
         match (key.modifiers, key.code) {
             (KeyModifiers::CONTROL, KeyCode::Char('q')) => return Ok(true),
@@ -911,13 +973,6 @@ impl App {
             (KeyModifiers::CONTROL, KeyCode::Char('`'))
             | (KeyModifiers::CONTROL, KeyCode::Char('t')) => {
                 self.toggle_terminal();
-                return Ok(false);
-            }
-            (KeyModifiers::CONTROL, KeyCode::Char('p')) => {
-                self.state.mode = AppMode::CommandPalette {
-                    query: String::new(),
-                    selected_idx: 0,
-                };
                 return Ok(false);
             }
             _ => {}
@@ -2097,6 +2152,78 @@ impl App {
             KeyCode::Enter if self.state.preview.active_tab == PreviewTab::Actions => {
                 self.execute_preview_action(0).await;
             }
+            // Image Zoom in / out / reset
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                self.state.preview.zoom_level = (self.state.preview.zoom_level * 1.25).min(8.0);
+            }
+            KeyCode::Char('-') => {
+                self.state.preview.zoom_level = (self.state.preview.zoom_level / 1.25).max(0.125);
+            }
+            KeyCode::Char('0') | KeyCode::Char('r') => {
+                self.state.preview.zoom_level = 1.0;
+                self.state.preview.pan_x = 0;
+                self.state.preview.pan_y = 0;
+            }
+            // Toggle fit to panel
+            KeyCode::Char('f') => {
+                self.state.preview.fit_to_panel = !self.state.preview.fit_to_panel;
+            }
+            // Fullscreen preview
+            KeyCode::Char('z') | KeyCode::Char('Z') => {
+                self.toggle_preview_maximize();
+            }
+            // Pan keys
+            KeyCode::Char('I') => {
+                self.state.preview.pan_y -= 10;
+            }
+            KeyCode::Char('K') => {
+                self.state.preview.pan_y += 10;
+            }
+            KeyCode::Char('J') => {
+                self.state.preview.pan_x -= 10;
+            }
+            // Next / prev page for PDF
+            KeyCode::Char('n') => {
+                if let Some(path) = &self.state.preview.path {
+                    let path = path.clone();
+                    if let Some(data) = &mut self.state.preview.full_data {
+                        if let Some(pdf) = &mut data.pdf {
+                            pdf.next_page(&path, 100);
+                        }
+                    }
+                }
+            }
+            KeyCode::Char('p') => {
+                if let Some(path) = &self.state.preview.path {
+                    let path = path.clone();
+                    if let Some(data) = &mut self.state.preview.full_data {
+                        if let Some(pdf) = &mut data.pdf {
+                            pdf.prev_page(&path, 100);
+                        }
+                    }
+                }
+            }
+            // Video next / prev frame
+            KeyCode::Char(',') | KeyCode::Char('<') => {
+                if let Some(path) = &self.state.preview.path {
+                    let path = path.clone();
+                    if let Some(data) = &mut self.state.preview.full_data {
+                        if let Some(vid) = &mut data.video {
+                            vid.prev_frame(&path, 60, 30);
+                        }
+                    }
+                }
+            }
+            KeyCode::Char('.') | KeyCode::Char('>') => {
+                if let Some(path) = &self.state.preview.path {
+                    let path = path.clone();
+                    if let Some(data) = &mut self.state.preview.full_data {
+                        if let Some(vid) = &mut data.video {
+                            vid.next_frame(&path, 60, 30);
+                        }
+                    }
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -3252,6 +3379,120 @@ impl App {
             confirm_install: None,
             inspecting_logs: false,
         };
+        Ok(false)
+    }
+
+    async fn handle_unified_search_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let root = self.state.explorer.current_dir.clone();
+
+        match (key.modifiers, key.code) {
+            // Close search modal
+            (_, KeyCode::Esc) => {
+                self.state.mode = AppMode::Browse;
+                self.update_preview().await;
+                return Ok(false);
+            }
+            // Toggle Mode (Files <-> Content)
+            (KeyModifiers::NONE, KeyCode::Tab) => {
+                self.state.search_engine.toggle_mode(root);
+                self.state.search_engine.poll_events();
+                self.update_preview().await;
+                return Ok(false);
+            }
+            // Filter toggles
+            (KeyModifiers::ALT, KeyCode::Char('c') | KeyCode::Char('C')) => {
+                self.state.search_engine.filters.case_sensitive =
+                    !self.state.search_engine.filters.case_sensitive;
+                self.state.search_engine.trigger_search(root);
+                self.state.search_engine.poll_events();
+                self.update_preview().await;
+                return Ok(false);
+            }
+            (KeyModifiers::ALT, KeyCode::Char('r') | KeyCode::Char('R')) => {
+                self.state.search_engine.filters.is_regex =
+                    !self.state.search_engine.filters.is_regex;
+                self.state.search_engine.trigger_search(root);
+                self.state.search_engine.poll_events();
+                self.update_preview().await;
+                return Ok(false);
+            }
+            (KeyModifiers::ALT, KeyCode::Char('w') | KeyCode::Char('W')) => {
+                self.state.search_engine.filters.whole_word =
+                    !self.state.search_engine.filters.whole_word;
+                self.state.search_engine.trigger_search(root);
+                self.state.search_engine.poll_events();
+                self.update_preview().await;
+                return Ok(false);
+            }
+            // Navigation
+            (KeyModifiers::NONE, KeyCode::Down)
+            | (KeyModifiers::CONTROL, KeyCode::Char('n') | KeyCode::Char('j')) => {
+                self.state.search_engine.select_next();
+                self.update_preview().await;
+                return Ok(false);
+            }
+            (KeyModifiers::NONE, KeyCode::Up)
+            | (KeyModifiers::CONTROL, KeyCode::Char('p') | KeyCode::Char('k')) => {
+                self.state.search_engine.select_prev();
+                self.update_preview().await;
+                return Ok(false);
+            }
+            // Open selection
+            (KeyModifiers::NONE, KeyCode::Enter) => {
+                self.state.search_engine.commit_history();
+                let target = self.state.search_engine.selected_target();
+                if let Some((path, line_opt)) = target {
+                    if path.is_dir() {
+                        self.state.explorer.current_dir = path;
+                        self.state.mode = AppMode::Browse;
+                        self.refresh_dir().await;
+                    } else if path.is_file() {
+                        match Buffer::from_file(path) {
+                            Ok(mut buf) => {
+                                if let Some(line) = line_opt {
+                                    buf.goto_line(line);
+                                }
+                                self.editor_buf = Some(buf);
+                                self.state.mode = AppMode::Edit;
+                                self.state.focused = FocusedPanel::Editor;
+                            }
+                            Err(e) => {
+                                self.state
+                                    .set_status(format!("Cannot open: {e}"), StatusKind::Error);
+                                self.state.mode = AppMode::Browse;
+                            }
+                        }
+                    }
+                }
+                return Ok(false);
+            }
+            // Backspace query
+            (KeyModifiers::NONE, KeyCode::Backspace) => {
+                self.state.search_engine.query.pop();
+                self.state.search_engine.trigger_search(root);
+                self.state.search_engine.poll_events();
+                self.update_preview().await;
+                return Ok(false);
+            }
+            // Clear query
+            (KeyModifiers::CONTROL, KeyCode::Char('u')) => {
+                self.state.search_engine.query.clear();
+                self.state.search_engine.trigger_search(root);
+                self.state.search_engine.poll_events();
+                self.update_preview().await;
+                return Ok(false);
+            }
+            // Typing query characters
+            (KeyModifiers::NONE, KeyCode::Char(c)) | (KeyModifiers::SHIFT, KeyCode::Char(c)) => {
+                self.state.search_engine.query.push(c);
+                self.state.search_engine.trigger_search(root);
+                self.state.search_engine.poll_events();
+                self.update_preview().await;
+                return Ok(false);
+            }
+            _ => {}
+        }
+
         Ok(false)
     }
 

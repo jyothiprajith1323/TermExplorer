@@ -663,6 +663,28 @@ fn render_content_preview(
                     lines.push(Line::from(format!("  {}", l)));
                 }
             }
+            DataPreviewKind::Yaml {
+                pretty_lines,
+                is_valid,
+                error_message,
+                ..
+            } => {
+                if !is_valid {
+                    if let Some(err) = error_message {
+                        lines.push(Line::from(Span::styled(
+                            format!("  {}", err),
+                            Style::default().fg(theme.error),
+                        )));
+                    }
+                }
+                for l in pretty_lines
+                    .iter()
+                    .skip(offset)
+                    .take(visible_height.saturating_sub(3))
+                {
+                    lines.push(Line::from(format!("  {}", l)));
+                }
+            }
             DataPreviewKind::JsonLines {
                 records,
                 total_records,

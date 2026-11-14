@@ -13,6 +13,7 @@ pub mod icons;
 pub mod monitor;
 pub mod plugins;
 pub mod preview;
+pub mod search;
 pub mod settings;
 pub mod shell;
 pub mod state;

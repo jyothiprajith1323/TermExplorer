@@ -3,6 +3,8 @@
 pub mod archive;
 pub mod audio;
 pub mod cache;
+pub mod cancellation;
+pub mod capabilities;
 pub mod data;
 pub mod database;
 pub mod detector;
@@ -19,6 +21,11 @@ pub mod sanitizer;
 pub mod source;
 pub mod video;
 
+pub use cache::{DiskPreviewCache, PreviewLruCache};
+pub use cancellation::MonotonicCancellation;
+pub use capabilities::{
+    detect_graphics_protocol, render_halfblocks_from_image, TerminalGraphicsProtocol,
+};
 pub use detector::{detect_file_format, FileCategory, FileFormatInfo};
 pub use manager::{FullPreviewData, PreviewAction, PreviewManager, PreviewTab};
 pub use metadata::DetailedMetadata;

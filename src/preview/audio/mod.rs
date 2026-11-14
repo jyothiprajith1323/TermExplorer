@@ -1,8 +1,13 @@
-//! Audio preview handler extracting duration, codec, tags, and playback controls.
+//! Audio preview handler extracting duration, codec, tags, embedded artwork,
+//! and playback controls using pure-Rust Lofty and optional player integration.
 
+use crate::preview::capabilities::render_halfblocks_from_image;
 use crate::preview::registry::CapabilityRegistry;
+use lofty::file::{AudioFile, TaggedFileExt};
+use lofty::probe::Probe;
+use lofty::tag::Accessor;
+use ratatui::style::Color;
 use std::path::Path;
-use std::process::Command;
 
 #[derive(Debug, Clone)]
 pub struct AudioPreview {
@@ -14,13 +19,15 @@ pub struct AudioPreview {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
-    pub ffprobe_available: bool,
+    pub file_size_bytes: u64,
+    pub cover_art: Option<Vec<Vec<(Color, Color, char)>>>,
     pub player_available: Option<&'static str>,
+    pub is_playing: bool,
+    pub volume_percent: u32,
 }
 
 impl AudioPreview {
     pub fn load(path: &Path) -> Self {
-        let ffprobe_available = CapabilityRegistry::is_tool_available("ffprobe");
         let player_available = if CapabilityRegistry::is_tool_available("mpv") {
             Some("mpv")
         } else if CapabilityRegistry::is_tool_available("ffplay") {
@@ -31,6 +38,8 @@ impl AudioPreview {
             None
         };
 
+        let file_size_bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+
         let mut duration_seconds = None;
         let mut codec = None;
         let mut sample_rate_hz = None;
@@ -39,33 +48,30 @@ impl AudioPreview {
         let mut title = None;
         let mut artist = None;
         let mut album = None;
+        let mut cover_art = None;
 
-        if ffprobe_available {
-            if let Ok(out) = Command::new("ffprobe")
-                .args([
-                    "-v", "error",
-                    "-select_streams", "a:0",
-                    "-show_entries", "stream=codec_name,sample_rate,channels,bit_rate,duration:format_tags=title,artist,album",
-                    "-of", "default=noprint_wrappers=1",
-                ])
-                .arg(path)
-                .output()
+        // 1. Pure-Rust metadata parsing via Lofty
+        if let Ok(tagged_file) = Probe::open(path).and_then(|p| p.read()) {
+            let properties = tagged_file.properties();
+            duration_seconds = Some(properties.duration().as_secs_f64());
+            sample_rate_hz = properties.sample_rate();
+            channels = properties.channels().map(|c| c as u32);
+            bitrate_kbps = properties.audio_bitrate().map(|b| b as u64);
+            codec = Some(format!("{:?}", tagged_file.file_type()));
+
+            if let Some(tag) = tagged_file
+                .primary_tag()
+                .or_else(|| tagged_file.first_tag())
             {
-                let text = String::from_utf8_lossy(&out.stdout);
-                for line in text.lines() {
-                    let mut parts = line.splitn(2, '=');
-                    if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
-                        match k {
-                            "codec_name" => codec = Some(v.to_string()),
-                            "sample_rate" => sample_rate_hz = v.parse().ok(),
-                            "channels" => channels = v.parse().ok(),
-                            "duration" => duration_seconds = v.parse().ok(),
-                            "bit_rate" => bitrate_kbps = v.parse::<u64>().ok().map(|b| b / 1000),
-                            "TAG:title" | "title" => title = Some(v.to_string()),
-                            "TAG:artist" | "artist" => artist = Some(v.to_string()),
-                            "TAG:album" | "album" => album = Some(v.to_string()),
-                            _ => {}
-                        }
+                title = tag.title().as_deref().map(str::to_string);
+                artist = tag.artist().as_deref().map(str::to_string);
+                album = tag.album().as_deref().map(str::to_string);
+
+                // 2. Extract embedded album artwork if available
+                if let Some(picture) = tag.pictures().first() {
+                    let pic_data = picture.data();
+                    if let Ok(img) = image::load_from_memory(pic_data) {
+                        cover_art = Some(render_halfblocks_from_image(&img, 30, 15));
                     }
                 }
             }
@@ -80,8 +86,11 @@ impl AudioPreview {
             title,
             artist,
             album,
-            ffprobe_available,
+            file_size_bytes,
+            cover_art,
             player_available,
+            is_playing: false,
+            volume_percent: 80,
         }
     }
 }

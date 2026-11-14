@@ -1,5 +1,5 @@
 ╔ ◇ PLUGIN CENTER & MARKETPLACE ─ [1/2/3 or Tab] Tabs  │  [↑/↓] Select  │  [i/Enter] Action  │  [Esc] Exit ════════════╗
-║  [󰄬 Marketplace (8)]     󰏗 Installed (2)      󰒃 Permissions                                                          ║
+║  [󰄬 Marketplace (8)]     󰏗 Installed (3)      󰒃 Permissions                                                          ║
 ║                                                                                                                      ║
 ║──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────║
 ║ 󰍉 Filter: [Type to search...]  │ Category: < All > (c to cycle)                                                      ║
@@ -9,7 +9,7 @@
 ║│  󰈈 File Inspector       v0.1.0  [Installed]                   ││Author:      TermExplorer Core Team                │║
 ║│  󰊢 Git Supercharged     v1.2.0  [Install]                     ││Category:    Developer Tools                       │║
 ║│  󰏘 Hex Color Decorator  v0.9.4  [Install]                     ││Compat:      >= 1.0.0                              │║
-║│  󰍔 Markdown Preview Pro v1.1.0  [Install]                     ││                                                   │║
+║│  󰍔 Markdown Preview Pro v1.1.0  [Installed]                   ││                                                   │║
 ║│  󰆦 SQLite Lens          v0.8.2  [Install]                     ││Workspace management actions, project metrics, and │║
 ║│  󰻠 System Telemetry Plus v1.0.1  [Install]                    ││                                                   │║
 ║│  󰘦 JSON Schema Validator v0.5.0  [Install]                    ││Capabilities & Permissions Requested:              │║
