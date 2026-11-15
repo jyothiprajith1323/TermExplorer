@@ -29,10 +29,21 @@ for (const route of pages) {
   for (const viewport of viewports) {
     test(`responsive ${route} at ${viewport.name} (${viewport.width}x${viewport.height})`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      const response = await page.goto(route);
+      const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
       expect(response && response.ok(), `failed to load ${route}`).toBeTruthy();
       await expect(page.locator('main')).toBeVisible();
       await expect(page.locator('h1')).toHaveCount(1);
+      await page.evaluate(async () => {
+        await Promise.all(
+          Array.from(document.images).map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => {
+              img.addEventListener('load', resolve, { once: true });
+              img.addEventListener('error', resolve, { once: true });
+            });
+          })
+        );
+      });
 
       const dimensions = await page.evaluate(() => ({
         viewport: document.documentElement.clientWidth,
