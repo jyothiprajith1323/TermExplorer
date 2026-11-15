@@ -21,7 +21,7 @@ This guide covers installing **TermExplorer v1.1.0** across supported Linux dist
 
 ### Method A: Debian / Ubuntu Package (`.deb`)
 
-For Ubuntu 22.04 LTS+, Debian 12 (Bookworm)+, Linux Mint 21+, or Pop!_OS 22.04+ (GLIBC >= 2.34):
+For Ubuntu 22.04 LTS+, Debian 12 (Bookworm)+, Linux Mint 21+, or Pop!_OS 22.04+ (GLIBC >= 2.35):
 
 ```bash
 # 1. Download release .deb package

@@ -341,8 +341,8 @@ else
     fail "Debian package architecture is incorrect"
 fi
 
-if echo "${DEB_INFO}" | grep -q "Depends: libc6 (>= 2.34)"; then
-    pass "Debian package declares dependency on libc6 (>= 2.34)"
+if echo "${DEB_INFO}" | grep -q "Depends: libc6 (>= 2.35)"; then
+    pass "Debian package declares dependency on libc6 (>= 2.35)"
 elif echo "${DEB_INFO}" | grep -q "Depends: libc6"; then
     pass "Debian package declares dependency on libc6"
 else

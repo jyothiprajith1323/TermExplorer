@@ -8,7 +8,7 @@ This guide covers all supported installation methods, system prerequisites, pack
 
 - **Operating System:** Linux (Ubuntu 22.04+, Debian 12+, Fedora 38+, Arch Linux, openSUSE, Alpine) or WSL2 (Windows Subsystem for Linux 2).
 - **Architecture:** `x86_64` (Primary), `aarch64` / `arm64` (Secondary).
-- **C Library Baseline:** GNU C Library (`glibc >= 2.34`).
+- **C Library Baseline:** GNU C Library (`glibc >= 2.35`). Tested on Ubuntu 22.04 LTS+, Debian 12 (Bookworm)+, Fedora 36+, and Arch Linux. Older distributions (e.g., Ubuntu 20.04, Debian 11) with GLIBC < 2.35 are not supported by the official binaries.
 - **Terminal Emulator:** Any modern terminal emulator supporting 24-bit TrueColor and UTF-8 (e.g., Alacritty, Kitty, WezTerm, Foot, Windows Terminal).
 - **Recommended Font:** [JetBrains Mono Nerd Font](https://www.nerdfonts.com/font-downloads) (or any Nerd Font) for file icons and Git branch markers.
 
