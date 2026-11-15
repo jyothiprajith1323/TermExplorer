@@ -79,6 +79,68 @@ impl PtySession {
         })
     }
 
+    /// Spawn the user's shell in a PTY, sending bytes tagged with `session_id`.
+    pub fn spawn_tagged(
+        working_dir: &Path,
+        cols: u16,
+        rows: u16,
+        session_id: usize,
+        tx: mpsc::UnboundedSender<(usize, Vec<u8>)>,
+    ) -> Result<Self> {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+        let shell = if std::path::Path::new(&shell).exists() {
+            shell
+        } else {
+            "/bin/bash".to_string()
+        };
+
+        let pty_system = native_pty_system();
+        let pair = pty_system
+            .openpty(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .context("Opening PTY pair")?;
+
+        let mut cmd = CommandBuilder::new(&shell);
+        cmd.cwd(working_dir);
+        cmd.env("TERM", "xterm-256color");
+
+        let child = pair.slave.spawn_command(cmd).context("Spawning shell")?;
+
+        let mut reader = pair
+            .master
+            .try_clone_reader()
+            .context("Cloning PTY reader")?;
+        let writer = pair.master.take_writer().context("Taking PTY writer")?;
+
+        std::thread::Builder::new()
+            .name(format!("termexplorer-pty-reader-{}", session_id))
+            .spawn(move || {
+                let mut buf = [0u8; 4096];
+                loop {
+                    match reader.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            if tx.send((session_id, buf[..n].to_vec())).is_err() {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            })
+            .context("Spawning PTY reader thread")?;
+
+        Ok(Self {
+            master: pair.master,
+            child,
+            writer: Arc::new(Mutex::new(writer)),
+        })
+    }
+
     /// Write bytes to the shell's stdin.
     pub fn write_input(&self, data: &[u8]) -> Result<()> {
         let mut w = self.writer.lock().unwrap();

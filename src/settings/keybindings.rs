@@ -1,4 +1,4 @@
-//! Keybinding management with scope separation and conflict detection.
+//! Keybinding management with scope separation, conflict detection, and search.
 
 use crossterm::event::{KeyCode, KeyModifiers};
 
@@ -10,9 +10,26 @@ pub enum BindingScope {
     Terminal,
     Preview,
     Git,
+    Search,
+    Workflow,
 }
 
-#[derive(Debug, Clone)]
+impl BindingScope {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Global => "Global",
+            Self::Explorer => "Explorer",
+            Self::Editor => "Editor",
+            Self::Terminal => "Terminal",
+            Self::Preview => "Preview",
+            Self::Git => "Git",
+            Self::Search => "Search",
+            Self::Workflow => "Workflow",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyActionBinding {
     pub id: &'static str,
     pub name: &'static str,
@@ -21,7 +38,7 @@ pub struct KeyActionBinding {
     pub description: &'static str,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConflictReport {
     pub has_conflicts: bool,
     pub details: Vec<String>,
@@ -33,27 +50,27 @@ impl KeybindingManager {
     /// Return all default keybindings categorized by scope.
     pub fn default_bindings() -> Vec<KeyActionBinding> {
         vec![
-            // Global
+            // ── Global ──────────────────────────────────────────────────────────
             KeyActionBinding {
                 id: "help",
-                name: "Show Help",
+                name: "Show Help Overlay",
                 scope: BindingScope::Global,
                 primary_key: "F1 / ?".into(),
-                description: "Display keyboard shortcuts overlay",
+                description: "Display keyboard shortcuts cheat-sheet",
             },
             KeyActionBinding {
                 id: "edit",
                 name: "Open in Editor",
                 scope: BindingScope::Global,
                 primary_key: "F2".into(),
-                description: "Open selected file in lightweight text editor",
+                description: "Open selected file in integrated code editor",
             },
             KeyActionBinding {
-                id: "preview",
+                id: "preview_zoom",
                 name: "Toggle Preview Zoom",
                 scope: BindingScope::Global,
                 primary_key: "F3".into(),
-                description: "Maximize or toggle right preview panel",
+                description: "Maximize or restore right preview panel",
             },
             KeyActionBinding {
                 id: "refresh",
@@ -67,11 +84,11 @@ impl KeybindingManager {
                 name: "Toggle System Monitor",
                 scope: BindingScope::Global,
                 primary_key: "F6".into(),
-                description: "Show/hide bottom system resource monitor",
+                description: "Show/hide bottom system telemetry monitor",
             },
             KeyActionBinding {
                 id: "dual_pane",
-                name: "Toggle Dual-Pane",
+                name: "Toggle Dual Pane Explorer",
                 scope: BindingScope::Global,
                 primary_key: "F7".into(),
                 description: "Toggle side-by-side dual explorer panes",
@@ -80,7 +97,7 @@ impl KeybindingManager {
                 id: "settings",
                 name: "Settings Studio",
                 scope: BindingScope::Global,
-                primary_key: "F10".into(),
+                primary_key: "F10 / Ctrl+,".into(),
                 description: "Open interactive settings application",
             },
             KeyActionBinding {
@@ -88,7 +105,21 @@ impl KeybindingManager {
                 name: "Command Palette",
                 scope: BindingScope::Global,
                 primary_key: "Ctrl+Shift+P".into(),
-                description: "Fuzzy-search commands, themes, and files",
+                description: "Fuzzy-search commands, tasks, git, and files",
+            },
+            KeyActionBinding {
+                id: "term_drawer",
+                name: "Toggle Terminal Drawer",
+                scope: BindingScope::Global,
+                primary_key: "` / Ctrl-`".into(),
+                description: "Toggle embedded PTY terminal drawer (15% height)",
+            },
+            KeyActionBinding {
+                id: "cycle_focus",
+                name: "Cycle Focus",
+                scope: BindingScope::Global,
+                primary_key: "Tab / Shift-Tab".into(),
+                description: "Cycle focus between Explorer, Preview, and Terminal",
             },
             KeyActionBinding {
                 id: "quit",
@@ -97,27 +128,27 @@ impl KeybindingManager {
                 primary_key: "Ctrl+Q / q".into(),
                 description: "Cleanly restore terminal and exit",
             },
-            // Explorer
+            // ── Explorer ────────────────────────────────────────────────────────
             KeyActionBinding {
                 id: "nav_down",
                 name: "Move Down",
                 scope: BindingScope::Explorer,
                 primary_key: "Down / j".into(),
-                description: "Highlight next item",
+                description: "Highlight next file or folder",
             },
             KeyActionBinding {
                 id: "nav_up",
                 name: "Move Up",
                 scope: BindingScope::Explorer,
                 primary_key: "Up / k".into(),
-                description: "Highlight previous item",
+                description: "Highlight previous file or folder",
             },
             KeyActionBinding {
                 id: "open",
                 name: "Enter Directory",
                 scope: BindingScope::Explorer,
                 primary_key: "Right / Enter / l".into(),
-                description: "Open selected directory or preview file",
+                description: "Open selected directory or inspect file",
             },
             KeyActionBinding {
                 id: "parent",
@@ -127,25 +158,25 @@ impl KeybindingManager {
                 description: "Navigate to parent folder",
             },
             KeyActionBinding {
-                id: "mark",
-                name: "Mark / Select File",
+                id: "top_bottom",
+                name: "Jump Top / Bottom",
                 scope: BindingScope::Explorer,
-                primary_key: "Space".into(),
-                description: "Toggle visual selection for batch operations",
+                primary_key: "gg / G".into(),
+                description: "Jump to first or last item in file list",
             },
             KeyActionBinding {
                 id: "new_file",
                 name: "New File",
                 scope: BindingScope::Explorer,
                 primary_key: "a".into(),
-                description: "Create new empty file",
+                description: "Create new empty file in current directory",
             },
             KeyActionBinding {
                 id: "new_dir",
                 name: "New Directory",
                 scope: BindingScope::Explorer,
                 primary_key: "A".into(),
-                description: "Create new subdirectory",
+                description: "Create new subdirectory in current directory",
             },
             KeyActionBinding {
                 id: "rename",
@@ -156,34 +187,13 @@ impl KeybindingManager {
             },
             KeyActionBinding {
                 id: "delete",
-                name: "Delete (Trash / Safe)",
+                name: "Delete Item",
                 scope: BindingScope::Explorer,
                 primary_key: "d / Delete".into(),
-                description: "Send to trash or delete with prompt",
+                description: "Send to FreeDesktop Trash or confirm delete",
             },
             KeyActionBinding {
-                id: "copy",
-                name: "Copy",
-                scope: BindingScope::Explorer,
-                primary_key: "y".into(),
-                description: "Copy selected entry to clipboard",
-            },
-            KeyActionBinding {
-                id: "cut",
-                name: "Cut",
-                scope: BindingScope::Explorer,
-                primary_key: "x".into(),
-                description: "Cut selected entry for moving",
-            },
-            KeyActionBinding {
-                id: "paste",
-                name: "Paste",
-                scope: BindingScope::Explorer,
-                primary_key: "p".into(),
-                description: "Paste entry into current directory",
-            },
-            KeyActionBinding {
-                id: "search",
+                id: "search_filter",
                 name: "Fuzzy Filter",
                 scope: BindingScope::Explorer,
                 primary_key: "/".into(),
@@ -193,23 +203,16 @@ impl KeybindingManager {
                 id: "hidden",
                 name: "Toggle Hidden Files",
                 scope: BindingScope::Explorer,
-                primary_key: ".".into(),
-                description: "Show or hide dotfiles",
+                primary_key: "zh / .".into(),
+                description: "Show or hide dotfiles and hidden folders",
             },
-            KeyActionBinding {
-                id: "sort",
-                name: "Cycle Sort Order",
-                scope: BindingScope::Explorer,
-                primary_key: "s".into(),
-                description: "Sort by Name, Size, Date, or Ext",
-            },
-            // Editor
+            // ── Editor ──────────────────────────────────────────────────────────
             KeyActionBinding {
                 id: "save",
                 name: "Atomic Save",
                 scope: BindingScope::Editor,
                 primary_key: "Ctrl+S".into(),
-                description: "Atomically persist buffer to disk",
+                description: "Atomically persist rope buffer to disk",
             },
             KeyActionBinding {
                 id: "undo",
@@ -230,7 +233,7 @@ impl KeybindingManager {
                 name: "Accept Completion",
                 scope: BindingScope::Editor,
                 primary_key: "Tab / Enter".into(),
-                description: "Insert selected word completion",
+                description: "Insert selected word completion popup item",
             },
             KeyActionBinding {
                 id: "close_editor",
@@ -239,14 +242,7 @@ impl KeybindingManager {
                 primary_key: "Esc".into(),
                 description: "Return to file explorer view",
             },
-            // Terminal
-            KeyActionBinding {
-                id: "term_toggle",
-                name: "Toggle Terminal",
-                scope: BindingScope::Terminal,
-                primary_key: "Ctrl+T".into(),
-                description: "Show or hide embedded PTY terminal",
-            },
+            // ── Terminal ────────────────────────────────────────────────────────
             KeyActionBinding {
                 id: "term_interrupt",
                 name: "Send SIGINT",
@@ -259,24 +255,50 @@ impl KeybindingManager {
                 name: "Send EOF",
                 scope: BindingScope::Terminal,
                 primary_key: "Ctrl+D".into(),
-                description: "Send end-of-file to shell",
+                description: "Send end-of-file signal to active shell",
             },
-            // Preview
+            // ── Git & Developer Tools ───────────────────────────────────────────
             KeyActionBinding {
-                id: "prev_tab",
-                name: "Previous Preview Tab",
-                scope: BindingScope::Preview,
-                primary_key: "[ / Left".into(),
-                description: "Switch to previous tab (Preview/Info/Hex/Actions)",
+                id: "git_panel",
+                name: "Git Workbench",
+                scope: BindingScope::Git,
+                primary_key: "g".into(),
+                description: "Open Git status, diff viewer, and branch manager",
             },
             KeyActionBinding {
-                id: "next_tab",
-                name: "Next Preview Tab",
-                scope: BindingScope::Preview,
-                primary_key: "] / Right".into(),
-                description: "Switch to next tab",
+                id: "project_search",
+                name: "Unified Search",
+                scope: BindingScope::Search,
+                primary_key: "Ctrl+Shift+F".into(),
+                description: "Global ripgrep-style content search across project",
+            },
+            KeyActionBinding {
+                id: "plugin_manager",
+                name: "Plugin Center",
+                scope: BindingScope::Workflow,
+                primary_key: "Ctrl+Shift+X".into(),
+                description: "Browse, inspect, and manage WebAssembly plugins",
             },
         ]
+    }
+
+    /// Filter bindings matching search query across action name, key, description, or scope.
+    pub fn search_bindings(bindings: &[KeyActionBinding], query: &str) -> Vec<KeyActionBinding> {
+        let q = query.trim().to_lowercase();
+        if q.is_empty() {
+            return bindings.to_vec();
+        }
+
+        bindings
+            .iter()
+            .filter(|b| {
+                b.name.to_lowercase().contains(&q)
+                    || b.primary_key.to_lowercase().contains(&q)
+                    || b.description.to_lowercase().contains(&q)
+                    || b.scope.as_str().to_lowercase().contains(&q)
+            })
+            .cloned()
+            .collect()
     }
 
     /// Detect duplicate shortcuts and scope conflicts.
@@ -284,7 +306,7 @@ impl KeybindingManager {
         let mut details = Vec::new();
         for (i, a) in bindings.iter().enumerate() {
             for b in bindings.iter().skip(i + 1) {
-                // If same primary key in same or overlapping scope
+                // Check if identical key is bound in the same scope or overlapping global scope
                 if a.primary_key == b.primary_key
                     && (a.scope == b.scope
                         || a.scope == BindingScope::Global

@@ -1,0 +1,16 @@
+#compdef termexplorer
+
+_termexplorer() {
+    local context state state_descr line
+    typeset -A opt_args
+
+    _arguments -C \
+        '(-h --help)'{-h,--help}'[Print help information]' \
+        '(-V -v --version)'{-V,-v,--version}'[Print version information]' \
+        '--health[Print diagnostic health check report and exit]' \
+        '--cwd-file=[Write the last active directory to PATH on exit]:output file:_files' \
+        '--chooser-file=[Write the selected file path to PATH on exit]:output file:_files' \
+        '1:initial directory:_files -/'
+}
+
+_termexplorer "$@"

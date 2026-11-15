@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=TermExplorer
+GenericName=Terminal Developer Workstation
+Comment=Keyboard-driven terminal file manager, code previewer and workstation
+Icon=termexplorer
+Exec=termexplorer %F
+Terminal=true
+Categories=Development;System;FileManager;ConsoleOnly;Utility;
+Keywords=file;manager;explorer;terminal;tui;workstation;rust;git;editor;
+MimeType=inode/directory;
+StartupNotify=false

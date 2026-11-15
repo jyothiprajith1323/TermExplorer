@@ -68,6 +68,11 @@ pub enum AppMode {
     },
     /// Unified workspace search modal (Ctrl+P for files, Ctrl+Shift+F for live content grep).
     UnifiedSearch,
+    /// Task Runner Output Workbench (F5 or Command Palette).
+    TaskViewer {
+        selected_idx: usize,
+        scroll_offset: usize,
+    },
 }
 
 #[allow(dead_code)]
@@ -84,6 +89,15 @@ pub enum ModalKind {
     NewDir,
     PinFolder,
     GoToLine,
+    GitCommit,
+    GitNewBranch,
+    WorkspaceTrustConfirm {
+        root: PathBuf,
+        task_name: String,
+        command: String,
+        args: Vec<String>,
+        task_id: String,
+    },
     Message(String),
     Error(String),
 }
@@ -206,6 +220,13 @@ pub struct AppState {
     pub active_pane: ActivePane,
     pub explorer_secondary: ExplorerState,
     pub git_status: GitRepoStatus,
+    pub git_tab: usize,
+    pub git_diff_content: Vec<ratatui::text::Line<'static>>,
+    pub git_diff_scroll: usize,
+    pub git_branches: Vec<crate::git::GitBranch>,
+    pub git_branch_selected: usize,
+    pub git_history: Vec<crate::git::GitCommitInfo>,
+    pub git_history_selected: usize,
     pub workspace: Workspace,
     pub icon_manager: crate::icons::IconManager,
     pub font_status: crate::fonts::FontStatus,
@@ -218,6 +239,12 @@ pub struct AppState {
     pub help_category: usize,
     pub help_scroll: usize,
     pub search_engine: crate::search::SearchEngine,
+    pub workflow_registry: crate::workflow::CommandRegistry,
+    pub workflow_history: crate::workflow::CommandHistory,
+    pub workflow_trust: crate::workflow::WorkspaceTrustStore,
+    pub workflow_profile: Option<crate::workflow::ProjectProfile>,
+    pub workflow_tasks: Vec<crate::workflow::TaskDefinition>,
+    pub workflow_executions: Vec<crate::workflow::TaskExecution>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -273,10 +300,17 @@ impl AppState {
             dual_pane_enabled: false,
             active_pane: ActivePane::Primary,
             explorer_secondary: ExplorerState {
-                current_dir: start_dir,
+                current_dir: start_dir.clone(),
                 ..Default::default()
             },
             git_status,
+            git_tab: 0,
+            git_diff_content: Vec::new(),
+            git_diff_scroll: 0,
+            git_branches: Vec::new(),
+            git_branch_selected: 0,
+            git_history: Vec::new(),
+            git_history_selected: 0,
             workspace,
             icon_manager,
             font_status,
@@ -301,6 +335,21 @@ impl AppState {
             help_category: 0,
             help_scroll: 0,
             search_engine: crate::search::SearchEngine::new(),
+            workflow_registry: crate::workflow::CommandRegistry::new(),
+            workflow_history: crate::workflow::CommandHistory::new(50),
+            workflow_trust: crate::workflow::WorkspaceTrustStore::new(),
+            workflow_profile: Some(crate::workflow::detect_project(&start_dir)),
+            workflow_tasks: {
+                let mut tasks = crate::workflow::load_project_tasks(&start_dir);
+                let prof = crate::workflow::detect_project(&start_dir);
+                for sug in prof.suggested_tasks {
+                    if !tasks.iter().any(|t| t.id == sug.id) {
+                        tasks.push(sug);
+                    }
+                }
+                tasks
+            },
+            workflow_executions: Vec::new(),
         }
     }
 

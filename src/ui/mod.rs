@@ -17,4 +17,5 @@ pub mod settings;
 pub mod sidebar;
 pub mod status_bar;
 pub mod system_monitor;
+pub mod task_viewer;
 pub mod terminal;

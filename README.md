@@ -156,30 +156,30 @@ A high-performance, keyboard-driven Linux developer environment written in pure 
 
 ## 📦 Installation & Getting Started
 
-### Option 1: Automated Shell Installer (Recommended)
+### Option 1: Debian / Ubuntu Package (`.deb`) (Recommended)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jyothiprajith1323/TermExplorer/master/install.sh | bash
+# Download and install native package
+curl -LO https://github.com/jyothiprajith1323/TermExplorer/releases/download/v1.1.0/termexplorer_1.1.0_amd64.deb
+sudo apt-get update && sudo apt-get install -y ./termexplorer_1.1.0_amd64.deb
+
+# Verify installation
+termexplorer --health
 ```
 
-### Option 2: Arch Linux (AUR)
+### Option 2: Portable Standalone Tarball (`.tar.gz`)
 ```bash
-yay -S termexplorer-bin
+curl -LO https://github.com/jyothiprajith1323/TermExplorer/releases/download/v1.1.0/termexplorer-v1.1.0-linux-x86_64.tar.gz
+tar -xzf termexplorer-v1.1.0-linux-x86_64.tar.gz
+cd termexplorer-v1.1.0-linux-x86_64
+./install.sh
 ```
 
-### Option 3: Install via Cargo
+### Option 3: Install via Cargo (From Source)
 ```bash
 cargo install --git https://github.com/jyothiprajith1323/TermExplorer.git --locked
 ```
 
-### Option 4: Build from Source
-```bash
-git clone https://github.com/jyothiprajith1323/TermExplorer.git
-cd TermExplorer
-cargo build --release
-install -Dm755 target/release/termexplorer ~/.local/bin/termexplorer
-```
-
-For package prerequisites and multimedia helpers (`ffmpeg`, `poppler-utils`, `trash-cli`), see [INSTALLATION.md](INSTALLATION.md).
+For complete packaging details, dependencies, and uninstallation, see [Installation Guide](docs/getting-started/installation.md).
 
 ---
 
@@ -187,8 +187,8 @@ For package prerequisites and multimedia helpers (`ffmpeg`, `poppler-utils`, `tr
 
 TermExplorer is tested thoroughly under strict systems safety criteria:
 ```bash
-# Run all 129 automated unit and integration tests across 26 test suites
-cargo test --all-targets --all-features
+# Run all automated unit and integration tests across 26 test suites
+cargo test --all-targets
 
 # Verify strict Clippy compliance (0 warnings allowed)
 cargo clippy --all-targets --all-features -- -D warnings
@@ -199,24 +199,67 @@ cargo fmt --all -- --check
 
 ---
 
-## 📚 Documentation & Specifications
+## 📚 Technical Documentation & Knowledge Base
 
-- [V1.1.0-RC2 Release Validation Report](docs/RC2_VALIDATION_REPORT.md)
-- [Performance & Benchmark Measurements](PERFORMANCE.md)
-- [Architecture & Design Guide](docs/ARCHITECTURE.md)
-- [Theme Ecosystem & Catppuccin Palette](docs/THEMES.md)
-- [Icon Engine & Pack Mappings](docs/ICONS.md)
-- [Typography & JetBrains Mono Guide](docs/FONTS.md)
-- [WebAssembly Plugins & Sandboxing](docs/PLUGINS.md)
-- [Plugin Host-Guest API Reference](docs/PLUGIN_API.md)
-- [Master Customization Guide](docs/CUSTOMIZATION.md)
-- [V1.1.0 Release Notes](docs/V1.1_RELEASE_NOTES.md)
-- [Complete Keybindings Reference](docs/KEYBINDINGS.md)
-- [Developer & Contributing Guide](docs/DEVELOPMENT.md)
-- [Release Changelog](CHANGELOG.md)
-- [Contributing Guidelines](CONTRIBUTING.md)
-- [Security Policy](SECURITY.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md)
+Visit the **[TermExplorer Documentation Portal](docs/README.md)** for exhaustive guides:
+
+- **Getting Started**:
+  - [Installation Guide](docs/getting-started/installation.md)
+  - [First Launch & Onboarding](docs/getting-started/first-launch.md)
+  - [Quick Start Tutorial](docs/getting-started/quick-start.md)
+  - [Troubleshooting Knowledge Base](docs/getting-started/troubleshooting.md)
+- **User Guide**:
+  - [Workstation Overview](docs/user-guide/application-overview.md)
+  - [Workspace Navigation](docs/user-guide/navigation.md)
+  - [File Explorer Operations](docs/user-guide/file-explorer.md)
+  - [Preview & Inspector Engine](docs/user-guide/preview-inspector.md)
+  - [Integrated Code Editor](docs/user-guide/editor.md)
+  - [Embedded Terminal Drawer](docs/user-guide/terminal.md)
+  - [Unified Search Engine](docs/user-guide/search.md)
+  - [Native Git Workbench](docs/user-guide/git-workflow.md)
+  - [Task Runner & Workflows](docs/user-guide/task-runner.md)
+  - [Settings Studio](docs/user-guide/settings.md)
+  - [Keyboard Shortcuts](docs/user-guide/keyboard-shortcuts.md)
+  - [WebAssembly Plugins](docs/user-guide/plugins.md)
+- **Architecture**:
+  - [Architecture Overview](docs/architecture/overview.md)
+  - [System Context Diagram](docs/architecture/system-context.md)
+  - [Application Lifecycle](docs/architecture/application-lifecycle.md)
+  - [Event & Routing System](docs/architecture/event-system.md)
+  - [UI Rendering Pipeline](docs/architecture/ui-architecture.md)
+  - [Filesystem Subsystem](docs/architecture/filesystem.md)
+  - [Editor & Rope Buffer](docs/architecture/editor.md)
+  - [Preview Engine Architecture](docs/architecture/preview-engine.md)
+  - [Search Engine Architecture](docs/architecture/search-engine.md)
+  - [PTY Terminal Architecture](docs/architecture/terminal-pty.md)
+  - [Git Integration Architecture](docs/architecture/git-integration.md)
+  - [Task Runner Architecture](docs/architecture/task-runner.md)
+  - [WebAssembly Sandbox](docs/architecture/plugin-runtime.md)
+  - [Configuration & Migrations](docs/architecture/configuration.md)
+  - [Security Boundaries](docs/architecture/security-boundaries.md)
+- **WebAssembly Plugin Development**:
+  - [Plugin Platform Overview](docs/plugin-development/overview.md)
+  - [10-Minute Walkthrough](docs/plugin-development/getting-started.md)
+  - [Host & Guest ABI / WIT Specification](docs/plugin-development/wit-reference.md)
+  - [Plugin Manifest Reference](docs/plugin-development/manifest-reference.md)
+  - [Capabilities & Permissions Guide](docs/plugin-development/permissions.md)
+  - [Resource Limits & Sandboxing](docs/plugin-development/resource-limits.md)
+  - [Plugin Lifecycle](docs/plugin-development/lifecycle.md)
+  - [Reference Examples](docs/plugin-development/examples.md)
+- **Reference & ADRs**:
+  - [Configuration Schema v2 Reference](docs/reference/configuration-reference.md)
+  - [Keyboard Shortcuts Master Reference](docs/reference/keyboard-reference.md)
+  - [Command Palette Reference](docs/reference/command-reference.md)
+  - [Supported Formats Matrix](docs/reference/supported-formats.md)
+  - [Environment Variables](docs/reference/environment-variables.md)
+  - [System Dependencies](docs/reference/dependencies.md)
+  - [Error Code Reference](docs/reference/error-reference.md)
+  - [Architecture Decision Records (ADRs)](docs/decisions/README.md)
+- **Project Governance**:
+  - [Release Changelog](CHANGELOG.md)
+  - [Contributing Guidelines](CONTRIBUTING.md)
+  - [Security Policy](SECURITY.md)
+  - [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ---
 

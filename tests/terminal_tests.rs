@@ -68,3 +68,127 @@ async fn test_terminal_session_lifecycle() {
         output_str
     );
 }
+
+#[test]
+fn test_terminal_screen_ansi_parsing_and_colors() {
+    use ratatui::style::{Color, Modifier};
+    use termexplorer::shell::TerminalScreen;
+
+    let mut screen = TerminalScreen::new(24, 80, 1000);
+
+    // Truecolor RGB: \x1b[38;2;255;100;50m
+    // Bold & Underline: \x1b[1m\x1b[4m
+    let text = b"\x1b[38;2;255;100;50m\x1b[1m\x1b[4mHello Truecolor\x1b[0m\r\n";
+    screen.process(text);
+
+    let row = screen.render_row(0, Color::White, Color::Black);
+    assert!(!row.spans.is_empty());
+
+    let span = &row.spans[0];
+    assert!(span.content.starts_with("Hello Truecolor"));
+    assert_eq!(span.style.fg, Some(Color::Rgb(255, 100, 50)));
+    assert!(span.style.add_modifier.contains(Modifier::BOLD));
+    assert!(span.style.add_modifier.contains(Modifier::UNDERLINED));
+}
+
+#[test]
+fn test_terminal_screen_alternate_screen_and_cursor() {
+    use termexplorer::shell::TerminalScreen;
+
+    let mut screen = TerminalScreen::new(24, 80, 1000);
+
+    // Initial state: normal screen, visible cursor at (0, 0)
+    assert!(!screen.is_alternate_screen());
+    assert!(!screen.hide_cursor());
+    assert_eq!(screen.cursor_position(), (0, 0));
+
+    // Move cursor to row 10, col 20 (1-based in ANSI: \x1b[11;21H)
+    screen.process(b"\x1b[11;21H");
+    assert_eq!(screen.cursor_position(), (10, 20));
+
+    // Hide cursor: \x1b[?25l
+    screen.process(b"\x1b[?25l");
+    assert!(screen.hide_cursor());
+
+    // Switch to alternate screen: \x1b[?1049h
+    screen.process(b"\x1b[?1049h");
+    assert!(screen.is_alternate_screen());
+
+    // Switch back: \x1b[?1049l
+    screen.process(b"\x1b[?1049l");
+    assert!(!screen.is_alternate_screen());
+}
+
+#[test]
+fn test_terminal_screen_bounded_scrollback_and_search() {
+    use termexplorer::shell::TerminalScreen;
+
+    let mut screen = TerminalScreen::new(10, 80, 100);
+
+    // Write 200 lines to overflow the 100 scrollback limit
+    for i in 0..200 {
+        let line = format!("Log entry index {}\r\n", i);
+        screen.process(line.as_bytes());
+    }
+
+    // Scrollback should be bounded
+    assert!(screen.scrollback_len() <= 100);
+
+    // Search buffer for matches
+    let results = screen.search("Log entry index 19");
+    assert!(!results.is_empty());
+    assert!(results[0].contains("Log entry index 19"));
+
+    // Scroll navigation
+    assert_eq!(screen.scroll_offset(), 0);
+    screen.scroll_up(10);
+    assert_eq!(screen.scroll_offset(), 10);
+    screen.scroll_down(5);
+    assert_eq!(screen.scroll_offset(), 5);
+    screen.reset_scroll();
+    assert_eq!(screen.scroll_offset(), 0);
+}
+
+#[tokio::test]
+async fn test_terminal_session_manager_tabs_and_multiplexing() {
+    use termexplorer::shell::manager::TerminalSessionManager;
+
+    let (mut manager, _rx) = TerminalSessionManager::new(4);
+    let tmp = std::env::temp_dir();
+
+    // Create session 1
+    let id1 = manager.create_session(tmp.clone(), 80, 24).unwrap();
+    assert_eq!(id1, 1);
+    assert_eq!(manager.session_count(), 1);
+    assert_eq!(manager.active_index(), 0);
+
+    // Create session 2
+    let id2 = manager.create_session(tmp.clone(), 80, 24).unwrap();
+    assert_eq!(id2, 2);
+    assert_eq!(manager.session_count(), 2);
+    assert_eq!(manager.active_index(), 1);
+
+    // Switch session
+    assert!(manager.switch_session(0));
+    assert_eq!(manager.active_index(), 0);
+
+    // Cycle tabs
+    manager.next_session();
+    assert_eq!(manager.active_index(), 1);
+    manager.prev_session();
+    assert_eq!(manager.active_index(), 0);
+
+    // Route multiplexed output to session 2
+    manager.push_output(2, b"hello from session 2\r\n");
+    let sess2 = manager.get_session(1).unwrap();
+    let matches = sess2.screen.search("hello from session 2");
+    assert!(!matches.is_empty());
+
+    // Close session
+    assert!(manager.close_session(0));
+    assert_eq!(manager.session_count(), 1);
+
+    // Cleanup all
+    manager.cleanup_all();
+    assert!(manager.is_empty());
+}

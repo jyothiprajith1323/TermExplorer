@@ -25,15 +25,15 @@ use crate::{
     monitor::{Monitor, MonitorSnapshot},
     preview::{FullPreviewData, PreviewManager, PreviewTab},
     settings::{get_section_items, ProfileKind, SettingsPersistence, SettingsSection},
-    shell::{input::key_to_pty_bytes, TerminalSession},
+    shell::{input::key_to_pty_bytes, manager::TerminalSessionManager, TerminalSession},
     state::{ActivePane, AppMode, AppState, FocusedPanel, ModalKind, SidebarSection, StatusKind},
     theme::Theme,
     ui::{
-        command_palette::render_command_palette,
+        command_palette::render_workflow_command_palette,
         diagnostics::render_diagnostics,
         editor::render_editor,
         file_explorer::{render_file_explorer, render_secondary_explorer},
-        git_panel::render_git_panel,
+        git_panel::{render_git_workbench, GitWorkbenchView},
         header::render_header,
         help::render_help,
         hit_test::{AppAction, HitRegistry},
@@ -46,7 +46,8 @@ use crate::{
         sidebar::render_sidebar,
         status_bar::render_status_bar,
         system_monitor::render_system_monitor,
-        terminal::render_terminal,
+        task_viewer::render_task_viewer,
+        terminal::render_terminal_manager,
     },
 };
 
@@ -58,11 +59,13 @@ pub struct App {
     preview_manager: PreviewManager,
     editor_buf: Option<Buffer>,
     terminal_session: Option<TerminalSession>,
+    terminal_manager: TerminalSessionManager,
     monitor: Monitor,
     monitor_snapshot: Option<MonitorSnapshot>,
     monitor_last_refresh: Instant,
     terminal_scrollback: Vec<u8>,
     pty_rx: Option<mpsc::UnboundedReceiver<Vec<u8>>>,
+    pty_multiplex_rx: Option<mpsc::UnboundedReceiver<(usize, Vec<u8>)>>,
     _watcher: Option<notify::RecommendedWatcher>,
     fs_rx: Option<mpsc::UnboundedReceiver<()>>,
     hit_registry: HitRegistry,
@@ -71,6 +74,9 @@ pub struct App {
     preview_ticket: Arc<AtomicU64>,
     dir_ticket: Arc<AtomicU64>,
     event_tx: Option<mpsc::UnboundedSender<AppEvent>>,
+    task_runner: Arc<crate::workflow::TaskRunner>,
+    task_event_rx: Option<tokio::sync::mpsc::Receiver<crate::workflow::TaskRunnerEvent>>,
+    task_event_tx: tokio::sync::mpsc::Sender<crate::workflow::TaskRunnerEvent>,
 }
 
 impl App {
@@ -97,17 +103,26 @@ impl App {
             Err(_) => (None, None),
         };
 
+        let (terminal_manager, pty_multiplex_rx) = TerminalSessionManager::new(8);
+        let (task_event_tx, task_event_rx) = tokio::sync::mpsc::channel(256);
+        let task_runner = Arc::new(crate::workflow::TaskRunner::new(
+            5000,
+            Duration::from_secs(300),
+        ));
+
         let mut app = Self {
             state,
             theme,
             preview_manager: PreviewManager::new(max_preview_bytes),
             editor_buf: None,
             terminal_session: None,
+            terminal_manager,
             monitor: Monitor::new(),
             monitor_snapshot: None,
             monitor_last_refresh: Instant::now(),
             terminal_scrollback: Vec::new(),
             pty_rx: None,
+            pty_multiplex_rx: Some(pty_multiplex_rx),
             _watcher,
             fs_rx,
             hit_registry: HitRegistry::new(),
@@ -116,11 +131,28 @@ impl App {
             preview_ticket: Arc::new(AtomicU64::new(0)),
             dir_ticket: Arc::new(AtomicU64::new(0)),
             event_tx: None,
+            task_runner,
+            task_event_rx: Some(task_event_rx),
+            task_event_tx,
         };
 
         if app.state.show_terminal {
             app.start_terminal_session();
             app.state.clear_status();
+        }
+
+        // Check first-run status and initialize onboarding if brand new installation
+        let first_run_status =
+            crate::config::FirstRunManager::detect_status(&Config::config_path());
+        if first_run_status == crate::config::FirstRunStatus::FreshFirstLaunch
+            && !app.state.config.general.first_run_completed
+        {
+            app.state.mode = AppMode::Onboarding {
+                step: OnboardingStep::Welcome,
+                selected_option: 0,
+            };
+        } else {
+            let _ = crate::config::FirstRunManager::record_launch();
         }
 
         Ok(app)
@@ -149,7 +181,24 @@ impl App {
 
             // ── Process next event ───────────────────────────────────────────
             let event = tokio::select! {
-                // Background PTY shell output
+                // Multiplexed PTY shell output
+                Some((session_id, bytes)) = async {
+                    match &mut self.pty_multiplex_rx {
+                        Some(rx) => rx.recv().await,
+                        None => std::future::pending().await,
+                    }
+                } => {
+                    self.terminal_manager.push_output(session_id, &bytes);
+                    if session_id == 1 || self.terminal_manager.active_index() == session_id.saturating_sub(1) {
+                        self.terminal_scrollback.extend_from_slice(&bytes);
+                        if self.terminal_scrollback.len() > 1024 * 1024 {
+                            let excess = self.terminal_scrollback.len() - 1024 * 1024;
+                            self.terminal_scrollback.drain(0..excess);
+                        }
+                    }
+                    continue;
+                },
+                // Background PTY shell output (legacy channel fallback)
                 Some(bytes) = async {
                     match &mut self.pty_rx {
                         Some(rx) => rx.recv().await,
@@ -164,6 +213,16 @@ impl App {
                     if let Some(session) = &mut self.terminal_session {
                         session.push_output(&bytes);
                     }
+                    continue;
+                },
+                // Background Task Runner streaming events
+                Some(task_evt) = async {
+                    match &mut self.task_event_rx {
+                        Some(rx) => rx.recv().await,
+                        None => std::future::pending().await,
+                    }
+                } => {
+                    self.handle_task_event(task_evt).await;
                     continue;
                 },
                 // Filesystem changes (debounced)
@@ -243,6 +302,7 @@ impl App {
         let editor_buf = &self.editor_buf;
         let monitor_snap = &self.monitor_snapshot;
         let scrollback = &self.terminal_scrollback;
+        let terminal_manager = &self.terminal_manager;
 
         terminal.draw(|frame| {
             let area = frame.area();
@@ -335,9 +395,10 @@ impl App {
             // ── Bottom panel ──────────────────────────────────────────────
             if let Some(bottom_area) = areas.bottom_panel {
                 if state.show_terminal {
-                    render_terminal(
+                    render_terminal_manager(
                         frame,
                         bottom_area,
+                        Some(terminal_manager),
                         scrollback,
                         state,
                         theme,
@@ -386,18 +447,51 @@ impl App {
                 selected_idx,
             } = &state.mode
             {
-                let items = CommandRegistry::search_with_context(
+                let ctx = self.build_command_context();
+                let results = state.workflow_registry.search(
                     query,
-                    &state.config.pinned_folders,
-                    &state.recent_dirs.dirs,
-                    state.focused,
+                    &ctx,
+                    &state.workflow_history,
                 );
-                render_command_palette(frame, area, query, &items, *selected_idx, theme);
+                render_workflow_command_palette(frame, area, query, &results, *selected_idx, theme);
+            }
+
+            // ── Task Runner Workbench ─────────────────────────────────────
+            if let AppMode::TaskViewer {
+                selected_idx,
+                scroll_offset,
+            } = state.mode
+            {
+                render_task_viewer(
+                    frame,
+                    area,
+                    &state.workflow_executions,
+                    selected_idx,
+                    scroll_offset,
+                    theme,
+                    &mut hit_registry,
+                );
             }
 
             // ── Git Dashboard ─────────────────────────────────────────────
             if let AppMode::GitDashboard { selected_idx } = state.mode {
-                render_git_panel(frame, area, &state.git_status, selected_idx, theme);
+                let view = GitWorkbenchView {
+                    active_tab: state.git_tab,
+                    selected_idx,
+                    diff_content: &state.git_diff_content,
+                    diff_scroll: state.git_diff_scroll,
+                    branches: &state.git_branches,
+                    branch_selected: state.git_branch_selected,
+                    history: &state.git_history,
+                    history_selected: state.git_history_selected,
+                };
+                render_git_workbench(
+                    frame,
+                    area,
+                    &state.git_status,
+                    &view,
+                    theme,
+                );
             }
 
             // ── Onboarding Wizard ─────────────────────────────────────────
@@ -488,14 +582,15 @@ impl App {
     }
 
     fn on_resize(&mut self, w: u16, _h: u16) {
+        let term_h = self.state.config.terminal_height;
+        self.terminal_manager.resize_all(w, term_h);
         if let Some(session) = &mut self.terminal_session {
-            let term_h = self.state.config.terminal_height;
             let _ = session.resize(w, term_h);
         }
     }
 
     fn cleanup_terminal_session(&mut self) {
-        // PTY child is cleaned up on Drop.
+        self.terminal_manager.cleanup_all();
         self.terminal_session = None;
     }
 
@@ -773,21 +868,20 @@ impl App {
     // ── Terminal session ──────────────────────────────────────────────────────
 
     fn start_terminal_session(&mut self) {
-        if self.terminal_session.is_some() {
+        if self.terminal_manager.session_count() > 0 {
             return;
         }
 
         let dir = self.state.explorer.current_dir.clone();
         let cols = 120u16;
         let rows = self.state.config.terminal_height;
-        let (tx, rx) = mpsc::unbounded_channel();
-        self.pty_rx = Some(rx);
 
-        match TerminalSession::new(dir, cols, rows, tx) {
-            Ok(session) => {
-                self.terminal_session = Some(session);
-                self.state
-                    .set_status("Terminal started", StatusKind::Success);
+        match self.terminal_manager.create_session(dir, cols, rows) {
+            Ok(id) => {
+                self.state.set_status(
+                    format!("Terminal session {} started", id),
+                    StatusKind::Success,
+                );
             }
             Err(e) => {
                 self.state
@@ -870,7 +964,38 @@ impl App {
             return self.handle_unified_search_key(key).await;
         }
 
+        // ── Task Runner Workbench ─────────────────────────────────────────
+        if matches!(self.state.mode, AppMode::TaskViewer { .. }) {
+            return self.handle_task_viewer_key(key).await;
+        }
+
         // ── Global shortcuts (always active) ──────────────────────────────
+        // Ctrl+F5..F8: Developer Task Execution
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            match key.code {
+                KeyCode::F(5) => {
+                    self.run_task_category(crate::workflow::TaskCategory::Run)
+                        .await;
+                    return Ok(false);
+                }
+                KeyCode::F(6) => {
+                    self.run_task_category(crate::workflow::TaskCategory::Test)
+                        .await;
+                    return Ok(false);
+                }
+                KeyCode::F(7) => {
+                    self.run_task_category(crate::workflow::TaskCategory::Build)
+                        .await;
+                    return Ok(false);
+                }
+                KeyCode::F(8) => {
+                    self.run_task_category(crate::workflow::TaskCategory::Lint)
+                        .await;
+                    return Ok(false);
+                }
+                _ => {}
+            }
+        }
         // Ctrl+, or F10: Interactive Settings Studio
         if (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char(','))
             || (key.modifiers == KeyModifiers::NONE && key.code == KeyCode::F(10))
@@ -887,8 +1012,7 @@ impl App {
         if key.modifiers == KeyModifiers::CONTROL
             && (key.code == KeyCode::Char('g') || key.code == KeyCode::Char('G'))
         {
-            self.state.git_status = GitRepoStatus::query(&self.state.explorer.current_dir);
-            self.state.mode = AppMode::GitDashboard { selected_idx: 0 };
+            self.open_git_dashboard().await;
             return Ok(false);
         }
 
@@ -1242,13 +1366,83 @@ impl App {
             self.state.focused = FocusedPanel::Explorer;
             return Ok(false);
         }
-        // Alt+F6 or Ctrl+Shift+T: toggle terminal maximize state
-        if (key.modifiers == KeyModifiers::ALT && key.code == KeyCode::F(6))
-            || (key.modifiers.contains(KeyModifiers::CONTROL)
-                && key.modifiers.contains(KeyModifiers::SHIFT)
-                && (key.code == KeyCode::Char('T') || key.code == KeyCode::Char('t')))
-        {
+        // Alt+F6: toggle terminal maximize state
+        if key.modifiers == KeyModifiers::ALT && key.code == KeyCode::F(6) {
             self.toggle_terminal_maximize();
+            return Ok(false);
+        }
+        // Ctrl+Shift+T: Open new terminal tab
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.modifiers.contains(KeyModifiers::SHIFT)
+            && (key.code == KeyCode::Char('T') || key.code == KeyCode::Char('t'))
+        {
+            let dir = self.state.explorer.current_dir.clone();
+            let cols = 120u16;
+            let rows = self.state.config.terminal_height;
+            match self.terminal_manager.create_session(dir, cols, rows) {
+                Ok(id) => {
+                    self.state
+                        .set_status(format!("Opened terminal tab {}", id), StatusKind::Info);
+                }
+                Err(e) => {
+                    self.state
+                        .set_status(format!("Cannot open tab: {e}"), StatusKind::Warning);
+                }
+            }
+            return Ok(false);
+        }
+        // Ctrl+Shift+W: Close active terminal tab
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.modifiers.contains(KeyModifiers::SHIFT)
+            && (key.code == KeyCode::Char('W') || key.code == KeyCode::Char('w'))
+        {
+            let active = self.terminal_manager.active_index();
+            self.terminal_manager.close_session(active);
+            if self.terminal_manager.is_empty() {
+                self.state.show_terminal = false;
+                self.state.focused = FocusedPanel::Explorer;
+                self.state
+                    .set_status("All terminal tabs closed", StatusKind::Info);
+            } else {
+                self.state.set_status(
+                    format!(
+                        "Closed tab. Active tab: {}",
+                        self.terminal_manager.active_index() + 1
+                    ),
+                    StatusKind::Info,
+                );
+            }
+            return Ok(false);
+        }
+        // Tab switching: Ctrl+PageDown / Ctrl+PageUp
+        if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::PageDown {
+            self.terminal_manager.next_session();
+            return Ok(false);
+        }
+        if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::PageUp {
+            self.terminal_manager.prev_session();
+            return Ok(false);
+        }
+        // Direct tab switching: Alt+1..9
+        if key.modifiers == KeyModifiers::ALT {
+            if let KeyCode::Char(digit @ '1'..='9') = key.code {
+                let tab_idx = (digit as usize) - ('1' as usize);
+                if self.terminal_manager.switch_session(tab_idx) {
+                    return Ok(false);
+                }
+            }
+        }
+        // Scrollback navigation: Shift+PageUp / Shift+PageDown
+        if key.modifiers.contains(KeyModifiers::SHIFT) && key.code == KeyCode::PageUp {
+            if let Some(sess) = self.terminal_manager.active_session_mut() {
+                sess.scroll_up(5);
+            }
+            return Ok(false);
+        }
+        if key.modifiers.contains(KeyModifiers::SHIFT) && key.code == KeyCode::PageDown {
+            if let Some(sess) = self.terminal_manager.active_session_mut() {
+                sess.scroll_down(5);
+            }
             return Ok(false);
         }
         // Terminal height resizing from inside terminal: Ctrl+Down / Ctrl+Up
@@ -1264,7 +1458,12 @@ impl App {
             return Ok(false);
         }
 
-        if let Some(session) = &self.terminal_session {
+        if let Some(session) = self.terminal_manager.active_session() {
+            let bytes = key_to_pty_bytes(key);
+            if !bytes.is_empty() {
+                let _ = session.send_input(&bytes);
+            }
+        } else if let Some(session) = &self.terminal_session {
             let bytes = key_to_pty_bytes(key);
             if !bytes.is_empty() {
                 let _ = session.send_input(&bytes);
@@ -1622,6 +1821,74 @@ impl App {
             ModalKind::GoToLine => {
                 if let (Some(buf), Ok(n)) = (&mut self.editor_buf, input.parse::<usize>()) {
                     buf.goto_line(n);
+                }
+            }
+            ModalKind::GitCommit => {
+                let dir = self.state.explorer.current_dir.clone();
+                match crate::git::manager::GitOperationManager::create_commit(
+                    dir.clone(),
+                    input.to_string(),
+                )
+                .await
+                {
+                    Ok(msg) => {
+                        self.state
+                            .set_status(format!("Committed: {}", msg), StatusKind::Success);
+                        self.state.git_status =
+                            crate::git::manager::GitOperationManager::query_status(dir.clone())
+                                .await;
+                        self.state.git_history =
+                            crate::git::manager::GitOperationManager::get_history(dir, 20, 0)
+                                .await
+                                .unwrap_or_default();
+                    }
+                    Err(err) => {
+                        self.state
+                            .set_status(format!("Commit failed: {}", err), StatusKind::Error);
+                    }
+                }
+            }
+            ModalKind::GitNewBranch => {
+                let dir = self.state.explorer.current_dir.clone();
+                match crate::git::manager::GitOperationManager::create_branch(
+                    dir.clone(),
+                    input.to_string(),
+                )
+                .await
+                {
+                    Ok(msg) => {
+                        self.state
+                            .set_status(format!("Switched: {}", msg), StatusKind::Success);
+                        self.state.git_status =
+                            crate::git::manager::GitOperationManager::query_status(dir.clone())
+                                .await;
+                        self.state.git_branches =
+                            crate::git::manager::GitOperationManager::list_branches(dir)
+                                .await
+                                .unwrap_or_default();
+                    }
+                    Err(err) => {
+                        self.state.set_status(
+                            format!("Branch creation failed: {}", err),
+                            StatusKind::Error,
+                        );
+                    }
+                }
+            }
+            ModalKind::WorkspaceTrustConfirm { root, task_id, .. } => {
+                let trimmed = input.trim().to_lowercase();
+                if trimmed == "y" || trimmed == "yes" {
+                    let _ = self.state.workflow_trust.trust_workspace(&root);
+                    self.state.set_status(
+                        format!("Workspace trusted: {}", root.display()),
+                        StatusKind::Success,
+                    );
+                    self.run_task(&task_id).await;
+                } else {
+                    self.state.set_status(
+                        "Workspace trust denied; task execution cancelled",
+                        StatusKind::Warning,
+                    );
                 }
             }
             ModalKind::Message(_) | ModalKind::Error(_) => {}
@@ -2370,11 +2637,136 @@ impl App {
                     }
                 }
             }
+            KeyCode::Char('r') => {
+                let sec = SettingsSection::ALL[section_idx];
+                let items = get_section_items(sec, &self.state.config);
+                if let Some(item) = items.get(item_idx) {
+                    match item.key {
+                        "theme" => {
+                            self.state.config.theme.name = "Catppuccin Mocha".to_string();
+                            self.theme = Theme::from_name(
+                                "Catppuccin Mocha",
+                                self.state.config.theme.transparent_background,
+                            );
+                        }
+                        "transparent_bg" => {
+                            self.state.config.theme.transparent_background = true;
+                            self.theme = Theme::from_name(&self.state.config.theme.name, true);
+                        }
+                        "confirm_delete" => self.state.config.general.confirm_delete = true,
+                        "restore_session" => self.state.config.general.restore_session = true,
+                        "watch_filesystem" => self.state.config.general.watch_filesystem = true,
+                        "show_git_status" => self.state.config.developer.git_status_enabled = true,
+                        "show_hidden" => {
+                            self.state.config.show_hidden = false;
+                            self.refresh_dir().await;
+                        }
+                        "explorer_ratio" => {
+                            self.state.config.layout.explorer_ratio = 0.25;
+                            self.state.config.layout.preview_ratio = 0.75;
+                        }
+                        "preview_ratio" => {
+                            self.state.config.layout.preview_ratio = 0.75;
+                            self.state.config.layout.explorer_ratio = 0.25;
+                        }
+                        "terminal_height_percent" => {
+                            self.state.config.layout.terminal_height_percent = 15
+                        }
+                        "tab_width" => self.state.config.editor.tab_width = 4,
+                        "auto_pair" => self.state.config.editor.auto_pair = true,
+                        "line_numbers" => self.state.config.editor.line_numbers = true,
+                        "syntax_highlight" => self.state.config.editor.syntax_highlight = true,
+                        "word_wrap" => self.state.config.editor.word_wrap = true,
+                        "show_completion" => self.state.config.editor.show_completion = true,
+                        "scrollback_limit" => {
+                            self.state.config.terminal.scrollback_limit_kib = 1024
+                        }
+                        "refresh_ms" => self.state.config.monitor.refresh_ms = 1000,
+                        "icon_pack" => {
+                            self.state.icon_manager.pack = crate::icons::IconPack::Catppuccin;
+                            self.state.config.icon_pack = "catppuccin".to_string();
+                        }
+                        _ => {}
+                    }
+                    self.state.config.validate_and_clamp();
+                    let _ = self.state.config.save();
+                    self.state
+                        .set_status("Setting reset to default value", StatusKind::Success);
+                }
+            }
+            KeyCode::Char('R') => {
+                let _ = self.state.config.reset_to_default();
+                self.theme = Theme::from_name(
+                    &self.state.config.theme.name,
+                    self.state.config.theme.transparent_background,
+                );
+                self.state
+                    .set_status("All settings reset to default values", StatusKind::Success);
+            }
+            KeyCode::Char('e') => {
+                let export_path = Config::config_dir().join("config_export.toml");
+                if let Err(e) = self.state.config.export_to_file(&export_path) {
+                    self.state
+                        .set_status(format!("Export failed: {e}"), StatusKind::Error);
+                } else {
+                    self.state.set_status(
+                        format!("Exported to {}", export_path.display()),
+                        StatusKind::Success,
+                    );
+                }
+            }
+            KeyCode::Char('i') => {
+                let import_path = Config::config_dir().join("config_export.toml");
+                match Config::import_from_file(&import_path) {
+                    Ok(new_config) => {
+                        self.state.config = new_config;
+                        self.theme = Theme::from_name(
+                            &self.state.config.theme.name,
+                            self.state.config.theme.transparent_background,
+                        );
+                        self.state.set_status(
+                            format!("Imported from {}", import_path.display()),
+                            StatusKind::Success,
+                        );
+                    }
+                    Err(e) => {
+                        self.state
+                            .set_status(format!("Import failed: {e}"), StatusKind::Error);
+                    }
+                }
+            }
             KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Left | KeyCode::Right => {
                 let sec = SettingsSection::ALL[section_idx];
                 let items = get_section_items(sec, &self.state.config);
                 if let Some(item) = items.get(item_idx) {
                     match item.key {
+                        "run_onboarding" => {
+                            self.state.mode = AppMode::Onboarding {
+                                step: OnboardingStep::Welcome,
+                                selected_option: 0,
+                            };
+                            return Ok(false);
+                        }
+                        "view_shortcuts" => {
+                            self.state.mode = AppMode::Help;
+                            return Ok(false);
+                        }
+                        "confirm_delete" => {
+                            self.state.config.general.confirm_delete =
+                                !self.state.config.general.confirm_delete;
+                        }
+                        "restore_session" => {
+                            self.state.config.general.restore_session =
+                                !self.state.config.general.restore_session;
+                        }
+                        "watch_filesystem" => {
+                            self.state.config.general.watch_filesystem =
+                                !self.state.config.general.watch_filesystem;
+                        }
+                        "show_git_status" => {
+                            self.state.config.developer.git_status_enabled =
+                                !self.state.config.developer.git_status_enabled;
+                        }
                         "transparent_bg" => {
                             self.state.config.theme.transparent_background =
                                 !self.state.config.theme.transparent_background;
@@ -2438,6 +2830,14 @@ impl App {
                             self.state.config.editor.line_numbers =
                                 !self.state.config.editor.line_numbers;
                         }
+                        "syntax_highlight" => {
+                            self.state.config.editor.syntax_highlight =
+                                !self.state.config.editor.syntax_highlight;
+                        }
+                        "word_wrap" => {
+                            self.state.config.editor.word_wrap =
+                                !self.state.config.editor.word_wrap;
+                        }
                         "show_completion" => {
                             self.state.config.editor.show_completion =
                                 !self.state.config.editor.show_completion;
@@ -2450,39 +2850,107 @@ impl App {
                                     _ => 2,
                                 };
                         }
-                        "sidebar_width" => {
-                            if key.code == KeyCode::Left {
-                                self.state.config.sidebar_width =
-                                    self.state.config.sidebar_width.saturating_sub(2).max(12);
+                        "explorer_ratio" => {
+                            let delta = if key.code == KeyCode::Left {
+                                -0.05
                             } else {
-                                self.state.config.sidebar_width =
-                                    (self.state.config.sidebar_width + 2).min(40);
-                            }
-                        }
-                        "preview_width" => {
-                            if key.code == KeyCode::Left {
-                                self.state.config.preview_width =
-                                    self.state.config.preview_width.saturating_sub(5).max(15);
-                            } else {
-                                self.state.config.preview_width =
-                                    (self.state.config.preview_width + 5).min(85);
-                            }
+                                0.05
+                            };
+                            self.state.config.layout.explorer_ratio =
+                                (self.state.config.layout.explorer_ratio + delta).clamp(0.15, 0.50);
                             self.state.config.layout.preview_ratio =
-                                self.state.config.preview_width as f32 / 100.0;
+                                1.0 - self.state.config.layout.explorer_ratio;
+                        }
+                        "preview_ratio" => {
+                            let delta = if key.code == KeyCode::Left {
+                                -0.05
+                            } else {
+                                0.05
+                            };
+                            self.state.config.layout.preview_ratio =
+                                (self.state.config.layout.preview_ratio + delta).clamp(0.50, 0.85);
                             self.state.config.layout.explorer_ratio =
                                 1.0 - self.state.config.layout.preview_ratio;
                         }
-                        "terminal_height" => {
-                            if key.code == KeyCode::Left {
-                                self.state.config.terminal_height =
-                                    self.state.config.terminal_height.saturating_sub(1).max(5);
-                            } else {
-                                self.state.config.terminal_height =
-                                    (self.state.config.terminal_height + 1).min(40);
-                            }
+                        "terminal_height_percent" => {
+                            let delta = if key.code == KeyCode::Left { -5 } else { 5 };
+                            let cur =
+                                self.state.config.layout.terminal_height_percent as i16 + delta;
                             self.state.config.layout.terminal_height_percent =
-                                ((self.state.config.terminal_height as f32 / 40.0) * 100.0)
-                                    .clamp(10.0, 50.0) as u16;
+                                cur.clamp(10, 40) as u16;
+                        }
+                        "default_shell" => {
+                            let caps = crate::shell::TerminalCapabilities::detect();
+                            if !caps.available_shells.is_empty() {
+                                let cur_path = self
+                                    .state
+                                    .config
+                                    .terminal
+                                    .default_shell
+                                    .clone()
+                                    .unwrap_or_else(|| {
+                                        caps.default_shell.path.display().to_string()
+                                    });
+                                let idx = caps
+                                    .available_shells
+                                    .iter()
+                                    .position(|s| s.path.display().to_string() == cur_path)
+                                    .unwrap_or(0);
+                                let next = if key.code == KeyCode::Left {
+                                    if idx == 0 {
+                                        caps.available_shells.len() - 1
+                                    } else {
+                                        idx - 1
+                                    }
+                                } else {
+                                    (idx + 1) % caps.available_shells.len()
+                                };
+                                self.state.config.terminal.default_shell =
+                                    Some(caps.available_shells[next].path.display().to_string());
+                            }
+                        }
+                        "scrollback_limit" => {
+                            let delta = if key.code == KeyCode::Left { -256 } else { 256 };
+                            let cur =
+                                self.state.config.terminal.scrollback_limit_kib as i64 + delta;
+                            self.state.config.terminal.scrollback_limit_kib =
+                                cur.clamp(256, 16384) as usize;
+                        }
+                        "refresh_ms" => {
+                            let delta = if key.code == KeyCode::Left { -250 } else { 250 };
+                            let cur = self.state.config.monitor.refresh_ms as i64 + delta;
+                            self.state.config.monitor.refresh_ms = cur.clamp(250, 5000) as u64;
+                        }
+                        "export_config" => {
+                            let export_path = Config::config_dir().join("config_export.toml");
+                            let _ = self.state.config.export_to_file(&export_path);
+                            self.state.set_status(
+                                format!("Exported settings to {}", export_path.display()),
+                                StatusKind::Success,
+                            );
+                        }
+                        "import_config" => {
+                            let import_path = Config::config_dir().join("config_export.toml");
+                            if let Ok(new_cfg) = Config::import_from_file(&import_path) {
+                                self.state.config = new_cfg;
+                                self.theme = Theme::from_name(
+                                    &self.state.config.theme.name,
+                                    self.state.config.theme.transparent_background,
+                                );
+                                self.state.set_status(
+                                    "Imported settings successfully",
+                                    StatusKind::Success,
+                                );
+                            }
+                        }
+                        "reset_all" => {
+                            let _ = self.state.config.reset_to_default();
+                            self.theme = Theme::from_name(
+                                &self.state.config.theme.name,
+                                self.state.config.theme.transparent_background,
+                            );
+                            self.state
+                                .set_status("All settings reset to defaults", StatusKind::Success);
                         }
                         "plugin_marketplace" => {
                             self.state.mode = AppMode::PluginCenter {
@@ -2495,17 +2963,9 @@ impl App {
                             };
                             return Ok(false);
                         }
-                        "profile_preset" => {
-                            let profiles = ProfileKind::ALL;
-                            let next = (item_idx + 1) % profiles.len();
-                            profiles[next].apply_to_config(&mut self.state.config);
-                            self.state.show_sidebar = self.state.config.show_sidebar;
-                            self.state.show_preview = self.state.config.show_preview;
-                            self.state.show_terminal = self.state.config.show_terminal;
-                            self.state.show_monitor = self.state.config.show_monitor;
-                        }
                         _ => {}
                     }
+                    self.state.config.validate_and_clamp();
                     let _ = self.state.config.save();
                 }
             }
@@ -2535,6 +2995,20 @@ impl App {
                 return Ok(false);
             }
             KeyCode::Enter => {
+                let ctx = self.build_command_context();
+                let results =
+                    self.state
+                        .workflow_registry
+                        .search(&query, &ctx, &self.state.workflow_history);
+                if let Some(res) = results.get(selected_idx) {
+                    let cmd = res.command.clone();
+                    self.state.workflow_history.record(&cmd.id);
+                    self.state.mode = AppMode::Browse;
+                    self.execute_workflow_action(cmd.action).await;
+                    return Ok(false);
+                }
+
+                // Fallback to legacy commands if none matched
                 let items = CommandRegistry::search_with_context(
                     &query,
                     &self.state.config.pinned_folders,
@@ -2554,13 +3028,12 @@ impl App {
                 selected_idx = selected_idx.saturating_sub(1);
             }
             KeyCode::Down | KeyCode::Tab => {
-                let count = CommandRegistry::search_with_context(
-                    &query,
-                    &self.state.config.pinned_folders,
-                    &self.state.recent_dirs.dirs,
-                    self.state.focused,
-                )
-                .len();
+                let ctx = self.build_command_context();
+                let count = self
+                    .state
+                    .workflow_registry
+                    .search(&query, &ctx, &self.state.workflow_history)
+                    .len();
                 if selected_idx + 1 < count {
                     selected_idx += 1;
                 }
@@ -2585,6 +3058,307 @@ impl App {
         Ok(false)
     }
 
+    /// Handles keyboard events while inspecting the Task Output Workbench.
+    async fn handle_task_viewer_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let (mut selected_idx, mut scroll_offset) = match &self.state.mode {
+            AppMode::TaskViewer {
+                selected_idx,
+                scroll_offset,
+            } => (*selected_idx, *scroll_offset),
+            _ => return Ok(false),
+        };
+
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.state.mode = AppMode::Browse;
+                return Ok(false);
+            }
+            KeyCode::Up => {
+                selected_idx = selected_idx.saturating_sub(1);
+                scroll_offset = 0;
+            }
+            KeyCode::Down => {
+                let count = self.state.workflow_executions.len();
+                if selected_idx + 1 < count {
+                    selected_idx += 1;
+                    scroll_offset = 0;
+                }
+            }
+            KeyCode::PageUp => {
+                scroll_offset = scroll_offset.saturating_add(10);
+            }
+            KeyCode::PageDown => {
+                scroll_offset = scroll_offset.saturating_sub(10);
+            }
+            KeyCode::Char('c') | KeyCode::Char('C') => {
+                if let Some(exec) = self.state.workflow_executions.get(selected_idx) {
+                    let id = exec.execution_id;
+                    self.task_runner.cancel_task(id).await;
+                }
+            }
+            KeyCode::Char('r') | KeyCode::Char('R') => {
+                if let Some(exec) = self.state.workflow_executions.get(selected_idx) {
+                    let task_id = exec.task_id.0.clone();
+                    self.run_task(&task_id).await;
+                }
+            }
+            _ => {}
+        }
+
+        self.state.mode = AppMode::TaskViewer {
+            selected_idx,
+            scroll_offset,
+        };
+        Ok(false)
+    }
+
+    /// Builds the dynamic contextual environment of TermExplorer for command availability filtering.
+    pub fn build_command_context(&self) -> crate::workflow::CommandContext {
+        let has_git = self.state.git_status.is_repo;
+        let is_editor_mode = self.editor_buf.is_some() && self.state.mode == AppMode::Edit;
+        let is_preview_mode = self.state.show_preview;
+        let has_terminal_session =
+            self.terminal_manager.active_session().is_some() || self.terminal_session.is_some();
+        let has_project_tasks = !self.state.workflow_tasks.is_empty();
+        let has_selection = self.state.selected_path().is_some();
+        let is_dirty = self.editor_buf.as_ref().map(|b| b.dirty).unwrap_or(false);
+        let selected_path = self.state.selected_path();
+        let current_dir = self.state.explorer.current_dir.clone();
+
+        crate::workflow::CommandContext {
+            has_git,
+            is_editor_mode,
+            is_preview_mode,
+            has_terminal_session,
+            has_project_tasks,
+            has_selection,
+            is_dirty,
+            selected_path,
+            current_dir,
+        }
+    }
+
+    /// Dispatches an action initiated from the unified Command Palette.
+    async fn execute_workflow_action(&mut self, action: crate::workflow::CommandAction) {
+        match action {
+            crate::workflow::CommandAction::App(app_act) => {
+                let _ = self.dispatch_action(app_act).await;
+            }
+            crate::workflow::CommandAction::RunTask(task_id) => {
+                self.run_task(&task_id).await;
+            }
+            crate::workflow::CommandAction::Custom(f) => {
+                let ctx = self.build_command_context();
+                if let Some(app_act) = f(&ctx) {
+                    let _ = self.dispatch_action(app_act).await;
+                }
+            }
+        }
+    }
+
+    /// Runs a developer task by ID with workspace trust checks and execution mode routing.
+    pub async fn run_task(&mut self, task_id: &str) {
+        let task_opt = self
+            .state
+            .workflow_tasks
+            .iter()
+            .find(|t| t.id.0 == task_id)
+            .cloned();
+        let Some(task) = task_opt else {
+            self.state
+                .set_status(format!("Task '{}' not found", task_id), StatusKind::Error);
+            return;
+        };
+
+        let workspace_root = self.state.explorer.current_dir.clone();
+
+        // 1. Workspace Trust Security Guard
+        if !self.state.workflow_trust.is_trusted(&workspace_root) {
+            self.state.modal_input.clear();
+            self.state.mode = AppMode::Modal(ModalKind::WorkspaceTrustConfirm {
+                root: workspace_root,
+                task_name: task.display_name.clone(),
+                command: task.command.clone(),
+                args: task.args.clone(),
+                task_id: task_id.to_string(),
+            });
+            return;
+        }
+
+        // 2. Interactive task routing -> PTY terminal drawer
+        if task.output_mode == crate::workflow::TaskOutputMode::Interactive {
+            if !self.state.show_terminal {
+                self.state.show_terminal = true;
+            }
+            let session_id = self
+                .terminal_manager
+                .create_session(workspace_root, 120, self.state.config.terminal_height)
+                .unwrap_or(1);
+            let mut full_cmd = task.command.clone();
+            for a in &task.args {
+                full_cmd.push(' ');
+                full_cmd.push_str(a);
+            }
+            full_cmd.push('\n');
+            let _ = self
+                .terminal_manager
+                .send_input_to_session(session_id, full_cmd.as_bytes());
+            self.state.set_status(
+                format!("Launched interactive task: {}", task.display_name),
+                StatusKind::Success,
+            );
+            return;
+        }
+
+        // 3. Non-interactive task -> TaskRunner with streaming events
+        let var_ctx = crate::workflow::VariableContext {
+            workspace_root: workspace_root.clone(),
+            current_file: self.state.selected_path(),
+            git_branch: if self.state.git_status.is_repo {
+                Some(self.state.git_status.branch.clone())
+            } else {
+                None
+            },
+        };
+
+        match self
+            .task_runner
+            .spawn_task(&task, &workspace_root, &var_ctx, self.task_event_tx.clone())
+            .await
+        {
+            Ok(execution_id) => {
+                self.state.set_status(
+                    format!("Running task: {} (ID #{})", task.display_name, execution_id),
+                    StatusKind::Info,
+                );
+                let exec_count = self.state.workflow_executions.len();
+                self.state.mode = AppMode::TaskViewer {
+                    selected_idx: exec_count,
+                    scroll_offset: 0,
+                };
+            }
+            Err(e) => {
+                self.state
+                    .set_status(format!("Task spawn error: {}", e), StatusKind::Error);
+            }
+        }
+    }
+
+    /// Runs the first available task in a specific category (e.g. Build, Test, Lint, Run).
+    pub async fn run_task_category(&mut self, category: crate::workflow::TaskCategory) {
+        let matching = self
+            .state
+            .workflow_tasks
+            .iter()
+            .find(|t| t.category == category)
+            .map(|t| t.id.0.clone());
+
+        if let Some(id) = matching {
+            self.run_task(&id).await;
+        } else {
+            self.state.set_status(
+                format!("No task registered for category '{}'", category.label()),
+                StatusKind::Warning,
+            );
+        }
+    }
+
+    /// Reruns an existing execution by re-executing its task definition.
+    pub async fn rerun_task(&mut self, execution_id: u64) {
+        if let Some(exec) = self
+            .state
+            .workflow_executions
+            .iter()
+            .find(|e| e.execution_id == execution_id)
+        {
+            let task_id = exec.task_id.0.clone();
+            self.run_task(&task_id).await;
+        }
+    }
+
+    /// Processes an incremental event from the asynchronous Task Runner.
+    async fn handle_task_event(&mut self, evt: crate::workflow::TaskRunnerEvent) {
+        match evt {
+            crate::workflow::TaskRunnerEvent::Started {
+                execution_id,
+                task_id,
+                task_name,
+            } => {
+                if !self
+                    .state
+                    .workflow_executions
+                    .iter()
+                    .any(|e| e.execution_id == execution_id)
+                {
+                    let mut exec =
+                        crate::workflow::TaskExecution::new(execution_id, task_id, task_name, 5000);
+                    exec.status = crate::workflow::TaskStatus::Running;
+                    self.state.workflow_executions.push(exec);
+                }
+            }
+            crate::workflow::TaskRunnerEvent::Line {
+                execution_id,
+                stream,
+                text,
+            } => {
+                if let Some(exec) = self
+                    .state
+                    .workflow_executions
+                    .iter_mut()
+                    .find(|e| e.execution_id == execution_id)
+                {
+                    exec.append_line(stream, text);
+                }
+            }
+            crate::workflow::TaskRunnerEvent::Finished {
+                execution_id,
+                status,
+                exit_code,
+                duration_ms,
+            } => {
+                if let Some(exec) = self
+                    .state
+                    .workflow_executions
+                    .iter_mut()
+                    .find(|e| e.execution_id == execution_id)
+                {
+                    exec.finish(status.clone(), exit_code);
+                }
+                let dur_sec = duration_ms as f64 / 1000.0;
+                match status {
+                    crate::workflow::TaskStatus::Completed(_) => {
+                        self.state.set_status(
+                            format!("Task #{} completed in {:.2}s", execution_id, dur_sec),
+                            StatusKind::Success,
+                        );
+                    }
+                    crate::workflow::TaskStatus::Failed(code) => {
+                        self.state.set_status(
+                            format!(
+                                "Task #{} failed with exit code {} in {:.2}s",
+                                execution_id, code, dur_sec
+                            ),
+                            StatusKind::Error,
+                        );
+                    }
+                    crate::workflow::TaskStatus::Cancelled => {
+                        self.state.set_status(
+                            format!("Task #{} cancelled", execution_id),
+                            StatusKind::Warning,
+                        );
+                    }
+                    crate::workflow::TaskStatus::TimedOut => {
+                        self.state.set_status(
+                            format!("Task #{} timed out", execution_id),
+                            StatusKind::Error,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
     async fn execute_palette_command(&mut self, id: &str) {
         match id {
             "toggle_dual_pane" => self.toggle_dual_pane().await,
@@ -2593,6 +3367,12 @@ impl App {
                     section_idx: 0,
                     item_idx: 0,
                     in_items: false,
+                };
+            }
+            "open_onboarding" => {
+                self.state.mode = AppMode::Onboarding {
+                    step: OnboardingStep::Welcome,
+                    selected_option: 0,
                 };
             }
             "open_help" => self.state.mode = AppMode::Help,
@@ -2812,56 +3592,413 @@ impl App {
         }
     }
 
+    async fn open_git_dashboard(&mut self) {
+        let dir = self.state.explorer.current_dir.clone();
+        self.state.git_status =
+            crate::git::manager::GitOperationManager::query_status(dir.clone()).await;
+        self.state.git_branches =
+            crate::git::manager::GitOperationManager::list_branches(dir.clone())
+                .await
+                .unwrap_or_default();
+        self.state.git_history = crate::git::manager::GitOperationManager::get_history(dir, 30, 0)
+            .await
+            .unwrap_or_default();
+        self.state.git_tab = 0;
+        self.state.git_diff_scroll = 0;
+        self.state.git_branch_selected = 0;
+        self.state.git_history_selected = 0;
+        self.state.mode = AppMode::GitDashboard { selected_idx: 0 };
+    }
+
     async fn handle_git_dashboard_key(&mut self, key: KeyEvent) -> Result<bool> {
         let mut selected_idx = match self.state.mode {
             AppMode::GitDashboard { selected_idx } => selected_idx,
             _ => return Ok(false),
         };
 
+        let dir = self.state.explorer.current_dir.clone();
+
+        // Global Git dashboard keybindings
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => {
                 self.state.mode = AppMode::Browse;
+                return Ok(false);
             }
-            KeyCode::Up | KeyCode::Char('k') => {
-                selected_idx = selected_idx.saturating_sub(1);
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                let count = self.state.git_status.staged_files.len().max(1);
-                if selected_idx + 1 < count {
-                    selected_idx += 1;
+            KeyCode::Tab => {
+                self.state.git_tab = (self.state.git_tab + 1) % 4;
+                if self.state.git_tab == 1 && self.state.git_diff_content.is_empty() {
+                    let diff_text = crate::git::manager::GitOperationManager::get_diff(
+                        dir.clone(),
+                        None,
+                        false,
+                    )
+                    .await
+                    .unwrap_or_default();
+                    self.state.git_diff_content =
+                        crate::git::diff::render_diff_lines(&diff_text, &self.theme);
                 }
+                return Ok(false);
             }
-            KeyCode::Char('s') => {
-                if let Some(f) = self.state.git_status.unstaged_files.first().or(self
-                    .state
-                    .git_status
-                    .untracked_files
-                    .first())
-                {
-                    let path = f.path.clone();
-                    crate::git::GitRepoStatus::stage_file(&self.state.explorer.current_dir, &path);
-                    self.state.git_status = GitRepoStatus::query(&self.state.explorer.current_dir);
-                    self.state
-                        .set_status(format!("Staged: {}", path), StatusKind::Success);
+            KeyCode::BackTab => {
+                self.state.git_tab = if self.state.git_tab == 0 {
+                    3
+                } else {
+                    self.state.git_tab - 1
+                };
+                return Ok(false);
+            }
+            KeyCode::Char('1') => {
+                self.state.git_tab = 0;
+                return Ok(false);
+            }
+            KeyCode::Char('2') => {
+                self.state.git_tab = 1;
+                if self.state.git_diff_content.is_empty() {
+                    let diff_text = crate::git::manager::GitOperationManager::get_diff(
+                        dir.clone(),
+                        None,
+                        false,
+                    )
+                    .await
+                    .unwrap_or_default();
+                    self.state.git_diff_content =
+                        crate::git::diff::render_diff_lines(&diff_text, &self.theme);
                 }
+                return Ok(false);
             }
-            KeyCode::Char('u') => {
-                if let Some(f) = self.state.git_status.staged_files.get(selected_idx) {
-                    let path = f.path.clone();
-                    crate::git::GitRepoStatus::unstage_file(
-                        &self.state.explorer.current_dir,
-                        &path,
-                    );
-                    self.state.git_status = GitRepoStatus::query(&self.state.explorer.current_dir);
-                    self.state
-                        .set_status(format!("Unstaged: {}", path), StatusKind::Info);
-                }
+            KeyCode::Char('3') => {
+                self.state.git_tab = 2;
+                return Ok(false);
             }
-            KeyCode::Char('c') => {
-                self.state.mode =
-                    AppMode::Modal(ModalKind::Message("Enter commit message:".into()));
+            KeyCode::Char('4') => {
+                self.state.git_tab = 3;
+                return Ok(false);
+            }
+            KeyCode::Char('r') => {
+                self.state.git_status =
+                    crate::git::manager::GitOperationManager::query_status(dir.clone()).await;
+                self.state.git_branches =
+                    crate::git::manager::GitOperationManager::list_branches(dir.clone())
+                        .await
+                        .unwrap_or_default();
+                self.state.git_history =
+                    crate::git::manager::GitOperationManager::get_history(dir, 30, 0)
+                        .await
+                        .unwrap_or_default();
+                self.state
+                    .set_status("Git status refreshed", StatusKind::Info);
+                return Ok(false);
             }
             _ => {}
+        }
+
+        // Tab-specific keybindings
+        match self.state.git_tab {
+            0 => {
+                // ── Tab 0: Status & Staging ──────────────────────────────────
+                let staged_len = self.state.git_status.staged_files.len();
+                let unstaged_len = self.state.git_status.unstaged_files.len();
+                let untracked_len = self.state.git_status.untracked_files.len();
+                let conflicted_len = self.state.git_status.conflicted_files.len();
+                let total = staged_len + unstaged_len + untracked_len + conflicted_len;
+
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        selected_idx = selected_idx.saturating_sub(1);
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        if selected_idx + 1 < total.max(1) {
+                            selected_idx += 1;
+                        }
+                    }
+                    KeyCode::Char('s') => {
+                        // Stage selected file or first unstaged/untracked file
+                        let file_to_stage = if selected_idx >= staged_len {
+                            let rel = selected_idx - staged_len;
+                            if rel < unstaged_len {
+                                self.state
+                                    .git_status
+                                    .unstaged_files
+                                    .get(rel)
+                                    .map(|f| f.path.clone())
+                            } else if rel - unstaged_len < untracked_len {
+                                self.state
+                                    .git_status
+                                    .untracked_files
+                                    .get(rel - unstaged_len)
+                                    .map(|f| f.path.clone())
+                            } else {
+                                None
+                            }
+                        } else {
+                            self.state
+                                .git_status
+                                .unstaged_files
+                                .first()
+                                .map(|f| f.path.clone())
+                                .or_else(|| {
+                                    self.state
+                                        .git_status
+                                        .untracked_files
+                                        .first()
+                                        .map(|f| f.path.clone())
+                                })
+                        };
+
+                        if let Some(file) = file_to_stage {
+                            crate::git::status::stage_file(&dir, &file);
+                            self.state.git_status =
+                                crate::git::manager::GitOperationManager::query_status(dir).await;
+                            self.state
+                                .set_status(format!("Staged: {}", file), StatusKind::Success);
+                        }
+                    }
+                    KeyCode::Char('u') => {
+                        // Unstage selected file or first staged file
+                        let file_to_unstage = if selected_idx < staged_len {
+                            self.state
+                                .git_status
+                                .staged_files
+                                .get(selected_idx)
+                                .map(|f| f.path.clone())
+                        } else {
+                            self.state
+                                .git_status
+                                .staged_files
+                                .first()
+                                .map(|f| f.path.clone())
+                        };
+
+                        if let Some(file) = file_to_unstage {
+                            crate::git::status::unstage_file(&dir, &file);
+                            self.state.git_status =
+                                crate::git::manager::GitOperationManager::query_status(dir).await;
+                            self.state
+                                .set_status(format!("Unstaged: {}", file), StatusKind::Info);
+                        }
+                    }
+                    KeyCode::Char('a') => {
+                        // Stage all modified & untracked files
+                        crate::git::status::stage_all(&dir);
+                        self.state.git_status =
+                            crate::git::manager::GitOperationManager::query_status(dir).await;
+                        self.state
+                            .set_status("Staged all changes", StatusKind::Success);
+                    }
+                    KeyCode::Char('A') => {
+                        // Unstage all staged files
+                        crate::git::status::unstage_all(&dir);
+                        self.state.git_status =
+                            crate::git::manager::GitOperationManager::query_status(dir).await;
+                        self.state
+                            .set_status("Unstaged all changes", StatusKind::Info);
+                    }
+                    KeyCode::Char('c') => {
+                        if let Some(buf) = &self.editor_buf {
+                            if buf.dirty {
+                                self.state.set_status(
+                                    "Warning: Editor has unsaved changes. Save before committing.",
+                                    StatusKind::Warning,
+                                );
+                            }
+                        }
+                        if self.state.git_status.staged_files.is_empty() {
+                            self.state.set_status(
+                                "No staged changes to commit. Stage files first with 's' or 'a'.",
+                                StatusKind::Warning,
+                            );
+                        } else {
+                            self.state.modal_input.clear();
+                            self.state.mode = AppMode::Modal(ModalKind::GitCommit);
+                        }
+                    }
+                    KeyCode::Char('d') | KeyCode::Enter => {
+                        // Inspect diff of selected file
+                        let (path, is_staged) = if selected_idx < staged_len {
+                            (
+                                self.state.git_status.staged_files[selected_idx]
+                                    .path
+                                    .clone(),
+                                true,
+                            )
+                        } else {
+                            let rel = selected_idx - staged_len;
+                            if rel < unstaged_len {
+                                (
+                                    self.state.git_status.unstaged_files[rel].path.clone(),
+                                    false,
+                                )
+                            } else if rel - unstaged_len < untracked_len {
+                                (
+                                    self.state.git_status.untracked_files[rel - unstaged_len]
+                                        .path
+                                        .clone(),
+                                    false,
+                                )
+                            } else {
+                                (String::new(), false)
+                            }
+                        };
+
+                        if !path.is_empty() {
+                            let diff_text = crate::git::manager::GitOperationManager::get_diff(
+                                dir,
+                                Some(path.clone()),
+                                is_staged,
+                            )
+                            .await
+                            .unwrap_or_default();
+
+                            self.state.git_diff_content =
+                                crate::git::diff::render_diff_lines(&diff_text, &self.theme);
+                            self.state.git_diff_scroll = 0;
+                            self.state.git_tab = 1;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            1 => {
+                // ── Tab 1: Diff Viewer ───────────────────────────────────────
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        self.state.git_diff_scroll = self.state.git_diff_scroll.saturating_sub(2);
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        self.state.git_diff_scroll = self.state.git_diff_scroll.saturating_add(2);
+                    }
+                    KeyCode::PageUp => {
+                        self.state.git_diff_scroll = self.state.git_diff_scroll.saturating_sub(10);
+                    }
+                    KeyCode::PageDown => {
+                        self.state.git_diff_scroll = self.state.git_diff_scroll.saturating_add(10);
+                    }
+                    KeyCode::Home => {
+                        self.state.git_diff_scroll = 0;
+                    }
+                    _ => {}
+                }
+            }
+            2 => {
+                // ── Tab 2: Branches ──────────────────────────────────────────
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        self.state.git_branch_selected =
+                            self.state.git_branch_selected.saturating_sub(1);
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        if self.state.git_branch_selected + 1 < self.state.git_branches.len() {
+                            self.state.git_branch_selected += 1;
+                        }
+                    }
+                    KeyCode::Char('b') | KeyCode::Enter => {
+                        if let Some(target) =
+                            self.state.git_branches.get(self.state.git_branch_selected)
+                        {
+                            let b_name = target.name.clone();
+                            match crate::git::manager::GitOperationManager::switch_branch(
+                                dir.clone(),
+                                b_name.clone(),
+                            )
+                            .await
+                            {
+                                Ok(msg) => {
+                                    self.state.set_status(
+                                        format!("Switched to {}: {}", b_name, msg),
+                                        StatusKind::Success,
+                                    );
+                                    self.state.git_status =
+                                        crate::git::manager::GitOperationManager::query_status(
+                                            dir.clone(),
+                                        )
+                                        .await;
+                                    self.state.git_branches =
+                                        crate::git::manager::GitOperationManager::list_branches(
+                                            dir,
+                                        )
+                                        .await
+                                        .unwrap_or_default();
+                                }
+                                Err(err) => {
+                                    self.state.set_status(
+                                        format!("Switch failed: {}", err),
+                                        StatusKind::Error,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Char('n') => {
+                        self.state.modal_input.clear();
+                        self.state.mode = AppMode::Modal(ModalKind::GitNewBranch);
+                    }
+                    KeyCode::Char('d') => {
+                        if let Some(target) =
+                            self.state.git_branches.get(self.state.git_branch_selected)
+                        {
+                            if target.is_current {
+                                self.state.set_status(
+                                    "Cannot delete active checked-out branch",
+                                    StatusKind::Warning,
+                                );
+                            } else {
+                                let b_name = target.name.clone();
+                                match crate::git::branch::delete_branch(&dir, &b_name, false) {
+                                    Ok(msg) => {
+                                        self.state.set_status(
+                                            format!("Deleted branch {}: {}", b_name, msg),
+                                            StatusKind::Success,
+                                        );
+                                        self.state.git_branches = crate::git::manager::GitOperationManager::list_branches(dir).await.unwrap_or_default();
+                                    }
+                                    Err(e) => {
+                                        self.state.set_status(
+                                            format!("Delete failed: {}", e),
+                                            StatusKind::Error,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {
+                // ── Tab 3: Commit History ────────────────────────────────────
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        self.state.git_history_selected =
+                            self.state.git_history_selected.saturating_sub(1);
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        if self.state.git_history_selected + 1 < self.state.git_history.len() {
+                            self.state.git_history_selected += 1;
+                        }
+                    }
+                    KeyCode::Char('d') | KeyCode::Enter => {
+                        if let Some(c) = self.state.git_history.get(self.state.git_history_selected)
+                        {
+                            let hash = c.hash.clone();
+                            match crate::git::diff::get_commit_diff(&dir, &hash) {
+                                Ok(diff_txt) => {
+                                    self.state.git_diff_content =
+                                        crate::git::diff::render_diff_lines(&diff_txt, &self.theme);
+                                    self.state.git_diff_scroll = 0;
+                                    self.state.git_tab = 1;
+                                }
+                                Err(e) => {
+                                    self.state.set_status(
+                                        format!("Failed to load diff: {e}"),
+                                        StatusKind::Error,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
 
         if matches!(self.state.mode, AppMode::GitDashboard { .. }) {
@@ -2881,53 +4018,151 @@ impl App {
 
         match key.code {
             KeyCode::Esc => {
+                let _ = crate::config::FirstRunManager::mark_completed();
+                self.state.config.general.first_run_completed = true;
+                let _ = self.state.config.save();
+                self.state.mode = AppMode::Browse;
+                return Ok(false);
+            }
+            KeyCode::Char('1') if step == OnboardingStep::Welcome => {
+                let _ = crate::config::FirstRunManager::mark_completed();
+                self.state.config.general.first_run_completed = true;
+                let _ = self.state.config.save();
+                self.state.mode = AppMode::Browse;
+                return Ok(false);
+            }
+            KeyCode::Char('2') if step == OnboardingStep::Welcome => {
+                self.state.mode = AppMode::Onboarding {
+                    step: OnboardingStep::Appearance,
+                    selected_option: 0,
+                };
+                return Ok(false);
+            }
+            KeyCode::Char('3') if step == OnboardingStep::Welcome => {
+                let _ = crate::config::FirstRunManager::mark_completed();
+                self.state.config.general.first_run_completed = true;
+                let _ = self.state.config.save();
+                self.state.mode = AppMode::Help;
+                return Ok(false);
+            }
+            KeyCode::Char('4') if step == OnboardingStep::Welcome => {
+                let _ = crate::config::FirstRunManager::mark_completed();
+                self.state.config.general.first_run_completed = true;
+                let _ = self.state.config.save();
+                self.state.mode = AppMode::SettingsStudio {
+                    section_idx: 0,
+                    item_idx: 0,
+                    in_items: false,
+                };
+                return Ok(false);
+            }
+            KeyCode::Char('5') if step == OnboardingStep::Welcome => {
+                let _ = crate::config::FirstRunManager::mark_completed();
+                self.state.config.general.first_run_completed = true;
+                let _ = self.state.config.save();
                 self.state.mode = AppMode::Browse;
                 return Ok(false);
             }
             KeyCode::Up => {
                 selected_option = selected_option.saturating_sub(1);
+                if step == OnboardingStep::Appearance {
+                    let themes = Theme::list_themes();
+                    if let Some(t) = themes.get(selected_option) {
+                        self.state.config.theme.name = t.0.to_string();
+                        self.theme =
+                            Theme::from_name(t.0, self.state.config.theme.transparent_background);
+                    }
+                }
             }
             KeyCode::Down => {
-                selected_option += 1;
+                let max_opt = match step {
+                    OnboardingStep::Welcome => 4,
+                    OnboardingStep::Appearance => 7,
+                    _ => 0,
+                };
+                if selected_option < max_opt {
+                    selected_option += 1;
+                }
+                if step == OnboardingStep::Appearance {
+                    let themes = Theme::list_themes();
+                    if let Some(t) = themes.get(selected_option) {
+                        self.state.config.theme.name = t.0.to_string();
+                        self.theme =
+                            Theme::from_name(t.0, self.state.config.theme.transparent_background);
+                    }
+                }
             }
-            KeyCode::Enter | KeyCode::Char(' ') => {
-                let next_step = match step {
-                    OnboardingStep::Welcome => OnboardingStep::ThemeSelection,
-                    OnboardingStep::ThemeSelection => {
-                        let themes = Theme::list_themes();
-                        if let Some(t) = themes.get(selected_option) {
-                            self.state.config.theme.name = t.0.to_string();
-                            self.theme = Theme::from_name(
-                                t.0,
-                                self.state.config.theme.transparent_background,
-                            );
-                        }
-                        OnboardingStep::LayoutSelection
-                    }
-                    OnboardingStep::LayoutSelection => {
-                        let profiles = ProfileKind::ALL;
-                        if let Some(p) = profiles.get(selected_option) {
-                            p.apply_to_config(&mut self.state.config);
-                            self.state.show_sidebar = self.state.config.show_sidebar;
-                            self.state.show_preview = self.state.config.show_preview;
-                            self.state.show_terminal = self.state.config.show_terminal;
-                            self.state.show_monitor = self.state.config.show_monitor;
-                        }
-                        OnboardingStep::IntegrationsScan
-                    }
-                    OnboardingStep::IntegrationsScan => OnboardingStep::Complete,
-                    OnboardingStep::Complete => {
+            KeyCode::Enter | KeyCode::Char(' ') => match step {
+                OnboardingStep::Welcome => match selected_option {
+                    0 => {
+                        let _ = crate::config::FirstRunManager::mark_completed();
+                        self.state.config.general.first_run_completed = true;
                         let _ = self.state.config.save();
                         self.state.mode = AppMode::Browse;
                         return Ok(false);
                     }
-                };
-                self.state.mode = AppMode::Onboarding {
-                    step: next_step,
-                    selected_option: 0,
-                };
-                return Ok(false);
-            }
+                    1 => {
+                        self.state.mode = AppMode::Onboarding {
+                            step: OnboardingStep::Appearance,
+                            selected_option: 0,
+                        };
+                        return Ok(false);
+                    }
+                    2 => {
+                        let _ = crate::config::FirstRunManager::mark_completed();
+                        self.state.config.general.first_run_completed = true;
+                        let _ = self.state.config.save();
+                        self.state.mode = AppMode::Help;
+                        return Ok(false);
+                    }
+                    3 => {
+                        let _ = crate::config::FirstRunManager::mark_completed();
+                        self.state.config.general.first_run_completed = true;
+                        let _ = self.state.config.save();
+                        self.state.mode = AppMode::SettingsStudio {
+                            section_idx: 0,
+                            item_idx: 0,
+                            in_items: false,
+                        };
+                        return Ok(false);
+                    }
+                    _ => {
+                        let _ = crate::config::FirstRunManager::mark_completed();
+                        self.state.config.general.first_run_completed = true;
+                        let _ = self.state.config.save();
+                        self.state.mode = AppMode::Browse;
+                        return Ok(false);
+                    }
+                },
+                OnboardingStep::Appearance => {
+                    self.state.mode = AppMode::Onboarding {
+                        step: OnboardingStep::KeyboardInteraction,
+                        selected_option: 0,
+                    };
+                    return Ok(false);
+                }
+                OnboardingStep::KeyboardInteraction => {
+                    self.state.mode = AppMode::Onboarding {
+                        step: OnboardingStep::TerminalEnvironment,
+                        selected_option: 0,
+                    };
+                    return Ok(false);
+                }
+                OnboardingStep::TerminalEnvironment => {
+                    self.state.mode = AppMode::Onboarding {
+                        step: OnboardingStep::Complete,
+                        selected_option: 0,
+                    };
+                    return Ok(false);
+                }
+                OnboardingStep::Complete => {
+                    let _ = crate::config::FirstRunManager::mark_completed();
+                    self.state.config.general.first_run_completed = true;
+                    let _ = self.state.config.save();
+                    self.state.mode = AppMode::Browse;
+                    return Ok(false);
+                }
+            },
             _ => {}
         }
 
@@ -3516,7 +4751,13 @@ impl App {
                 }
             }
             MouseEventKind::ScrollDown => {
-                if matches!(self.state.mode, AppMode::Help) {
+                if self.layout.contains_terminal(mouse.column, mouse.row)
+                    || self.state.focused == FocusedPanel::Terminal
+                {
+                    if let Some(sess) = self.terminal_manager.active_session_mut() {
+                        sess.scroll_down(3);
+                    }
+                } else if matches!(self.state.mode, AppMode::Help) {
                     self.state.help_scroll = self.state.help_scroll.saturating_add(2);
                 } else if self.layout.contains_preview(mouse.column, mouse.row)
                     || self.state.focused == FocusedPanel::Preview
@@ -3535,7 +4776,13 @@ impl App {
                 }
             }
             MouseEventKind::ScrollUp => {
-                if matches!(self.state.mode, AppMode::Help) {
+                if self.layout.contains_terminal(mouse.column, mouse.row)
+                    || self.state.focused == FocusedPanel::Terminal
+                {
+                    if let Some(sess) = self.terminal_manager.active_session_mut() {
+                        sess.scroll_up(3);
+                    }
+                } else if matches!(self.state.mode, AppMode::Help) {
                     self.state.help_scroll = self.state.help_scroll.saturating_sub(2);
                 } else if self.layout.contains_preview(mouse.column, mouse.row)
                     || self.state.focused == FocusedPanel::Preview
@@ -3585,7 +4832,7 @@ impl App {
                 self.state.mode = AppMode::Help;
             }
             AppAction::OpenGitDashboard => {
-                self.state.mode = AppMode::GitDashboard { selected_idx: 0 };
+                self.open_git_dashboard().await;
             }
             AppAction::ToggleTerminal => {
                 self.toggle_terminal();
@@ -3608,9 +4855,52 @@ impl App {
                 let _ = self.state.config.save();
             }
             AppAction::ClearTerminal => {
-                self.terminal_scrollback.clear();
-                self.state
-                    .set_status("Terminal buffer cleared", StatusKind::Info);
+                let dir = self.state.explorer.current_dir.clone();
+                let cols = 120u16;
+                let rows = self.state.config.terminal_height;
+                match self.terminal_manager.create_session(dir, cols, rows) {
+                    Ok(id) => {
+                        self.state
+                            .set_status(format!("Opened terminal tab {}", id), StatusKind::Info);
+                    }
+                    Err(e) => {
+                        self.state
+                            .set_status(format!("Cannot open tab: {e}"), StatusKind::Warning);
+                    }
+                }
+                self.state.show_terminal = true;
+                self.state.focused = FocusedPanel::Terminal;
+            }
+            AppAction::SwitchTerminalTab(idx) => {
+                self.terminal_manager.switch_session(idx);
+                self.state.focused = FocusedPanel::Terminal;
+            }
+            AppAction::CloseTerminalSession => {
+                let active = self.terminal_manager.active_index();
+                self.terminal_manager.close_session(active);
+                if self.terminal_manager.is_empty() {
+                    self.state.show_terminal = false;
+                    self.state.focused = FocusedPanel::Explorer;
+                    self.state
+                        .set_status("All terminal tabs closed", StatusKind::Info);
+                } else {
+                    self.state.set_status(
+                        format!(
+                            "Closed tab. Active tab: {}",
+                            self.terminal_manager.active_index() + 1
+                        ),
+                        StatusKind::Info,
+                    );
+                }
+            }
+            AppAction::RestartTerminal => {
+                if let Err(e) = self.terminal_manager.restart_active() {
+                    self.state
+                        .set_status(format!("Restart failed: {e}"), StatusKind::Error);
+                } else {
+                    self.state
+                        .set_status("Terminal session restarted", StatusKind::Success);
+                }
             }
             AppAction::FocusExplorer => {
                 self.state.focused = FocusedPanel::Explorer;
@@ -3692,6 +4982,41 @@ impl App {
                 self.state.mode = AppMode::Browse;
                 self.state.show_diagnostics = false;
             }
+            AppAction::OpenCommandPalette => {
+                self.state.mode = AppMode::CommandPalette {
+                    query: String::new(),
+                    selected_idx: 0,
+                };
+            }
+            AppAction::RunTask(task_id) => {
+                self.run_task(&task_id).await;
+            }
+            AppAction::CancelTask(exec_id) => {
+                self.task_runner.cancel_task(exec_id).await;
+            }
+            AppAction::RerunTask(exec_id) => {
+                self.rerun_task(exec_id).await;
+            }
+            AppAction::OpenTaskViewer => {
+                self.state.mode = AppMode::TaskViewer {
+                    selected_idx: 0,
+                    scroll_offset: 0,
+                };
+            }
+            AppAction::TrustWorkspace(path) => {
+                let _ = self.state.workflow_trust.trust_workspace(&path);
+                self.state.set_status(
+                    format!("Trusted workspace: {}", path.display()),
+                    StatusKind::Success,
+                );
+            }
+            AppAction::RevokeWorkspaceTrust(path) => {
+                let _ = self.state.workflow_trust.revoke_trust(&path);
+                self.state.set_status(
+                    format!("Revoked trust for: {}", path.display()),
+                    StatusKind::Info,
+                );
+            }
         }
         Ok(())
     }
@@ -3737,6 +5062,28 @@ fn render_modal(
         }
         ModalKind::PinFolder => ("Pin Folder", "Path to pin:", None),
         ModalKind::GoToLine => ("Go to Line", "Line number:", None),
+        ModalKind::GitCommit => ("Git Commit", "Enter commit message:", None),
+        ModalKind::GitNewBranch => ("New Branch", "Enter new branch name:", None),
+        ModalKind::WorkspaceTrustConfirm {
+            root,
+            task_name,
+            command,
+            args,
+            ..
+        } => {
+            let info = format!(
+                "Workspace: {}\nTask: {}\nCommand: {} {}\nNote: Project tasks may execute arbitrary binaries.",
+                root.display(),
+                task_name,
+                command,
+                args.join(" ")
+            );
+            (
+                "WORKSPACE TRUST REQUIRED",
+                "Type 'yes' or 'y' to trust and execute:",
+                Some(info),
+            )
+        }
         ModalKind::Message(m) => ("Info", m.as_str(), None),
         ModalKind::Error(m) => ("Error", m.as_str(), None),
     };

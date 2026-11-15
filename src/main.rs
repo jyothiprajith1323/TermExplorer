@@ -19,7 +19,10 @@ use tracing::info;
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    if args.iter().any(|a| a == "--version" || a == "-V") {
+    if args
+        .iter()
+        .any(|a| a == "--version" || a == "-V" || a == "-v")
+    {
         println!("termexplorer {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
@@ -44,18 +47,35 @@ async fn main() -> Result<()> {
                 if i + 1 < args.len() {
                     cwd_file = Some(PathBuf::from(&args[i + 1]));
                     i += 1;
+                } else {
+                    eprintln!("error: option '--cwd-file' requires an argument");
+                    std::process::exit(2);
                 }
             }
             "--chooser-file" => {
                 if i + 1 < args.len() {
                     chooser_file = Some(PathBuf::from(&args[i + 1]));
                     i += 1;
+                } else {
+                    eprintln!("error: option '--chooser-file' requires an argument");
+                    std::process::exit(2);
                 }
             }
             arg if !arg.starts_with('-') && initial_path.is_none() => {
                 initial_path = Some(PathBuf::from(arg));
             }
-            _ => {}
+            arg if arg.starts_with('-') => {
+                eprintln!("error: unexpected argument '{}' found", arg);
+                eprintln!("Usage: termexplorer [OPTIONS] [PATH]");
+                eprintln!("For more information, try '--help'.");
+                std::process::exit(2);
+            }
+            arg => {
+                eprintln!("error: unexpected argument '{}' found", arg);
+                eprintln!("Usage: termexplorer [OPTIONS] [PATH]");
+                eprintln!("For more information, try '--help'.");
+                std::process::exit(2);
+            }
         }
         i += 1;
     }
@@ -128,7 +148,7 @@ fn print_help() {
     println!("    termexplorer [OPTIONS] [PATH]\n");
     println!("OPTIONS:");
     println!("    -h, --help               Print help information");
-    println!("    -V, --version            Print version information");
+    println!("    -V, -v, --version        Print version information");
     println!("        --health             Print diagnostic health check report and exit");
     println!("        --cwd-file <PATH>     Write the last active directory to PATH on exit");
     println!("        --chooser-file <PATH> Write the selected file path to PATH on exit");

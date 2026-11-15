@@ -63,6 +63,13 @@ impl CommandRegistry {
                 shortcut: Some("Ctrl+, / F10"),
             },
             CommandItem {
+                id: "open_onboarding",
+                title: "Run Onboarding Setup Wizard",
+                description: "Guided first-run configuration wizard for themes and layout",
+                category: CommandCategory::Navigation,
+                shortcut: None,
+            },
+            CommandItem {
                 id: "open_help",
                 title: "Open Help & Keybindings",
                 description: "Show comprehensive shortcuts overlay",

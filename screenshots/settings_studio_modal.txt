@@ -1,35 +1,35 @@
-╔ 󰒓 SETTINGS STUDIO  ─  [Tab] Switch Pane  │  [Space/Enter] Toggle  │  [←/→] Adjust  │  [F10 / Esc] Exit ════╗
-║╭ Categories (14) ─────────────────╮╭ 󰒓 1. General Settings ───────────────────────────────────────────────╮║
-║│▌ 01 󰒓 1. General                 ││▌ [TOGGLE] Confirm Destructive Actions   [ ● ON  ]                    │║
-║│  02 󰔎 2. Appearance & UI         ││  [TOGGLE] Restore Last Workspace Session  [ ● ON  ]                  │║
-║│  03 󰏘 3. Themes (Catppuccin)     ││  [TOGGLE] Live Filesystem Monitoring (inotify)  [ ● ON  ]            │║
-║│  04 󰛖 4. Fonts & Typography      ││                                                                      │║
-║│  05 󰉓 5. File & Folder Icons     ││                                                                      │║
-║│  06 󰕰 6. Layout & Workstation    ││                                                                      │║
-║│  07 󰌌 7. Keybinding Manager      ││                                                                      │║
-║│  08 󰝰 8. File Explorer           ││                                                                      │║
-║│  09 󰍉 9. Universal Preview       ││                                                                      │║
-║│  10 󰅩 10. Integrated Editor & LSP││                                                                      │║
-║│  11 󰞷 11. Embedded Terminal (PTY)││                                                                      │║
-║│  12 󰨇 12. System Resource Monitor││                                                                      │║
-║│  13 ◇ 13. Plugin Center & Extensi││                                                                      │║
-║│  14 󰘳 14. Advanced & Diagnostics ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  ││                                                                      │║
-║│                                  │╰──────────────────────────────────────────────────────────────────────╯║
-║│                                  │╭ 󰋽 Description & Shortcut Hints ──────────────────────────────────────╮║
-║│                                  ││  Description: Display confirmation prompt before deleting files or di│║
-║│                                  ││                                                                      │║
-║│                                  ││  Hint:        Press [Space] or [Enter] to toggle or select, [←/→] to │║
-║│                                  ││                                                                      │║
-║╰──────────────────────────────────╯╰──────────────────────────────────────────────────────────────────────╯║
+╔ 󰒓 SETTINGS STUDIO  ─  [Tab] Pane  │  [Space/Enter] Toggle  │  [←/→] Adjust  │  [r] Reset  │  [F10/Esc] Save╗
+║╭ Categories (14) ───────────────╮╭ 󰒓 1. General Settings ─────────────────────────────────────────────────╮║
+║│▌ 01 󰒓 1. General               ││▌ [TOGGLE] Confirm Destructive Actions     [ ● ON  ]                    │║
+║│  02 󰔎 2. Appearance & UI       ││  [TOGGLE] Restore Last Workspace Session  [ ● ON  ]                    │║
+║│  03 󰏘 3. Themes (Catppuccin)   ││  [TOGGLE] Live Filesystem Monitoring (inotify)  [ ● ON  ]              │║
+║│  04 󰛖 4. Fonts & Typography    ││  [INFO]   Replay Onboarding Setup Wizard  Press [Enter] to Launch      │║
+║│  05 󰉓 5. File & Folder Icons   ││                                                                        │║
+║│  06 󰕰 6. Layout & Workstation  ││                                                                        │║
+║│  07 󰌌 7. Keybinding Manager    ││                                                                        │║
+║│  08 󰝰 8. File Explorer         ││                                                                        │║
+║│  09 󰍉 9. Universal Preview     ││                                                                        │║
+║│  10 󰅩 10. Integrated Editor & L││                                                                        │║
+║│  11 󰞷 11. Embedded Terminal (PT││                                                                        │║
+║│  12 󰨇 12. System Resource Monit││                                                                        │║
+║│  13 ◇ 13. Plugin Center & Exten││                                                                        │║
+║│  14 󰘳 14. Advanced & Diagnostic││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                ││                                                                        │║
+║│                                │╰────────────────────────────────────────────────────────────────────────╯║
+║│                                │╭ 󰋽 Description & Shortcut Hints ────────────────────────────────────────╮║
+║│                                ││  Description: Display confirmation prompt before deleting files or dire│║
+║│                                ││                                                                        │║
+║│                                ││  Controls:    [Space/Enter] Toggle │ [←/→] Adjust │ [r] Reset Item │ [R│║
+║│                                ││                                                                        │║
+║╰────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────╯║
 ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════╝

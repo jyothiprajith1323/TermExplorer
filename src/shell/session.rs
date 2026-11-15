@@ -1,25 +1,28 @@
-//! Terminal session management — wraps PtySession and maintains a scrollback buffer.
+//! Terminal session management — wraps PtySession, TerminalScreen, and process lifecycle.
 
 use crate::shell::pty::PtySession;
+use crate::shell::terminal_screen::TerminalScreen;
 use anyhow::Result;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use tokio::sync::mpsc;
 
-#[allow(dead_code)]
 pub struct TerminalSession {
+    pub id: usize,
+    pub title: String,
     pub pty: PtySession,
-    /// Raw scrollback bytes (unparsed ANSI).
+    pub screen: TerminalScreen,
+    /// Raw scrollback bytes (unparsed ANSI) for backward compatibility.
     pub scrollback: VecDeque<u8>,
     /// Current PTY dimensions.
     pub cols: u16,
     pub rows: u16,
     pub working_dir: PathBuf,
-    /// How far from the bottom the view is scrolled.
-    pub scroll_offset: usize,
+    pub is_alive: bool,
 }
 
 impl TerminalSession {
+    /// Create a new session with default ID 1 (legacy single-channel interface).
     pub fn new(
         working_dir: PathBuf,
         cols: u16,
@@ -27,26 +30,62 @@ impl TerminalSession {
         tx: mpsc::UnboundedSender<Vec<u8>>,
     ) -> Result<Self> {
         let pty = PtySession::spawn(&working_dir, cols, rows, tx)?;
+        let screen = TerminalScreen::new(rows, cols, 10_000);
+        let shell_name = detect_shell_name();
+        let title = format!("1: {}", shell_name);
+
         Ok(Self {
+            id: 1,
+            title,
             pty,
+            screen,
             scrollback: VecDeque::new(),
             cols,
             rows,
             working_dir,
-            scroll_offset: 0,
+            is_alive: true,
         })
     }
 
-    /// Feed bytes from the PTY into the scrollback ring and detect OSC 7 working directory updates.
+    /// Create a tagged session for multi-session management.
+    pub fn new_tagged(
+        id: usize,
+        working_dir: PathBuf,
+        cols: u16,
+        rows: u16,
+        tx: mpsc::UnboundedSender<(usize, Vec<u8>)>,
+    ) -> Result<Self> {
+        let pty = PtySession::spawn_tagged(&working_dir, cols, rows, id, tx)?;
+        let screen = TerminalScreen::new(rows, cols, 10_000);
+        let shell_name = detect_shell_name();
+        let title = format!("{}: {}", id, shell_name);
+
+        Ok(Self {
+            id,
+            title,
+            pty,
+            screen,
+            scrollback: VecDeque::new(),
+            cols,
+            rows,
+            working_dir,
+            is_alive: true,
+        })
+    }
+
+    /// Feed bytes from the PTY into the virtual terminal screen, raw scrollback, and parse OSC 7 directory updates.
     pub fn push_output(&mut self, data: &[u8]) {
         if let Some(new_dir) = parse_osc7_path(data) {
             self.working_dir = new_dir;
         }
 
+        // Process through vt100 virtual screen emulator
+        self.screen.process(data);
+
+        // Keep raw bytes buffer bounded to 1 MB for compatibility
         for &b in data {
             self.scrollback.push_back(b);
         }
-        // Trim by bytes rather than lines for simplicity; limit to ~1 MB.
         const MAX_BYTES: usize = 1024 * 1024;
         while self.scrollback.len() > MAX_BYTES {
             self.scrollback.pop_front();
@@ -59,16 +98,52 @@ impl TerminalSession {
         self.scrollback.iter().copied().collect()
     }
 
-    /// Send input to the shell.
+    /// Send input to the shell stdin.
     pub fn send_input(&self, data: &[u8]) -> Result<()> {
         self.pty.write_input(data)
     }
 
-    /// Resize the PTY and update stored dimensions.
+    /// Resize the PTY and the virtual terminal screen emulator.
     pub fn resize(&mut self, cols: u16, rows: u16) -> Result<()> {
         self.cols = cols;
         self.rows = rows;
+        self.screen.resize(rows, cols);
         self.pty.resize(cols, rows)
+    }
+
+    /// Check if child process is still running.
+    pub fn check_alive(&mut self) -> bool {
+        self.is_alive = self.pty.is_alive();
+        self.is_alive
+    }
+
+    /// Check if shell process has exited.
+    pub fn is_exited(&self) -> bool {
+        !self.is_alive
+    }
+
+    /// Get shell base name for this session.
+    pub fn shell_name(&self) -> &str {
+        if let Some((_, name)) = self.title.split_once(": ") {
+            name
+        } else {
+            &self.title
+        }
+    }
+
+    /// Scroll up in terminal history.
+    pub fn scroll_up(&mut self, delta: usize) {
+        self.screen.scroll_up(delta);
+    }
+
+    /// Scroll down in terminal history.
+    pub fn scroll_down(&mut self, delta: usize) {
+        self.screen.scroll_down(delta);
+    }
+
+    /// Reset scroll offset to live screen.
+    pub fn reset_scroll(&mut self) {
+        self.screen.reset_scroll();
     }
 }
 
@@ -77,6 +152,15 @@ impl Drop for TerminalSession {
         let _ = self.pty.child.kill();
         let _ = self.pty.child.wait();
     }
+}
+
+/// Detect the user's shell base name (e.g. "bash", "zsh", "fish").
+pub fn detect_shell_name() -> String {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+    std::path::Path::new(&shell)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "bash".to_string())
 }
 
 /// Parse OSC 7 directory notifications (`\x1b]7;file://hostname/path\x07` or `\x1b]7;file://hostname/path\x1b\`).

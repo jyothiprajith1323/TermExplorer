@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-11-15
+
+### Added
+- **Sprint 6A: Packaging & Distribution Infrastructure**:
+  - Reproducible release build script (`scripts/build-release.sh`).
+  - Standalone portable archive packager (`scripts/package-tarball.sh`) generating `termexplorer-v1.1.0-linux-x86_64.tar.gz`.
+  - Native Debian package builder (`scripts/package-deb.sh`) generating `termexplorer_1.1.0_amd64.deb`.
+  - User-space and system-wide installation and uninstallation scripts (`packaging/install.sh`, `packaging/uninstall.sh`).
+  - Cryptographic checksum and manifest generation (`dist/SHA256SUMS`, `dist/MANIFEST.txt`).
+  - Automated 49-check packaging test suite (`tests/packaging_tests.sh`).
+- **Sprint 6B: First-Run Experience, Configuration & Personalization**:
+  - Type-safe, versioned Configuration Architecture (Schema Version 2) across 9 tables.
+  - Automatic, backward-compatible schema migration (`v1` to `v2`) with backup retention (`config.toml.v1.bak`).
+  - First-run state detection engine (`FirstRunManager`) distinguishing fresh installs, upgrades, and existing users.
+  - Interactive Welcome Surface with 5 operational pathways and a 5-step Guided Setup Wizard.
+  - Interactive Settings Studio featuring all 14 functional categories with live theme and layout preview.
+  - Terminal hardware and capabilities detection (`src/shell/detection.rs`) probing TrueColor, UTF-8, PTY `/dev/ptmx`, shells, and CLI tool integrations.
+  - Centralized keybinding registry (`src/settings/keybindings.rs`) with scope isolation, conflict detection (0 conflicts in defaults), and fuzzy search.
+- **Sprint 6C: Documentation System, User Guides & Architecture**:
+  - Master documentation portal (`docs/README.md`) and comprehensive Getting Started guides.
+  - 12 task-oriented User Guides covering all workstation features.
+  - 17 detailed Architecture documents with Mermaid system context, lifecycle, and component diagrams.
+  - Comprehensive WebAssembly Plugin Development Guide with ABI contracts, WIT reference, and manifest specifications.
+  - Technical reference manuals (Configuration, Keybindings, Commands, Formats, Environment Variables, Dependencies, Errors).
+  - 7 Architectural Decision Records (ADR-0001 through ADR-0007).
+  - Documentation quality test automation (`scripts/validate-docs.sh`).
+
+---
+
 ## [1.1.0-RC2] - 2026-11-07
 
 ### Approved Product Layout Architecture

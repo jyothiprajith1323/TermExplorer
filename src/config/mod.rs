@@ -1,12 +1,21 @@
 //! Application configuration — loaded from and persisted to TOML.
-//! Stored at `~/.config/termexplorer/config.toml`.
+//! Stored at `~/.config/termexplorer/config.toml` adhering to Schema Version 2.
+
+pub mod first_run;
+pub mod migration;
+
+pub use first_run::{FirstRunManager, FirstRunState, FirstRunStatus};
+pub use migration::{ConfigMigrator, MigrationReport, CURRENT_SCHEMA_VERSION};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // ── Default helpers ──────────────────────────────────────────────────────────
 
+fn default_schema_version() -> u32 {
+    CURRENT_SCHEMA_VERSION
+}
 fn default_true() -> bool {
     true
 }
@@ -40,10 +49,50 @@ fn default_tab_width() -> usize {
 fn default_max_preview_bytes() -> u64 {
     512 * 1024 // 512 KiB
 }
+fn default_scrollback_kib() -> usize {
+    1024
+}
+fn default_explorer_ratio() -> f32 {
+    0.25
+}
+fn default_preview_ratio() -> f32 {
+    0.75
+}
+fn default_terminal_height_percent() -> u16 {
+    15
+}
+fn default_monitor_interval() -> u64 {
+    1000
+}
+
+// ── General Configuration ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GeneralConfig {
+    #[serde(default = "default_false")]
+    pub first_run_completed: bool,
+    #[serde(default = "default_true")]
+    pub confirm_delete: bool,
+    #[serde(default = "default_true")]
+    pub restore_session: bool,
+    #[serde(default = "default_true")]
+    pub watch_filesystem: bool,
+}
+
+impl Default for GeneralConfig {
+    fn default() -> Self {
+        Self {
+            first_run_completed: false,
+            confirm_delete: true,
+            restore_session: true,
+            watch_filesystem: true,
+        }
+    }
+}
 
 // ── Shortcut configuration ───────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KeybindingsConfig {
     #[serde(default = "default_true")]
     pub use_defaults: bool,
@@ -57,7 +106,7 @@ impl Default for KeybindingsConfig {
 
 // ── LSP server configuration ─────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct LspConfig {
     /// rust-analyzer binary path (default: search PATH)
     pub rust_analyzer: Option<String>,
@@ -71,7 +120,7 @@ pub struct LspConfig {
 
 // ── Editor configuration ─────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EditorConfig {
     #[serde(default = "default_tab_width")]
     pub tab_width: usize,
@@ -103,9 +152,68 @@ impl Default for EditorConfig {
     }
 }
 
+// ── Terminal configuration ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TerminalConfig {
+    pub default_shell: Option<String>,
+    #[serde(default = "default_terminal_height")]
+    pub terminal_height: u16,
+    #[serde(default = "default_scrollback_kib")]
+    pub scrollback_limit_kib: usize,
+}
+
+impl Default for TerminalConfig {
+    fn default() -> Self {
+        Self {
+            default_shell: None,
+            terminal_height: default_terminal_height(),
+            scrollback_limit_kib: default_scrollback_kib(),
+        }
+    }
+}
+
+// ── Search configuration ─────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchConfig {
+    #[serde(default = "default_false")]
+    pub case_sensitive: bool,
+    #[serde(default = "default_true")]
+    pub respect_ignore: bool,
+}
+
+impl Default for SearchConfig {
+    fn default() -> Self {
+        Self {
+            case_sensitive: false,
+            respect_ignore: true,
+        }
+    }
+}
+
+// ── Developer Tools configuration ───────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeveloperConfig {
+    #[serde(default = "default_true")]
+    pub git_status_enabled: bool,
+    #[serde(default = "default_true")]
+    pub task_runner_enabled: bool,
+}
+
+impl Default for DeveloperConfig {
+    fn default() -> Self {
+        Self {
+            git_status_enabled: true,
+            task_runner_enabled: true,
+        }
+    }
+}
+
 // ── Theme configuration ───────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ThemeConfig {
     #[serde(default = "default_theme")]
     pub name: String,
@@ -136,7 +244,7 @@ pub struct PinnedFolder {
 
 // ── Custom sidebar shortcut ───────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CustomShortcut {
     pub name: String,
     pub path: PathBuf,
@@ -144,31 +252,17 @@ pub struct CustomShortcut {
 
 // ── Monitor configuration ─────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MonitorConfig {
     /// Refresh interval in milliseconds.
     #[serde(default = "default_monitor_interval")]
     pub refresh_ms: u64,
 }
 
-fn default_monitor_interval() -> u64 {
-    1000
-}
-
 impl Default for MonitorConfig {
     fn default() -> Self {
         Self { refresh_ms: 1000 }
     }
-}
-
-fn default_explorer_ratio() -> f32 {
-    0.25
-}
-fn default_preview_ratio() -> f32 {
-    0.75
-}
-fn default_terminal_height_percent() -> u16 {
-    15
 }
 
 // ── Layout configuration ───────────────────────────────────────────────────────
@@ -204,20 +298,56 @@ impl Default for LayoutSettings {
 
 // ── Root configuration struct ─────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Config {
-    // Layout settings table
+    /// Configuration Schema Version (Version 2).
+    #[serde(default = "default_schema_version")]
+    pub schema_version: u32,
+
+    /// General application and first-run settings.
+    #[serde(default)]
+    pub general: GeneralConfig,
+
+    /// Layout proportions and pane visibility.
     #[serde(default)]
     pub layout: LayoutSettings,
 
-    // Pinned folders persisted across sessions.
+    /// Color theme and visual accents.
+    #[serde(default)]
+    pub theme: ThemeConfig,
+
+    /// Integrated code editor settings.
+    #[serde(default)]
+    pub editor: EditorConfig,
+
+    /// Embedded PTY terminal settings.
+    #[serde(default)]
+    pub terminal: TerminalConfig,
+
+    /// Unified project search settings.
+    #[serde(default)]
+    pub search: SearchConfig,
+
+    /// Developer workbench tools.
+    #[serde(default)]
+    pub developer: DeveloperConfig,
+
+    /// System resource monitor settings.
+    #[serde(default)]
+    pub monitor: MonitorConfig,
+
+    /// Keyboard shortcuts settings.
+    #[serde(default)]
+    pub keybindings: KeybindingsConfig,
+
+    /// Pinned folders persisted across sessions.
     #[serde(default)]
     pub pinned_folders: Vec<PinnedFolder>,
 
     #[serde(default)]
     pub custom_shortcuts: Vec<CustomShortcut>,
 
-    // Panel visibility defaults (Workspace sidebar removed by default; Terminal hidden by default).
+    // Backward-compatible panel visibility defaults.
     #[serde(default = "default_false")]
     pub show_sidebar: bool,
     #[serde(default = "default_true")]
@@ -227,7 +357,7 @@ pub struct Config {
     #[serde(default = "default_false")]
     pub show_monitor: bool,
 
-    // Panel dimensions.
+    // Backward-compatible panel dimensions.
     #[serde(default = "default_sidebar_width")]
     pub sidebar_width: u16,
     #[serde(default = "default_preview_width")]
@@ -247,24 +377,21 @@ pub struct Config {
 
     #[serde(default = "default_icon_pack")]
     pub icon_pack: String,
-
-    #[serde(default)]
-    pub theme: ThemeConfig,
-
-    #[serde(default)]
-    pub editor: EditorConfig,
-
-    #[serde(default)]
-    pub monitor: MonitorConfig,
-
-    #[serde(default)]
-    pub keybindings: KeybindingsConfig,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            general: GeneralConfig::default(),
             layout: LayoutSettings::default(),
+            theme: ThemeConfig::default(),
+            editor: EditorConfig::default(),
+            terminal: TerminalConfig::default(),
+            search: SearchConfig::default(),
+            developer: DeveloperConfig::default(),
+            monitor: MonitorConfig::default(),
+            keybindings: KeybindingsConfig::default(),
             pinned_folders: Vec::new(),
             custom_shortcuts: Vec::new(),
             show_sidebar: false,
@@ -278,10 +405,6 @@ impl Default for Config {
             show_hidden: false,
             max_preview_bytes: default_max_preview_bytes(),
             icon_pack: default_icon_pack(),
-            theme: ThemeConfig::default(),
-            editor: EditorConfig::default(),
-            monitor: MonitorConfig::default(),
-            keybindings: KeybindingsConfig::default(),
         }
     }
 }
@@ -304,9 +427,53 @@ impl Config {
         Self::config_dir().join("config.toml.bak")
     }
 
-    /// Load configuration, recovering automatically from backups if primary file is corrupted.
+    /// Validate and clamp layout ratios, dimensions, and theme settings to valid ranges.
+    pub fn validate_and_clamp(&mut self) {
+        // Enforce approved 2-pane workstation limits: Explorer 15%..50%, Preview 50%..85%
+        self.layout.explorer_ratio = self.layout.explorer_ratio.clamp(0.15, 0.50);
+        self.layout.preview_ratio = self.layout.preview_ratio.clamp(0.50, 0.85);
+
+        // Terminal drawer height: 10%..40%
+        self.layout.terminal_height_percent = self.layout.terminal_height_percent.clamp(10, 40);
+
+        // Tab width: 2, 4, or 8
+        if self.editor.tab_width != 2 && self.editor.tab_width != 4 && self.editor.tab_width != 8 {
+            self.editor.tab_width = 4;
+        }
+
+        // Preview bytes: minimum 64 KiB, maximum 64 MiB
+        self.max_preview_bytes = self.max_preview_bytes.clamp(64 * 1024, 64 * 1024 * 1024);
+
+        // Synchronize top-level and layout fields
+        if self.layout.show_terminal {
+            self.show_terminal = true;
+        } else if !self.show_terminal {
+            self.layout.show_terminal = false;
+        }
+        if self.layout.show_sidebar {
+            self.show_sidebar = true;
+        } else if !self.show_sidebar {
+            self.layout.show_sidebar = false;
+        }
+
+        // Canonical theme normalization
+        let current_theme = self.theme.name.to_lowercase();
+        if current_theme == "default dark"
+            || current_theme == "default_dark"
+            || current_theme.is_empty()
+        {
+            self.theme.name = "Catppuccin Mocha".to_string();
+        }
+        if self.icon_pack.is_empty() || self.icon_pack == "default" {
+            self.icon_pack = "catppuccin".to_string();
+        }
+    }
+
+    /// Load configuration, applying migrations and recovering automatically from backups if needed.
     pub fn load_or_create() -> Result<Self> {
         let path = Self::config_path();
+        let config_dir = Self::config_dir();
+
         if path.exists() {
             let content = match std::fs::read_to_string(&path) {
                 Ok(c) => c,
@@ -320,41 +487,23 @@ impl Config {
                 }
             };
 
-            let parsed: Result<Self, _> = toml::from_str(&content);
-            match parsed {
-                Ok(mut config) => {
-                    let mut migrated = false;
-                    let current_theme = config.theme.name.to_lowercase();
-                    if current_theme == "default dark"
-                        || current_theme == "default_dark"
-                        || current_theme.is_empty()
-                    {
-                        config.theme.name = "Catppuccin Mocha".to_string();
-                        migrated = true;
-                    }
-                    if config.icon_pack.is_empty() || config.icon_pack == "default" {
-                        config.icon_pack = "catppuccin".to_string();
-                        migrated = true;
-                    }
-                    // Synchronize layout table and top-level fields
-                    if config.layout.show_terminal {
-                        config.show_terminal = true;
-                    } else if !config.show_terminal {
-                        config.layout.show_terminal = false;
-                    }
-                    if config.layout.show_sidebar {
-                        config.show_sidebar = true;
-                    } else if !config.show_sidebar {
-                        config.layout.show_sidebar = false;
-                    }
-                    if migrated {
+            // Run migration pipeline
+            match ConfigMigrator::migrate(&content, Some(&config_dir)) {
+                Ok((config, report)) => {
+                    if report.migrated {
+                        tracing::info!(
+                            "Migrated configuration from v{} to v{}. Changes: {:?}",
+                            report.initial_version,
+                            report.final_version,
+                            report.changes
+                        );
                         let _ = config.save();
                     }
                     Ok(config)
                 }
                 Err(parse_err) => {
                     tracing::warn!(
-                        "Configuration file {} is corrupted: {}. Initiating recovery sequence.",
+                        "Configuration file {} is corrupted or incompatible: {}. Initiating recovery sequence.",
                         path.display(),
                         parse_err
                     );
@@ -362,23 +511,23 @@ impl Config {
                 }
             }
         } else {
-            let config = Self::default();
+            let mut config = Self::default();
+            config.validate_and_clamp();
             config.save()?;
             Ok(config)
         }
     }
 
-    /// Attempt recovery from config.toml.bak, or preserve corrupted config and return default.
+    /// Attempt recovery from config.toml.bak, or archive corrupted file and return pristine defaults.
     fn recover_from_backup_or_default() -> Result<Self> {
         let bak_path = Self::backup_path();
         if bak_path.exists() {
             if let Ok(bak_content) = std::fs::read_to_string(&bak_path) {
-                if let Ok(config) = toml::from_str::<Self>(&bak_content) {
+                if let Ok((config, _)) = ConfigMigrator::migrate(&bak_content, None) {
                     tracing::info!(
                         "Successfully recovered configuration from {}",
                         bak_path.display()
                     );
-                    // Archive corrupted file
                     let primary = Self::config_path();
                     let timestamp = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -405,7 +554,8 @@ impl Config {
             let _ = std::fs::rename(&primary, &archive_path);
         }
 
-        let config = Self::default();
+        let mut config = Self::default();
+        config.validate_and_clamp();
         config.save()?;
         Ok(config)
     }
@@ -441,19 +591,20 @@ impl Config {
     }
 
     /// Export configuration to a specified path.
-    pub fn export_to_file(&self, target_path: &std::path::Path) -> Result<()> {
+    pub fn export_to_file(&self, target_path: &Path) -> Result<()> {
         let content =
             toml::to_string_pretty(self).context("Serialising configuration for export")?;
         crate::filesystem::operations::save_file_atomic(target_path, content.as_bytes())
     }
 
     /// Import configuration from a specified path after full schema validation.
-    pub fn import_from_file(source_path: &std::path::Path) -> Result<Self> {
+    pub fn import_from_file(source_path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(source_path)
             .with_context(|| format!("Reading import file: {}", source_path.display()))?;
-        let config: Self = toml::from_str(&content).with_context(|| {
+        let (mut config, _) = ConfigMigrator::migrate(&content, None).with_context(|| {
             format!("Validating configuration schema: {}", source_path.display())
         })?;
+        config.validate_and_clamp();
         config.save()?;
         Ok(config)
     }

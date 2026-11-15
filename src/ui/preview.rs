@@ -870,7 +870,7 @@ fn render_info_tab(
         return;
     };
 
-    let lines = vec![
+    let mut lines = vec![
         Line::from(vec![
             Span::styled(
                 "  File Name:    ",
@@ -937,6 +937,38 @@ fn render_info_tab(
             }),
         ]),
     ];
+
+    if meta.git_branch.is_some() || meta.git_file_status.is_some() {
+        lines.push(Line::raw(""));
+        lines.push(Line::from(vec![
+            Span::styled(
+                "  Git Branch:   ",
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(meta.git_branch.as_deref().unwrap_or("N/A")),
+        ]));
+        if let Some(ref st) = meta.git_file_status {
+            lines.push(Line::from(vec![
+                Span::styled("  Git Status:   ", Style::default().fg(theme.accent)),
+                Span::styled(
+                    st,
+                    if st == "Clean" {
+                        Style::default().fg(theme.success)
+                    } else {
+                        Style::default().fg(theme.warning)
+                    },
+                ),
+            ]));
+        }
+        if let Some(ref c) = meta.git_last_commit {
+            lines.push(Line::from(vec![
+                Span::styled("  Last Commit:  ", Style::default().fg(theme.accent)),
+                Span::raw(c),
+            ]));
+        }
+    }
 
     let p = Paragraph::new(lines);
     frame.render_widget(p, area);

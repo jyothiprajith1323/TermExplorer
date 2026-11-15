@@ -1,82 +1,70 @@
 # Contributing to TermExplorer
 
-Thank you for your interest in contributing to **TermExplorer**! We welcome contributions of all kinds: bug fixes, new preview format handlers, UI improvements, documentation, and feature requests.
+Thank you for your interest in contributing to **TermExplorer**! We welcome contributions from developers of all experience levels: bug fixes, preview format enhancements, performance optimizations, documentation improvements, and test coverage.
 
 ---
 
-## Code of Conduct
+## 1. Code of Conduct
 
-This project adheres to the Contributor Covenant Code of Conduct. By participating, you are expected to uphold this code. Please read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.
+This project adheres to the Contributor Covenant Code of Conduct. By participating, you are expected to uphold this code. Please review [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.
 
 ---
 
-## Development Setup
+## 2. Contribution Workflow
 
-### Prerequisites
+Follow this step-by-step workflow for all contributions:
 
-- **Rust toolchain:** 1.80+ (stable). Install via [rustup.rs](https://rustup.rs):
-  ```bash
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  ```
-- **Linux Packages (Ubuntu/Debian):**
-  ```bash
-  sudo apt update
-  sudo apt install -y build-essential pkg-config libasound2-dev libxcb1-dev
-  ```
-- **Optional CLI utilities for preview enhancements:**
-  ```bash
-  sudo apt install -y ffmpeg poppler-utils gio libtrash-dev
-  ```
-
-### Building & Running
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/jyothiprajith1323/TermExplorer.git
-   cd TermExplorer
-   ```
-
-2. **Run in development mode:**
-   ```bash
-   cargo run
-   ```
-
-3. **Run the full test suite:**
-   ```bash
-   cargo test --all-targets --all-features
-   ```
-
-4. **Lint and format checks:**
+1. **Find or Describe the Issue**: Check existing GitHub Issues or open a new issue describing the bug or feature request.
+2. **Understand the Relevant Subsystem**: Consult the [Architecture Documentation](docs/architecture/overview.md) and module headers before making changes.
+3. **Reproduce & Design**: Reproduce the behavior locally with a minimal test case.
+4. **Implement Minimally**: Keep changes focused on the specific problem. Do not combine unrelated refactorings with feature work.
+5. **Add or Update Tests**: Add regression tests in `tests/` validating your fix or new functionality.
+6. **Run Quality Checks**:
    ```bash
    cargo fmt --all -- --check
+   cargo check --locked --all-targets
+   cargo test --all-targets
    cargo clippy --all-targets --all-features -- -D warnings
+   cargo doc --no-deps
    ```
+7. **Update Documentation**: Update corresponding guides in `docs/` and `README.md` if shortcuts, configuration keys, or behaviors change.
+8. **Submit a Pull Request**: Submit a clear, reviewable pull request referencing the relevant issue.
 
 ---
 
-## Coding Guidelines
+## 3. Engineering & Quality Standards
 
-We enforce strict Rust systems programming principles:
+TermExplorer enforces strict systems-level Rust standards:
 
-1. **No panics in production code:** Avoid `.unwrap()` and `.expect()` in non-test runtime paths. Use `anyhow::Result` or typed `thiserror` variants.
-2. **Clippy clean:** All PRs must compile with zero Clippy warnings under `-D warnings`.
-3. **Format compliance:** Always run `cargo fmt` before submitting.
-4. **Transparent Terminal Background:** Never hardcode black or white backgrounds unless explicitly chosen; respect `bg: None` for terminal transparency inheritance.
-5. **Bounded Resource Usage:** Buffers, caches, and file reads must have explicit bounds (e.g., maximum preview file size limits).
+### A. Reliability & Error Handling
+- **No Panics**: Never call `.unwrap()` or `.expect()` in non-test runtime code. Handle errors gracefully using `Result` and `anyhow::Context`.
+- **UI Non-Fatal Notifications**: Errors occurring during user operations (e.g. failing to open a locked file) must be communicated via the status bar (`StatusKind::Error`) rather than crashing the workstation.
+
+### B. Async & Cancellation
+- **Non-Blocking Main Loop**: The terminal UI loop must never block on synchronous I/O or child processes.
+- **Monotonic Cancellation Tokens**: Long-running background jobs (directory walks, search, media conversions) must monitor generation tokens (`Arc<AtomicU64>`) and yield immediately when superseded.
+
+### C. Filesystem Safety
+- **Atomic Persistence**: Files must be written to temporary sibling files (`.filename.tmp.<pid>`), flushed with `sync_all()`, and renamed atomically.
+- **Trash Over Deletion**: Deletion operations default to FreeDesktop Trash (`gio trash` / `trash-cli`) with explicit user confirmation dialogs.
+
+### D. Unicode & Terminal Correctness
+- **Display Width Accuracy**: Use `unicode_width` to determine screen column occupancy, handling multi-byte UTF-8, zero-width characters, combining accents, and fullwidth CJK glyphs correctly.
+- **Terminal Sanitization**: All file content preview strings must pass through `sanitize_preview_line()` to strip dangerous escape sequences before terminal emission.
+
+### E. WebAssembly Plugin Security
+- **Default-Deny Capabilities**: Plugins run in an isolated `wasmi` sandbox with 16 MiB memory ceilings and 5M fuel limits. Never expose host filesystem or command execution APIs directly to guest modules.
+
+### F. Resource Limits & Bounded Buffers
+- All memory caches, search match lists, scrollback buffers, and directory chunk loaders must have hard, configurable ceilings.
 
 ---
 
-## Pull Request Process
+## 4. How to Report Bugs
 
-1. Fork the repository and create your branch from `master`:
-   ```bash
-   git checkout -b feature/my-amazing-feature
-   ```
-2. Write unit/integration tests for your changes in `tests/`.
-3. Ensure all tests and lints pass:
-   ```bash
-   cargo test
-   cargo clippy --all-targets --all-features -- -D warnings
-   ```
-4. Update relevant documentation in `docs/` and `README.md` if modifying keybindings, preview formats, or configuration options.
-5. Submit a pull request with a clear description of the problem and solution.
+When reporting bugs, please provide:
+1. TermExplorer version (`termexplorer --version`).
+2. Diagnostic health check output (`termexplorer --health`).
+3. Host operating system, Linux distribution, and terminal emulator (e.g. Ubuntu 22.04, Ghostty).
+4. Steps to reproduce the issue.
+5. Relevant log excerpts from `~/.local/share/termexplorer/termexplorer.log`.

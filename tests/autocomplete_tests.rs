@@ -19,8 +19,8 @@ fn test_path_completion_relative_and_directory() {
     assert!(!results.is_empty(), "Should complete 'src/con'");
     let labels: Vec<&str> = results.iter().map(|r| r.completed_path.as_str()).collect();
     assert!(
-        labels.iter().any(|p| p.contains("config.rs")),
-        "Expected config.rs in {:?}",
+        labels.iter().any(|p| p.contains("config")),
+        "Expected config in {:?}",
         labels
     );
 

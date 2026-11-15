@@ -30,6 +30,7 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState, theme:
         AppMode::Onboarding { .. } => (" SETUP ", theme.accent),
         AppMode::PluginCenter { .. } => (" PLUGINS ", theme.success),
         AppMode::UnifiedSearch => (" UNIFIED SEARCH ", theme.accent),
+        AppMode::TaskViewer { .. } => (" TASK WORKBENCH ", Color::Rgb(203, 166, 247)),
     };
 
     let mut spans = vec![

@@ -1,0 +1,131 @@
+.TH TERMEXPLORER 1 "November 2026" "termexplorer 1.1.0" "User Commands"
+.SH NAME
+termexplorer \- High-performance, keyboard-driven Linux developer workstation written in pure Rust
+.SH SYNOPSIS
+.B termexplorer
+[\fIOPTIONS\fR] [\fIPATH\fR]
+.SH DESCRIPTION
+.B TermExplorer
+is a lightweight, modal developer workstation for Unix terminals. It integrates a 2-pane workspace combining a 25% hierarchical filesystem explorer with a 75% inspector and previewer pane, an embedded PTY interactive shell drawer, native Git status and branch visualization, project-aware task runner, and a secure WebAssembly plugin sandbox.
+.PP
+When launched without arguments,
+.B termexplorer
+opens in the current working directory. If a \fIPATH\fR is provided and points to a directory, navigation initializes at that location.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Print concise command-line help information and exit.
+.TP
+.BR \-V ", " \-v ", " \-\-version
+Print the software version and exit.
+.TP
+.BR \-\-health
+Run system diagnostics, inspect terminal TrueColor capabilities, detect Nerd Fonts, audit PTY subsystem availability, verify FreeDesktop Trash, check configuration paths, and exit.
+.TP
+.BR \-\-cwd\-file " \fIPATH\fR"
+Upon clean exit, write the last active working directory path into \fIPATH\fR. Useful for shell wrapper functions to change directory in the parent shell.
+.TP
+.BR \-\-chooser\-file " \fIPATH\fR"
+Upon clean exit, write the absolute path of the currently selected file or directory into \fIPATH\fR.
+.SH KEYBINDINGS
+.TP
+.B Navigation & Explorer
+.RS
+.IP \(bu 2
+\fBj\fR, \fBk\fR / \fBDown\fR, \fBUp\fR: Move selection down / up
+.IP \(bu 2
+\fBh\fR / \fBLeft\fR: Navigate to parent directory or collapse node
+.IP \(bu 2
+\fBl\fR / \fBRight\fR, \fBEnter\fR: Enter directory or expand node
+.IP \(bu 2
+\fBgg\fR / \fBG\fR: Jump to top / bottom of file tree
+.IP \(bu 2
+\fBzh\fR / \fB.\fR: Toggle hidden files display
+.IP \(bu 2
+\fB/\fR: Initiate real-time fuzzy filter within directory
+.RE
+.TP
+.B Workstation & Panels
+.RS
+.IP \(bu 2
+\fBTab\fR / \fBShift-Tab\fR: Cycle focus between Explorer, Preview, and Panels
+.IP \(bu 2
+\fB`\fR (Backtick) / \fBCtrl-`\fR: Toggle embedded PTY terminal drawer (15% height)
+.IP \(bu 2
+\fBctrl-p\fR: Open Command Palette
+.IP \(bu 2
+\fBg\fR: Open Git panel
+.IP \(bu 2
+\fBq\fR / \fBCtrl-c\fR: Exit TermExplorer
+.RE
+.SH ENVIRONMENT
+.TP
+.B XDG_CONFIG_HOME
+Specifies the directory where user configuration is stored. Defaults to \fI~/.config\fR. TermExplorer loads its configuration from \fI$XDG_CONFIG_HOME/termexplorer/config.toml\fR.
+.TP
+.B XDG_DATA_HOME
+Specifies the directory where persistent data, logs, and WebAssembly plugins reside. Defaults to \fI~/.local/share\fR. TermExplorer stores logs and plugins in \fI$XDG_DATA_HOME/termexplorer\fR.
+.TP
+.B XDG_CACHE_HOME
+Specifies the directory where cache files (e.g., syntax highlight cache, preview image renders) reside. Defaults to \fI~/.cache/termexplorer\fR.
+.TP
+.B COLORTERM
+When set to \fItruecolor\fR or \fI24bit\fR, TermExplorer activates 24-bit RGB TrueColor rendering for Catppuccin Mocha and ANSI palette themes.
+.TP
+.B NERD_FONT
+When set to \fI1\fR or \fItrue\fR, TermExplorer uses high-fidelity Nerd Font glyphs for file extensions, Git status, and UI icons. Otherwise, standard Unicode symbols and ASCII fallbacks are used.
+.TP
+.B SHELL
+Specifies the default shell executed inside the embedded PTY terminal drawer. Defaults to \fI/bin/sh\fR if unset.
+.SH FILES
+.TP
+.I ~/.config/termexplorer/config.toml
+Main application configuration file.
+.TP
+.I ~/.local/share/termexplorer/termexplorer.log
+Rolling diagnostic and application logs.
+.TP
+.I ~/.local/share/termexplorer/plugins/
+Directory containing compiled WebAssembly (.wasm) extensions.
+.TP
+.I ~/.cache/termexplorer/
+Cached preview renders and syntax metadata.
+.SH EXIT STATUS
+.TP
+.B 0
+Successful completion.
+.TP
+.B 1
+Runtime application error.
+.TP
+.B 2
+Invalid command-line arguments or missing option parameter.
+.SH EXAMPLES
+.TP
+Launch TermExplorer in current directory:
+.B termexplorer
+.TP
+Inspect system environment and diagnostic health:
+.B termexplorer --health
+.TP
+Open TermExplorer in a specific project directory:
+.B termexplorer /path/to/project
+.TP
+Shell wrapper for automatic cd on exit (add to ~/.bashrc or ~/.zshrc):
+.nf
+termexplorer_cd() {
+    local tmp="$(mktemp -t te-cwd.XXXXXX)"
+    termexplorer --cwd-file="$tmp" "$@"
+    if [ -f "$tmp" ]; then
+        local dir="$(cat "$tmp")"
+        rm -f "$tmp"
+        [ -d "$dir" ] && [ "$dir" != "$PWD" ] && cd "$dir"
+    fi
+}
+alias te=termexplorer_cd
+.fi
+.SH AUTHORS
+TermExplorer is developed by Jyothi Prajith and the TermExplorer open-source contributors.
+.SH SEE ALSO
+.BR git (1),
+.BR xdg-open (1)

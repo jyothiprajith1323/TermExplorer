@@ -24,7 +24,7 @@ pub fn render_settings_studio(
 
     let outer_block = Block::default()
         .title(Span::styled(
-            " 󰒓 SETTINGS STUDIO  ─  [Tab] Switch Pane  │  [Space/Enter] Toggle  │  [←/→] Adjust  │  [F10 / Esc] Exit ",
+            " 󰒓 SETTINGS STUDIO  ─  [Tab] Pane  │  [Space/Enter] Toggle  │  [←/→] Adjust  │  [r] Reset  │  [F10/Esc] Save & Exit ",
             theme.header_style(),
         ))
         .borders(Borders::ALL)
@@ -38,10 +38,10 @@ pub fn render_settings_studio(
         return;
     }
 
-    // Split horizontally: Left navigation (15 sections), Right items + details
+    // Split horizontally: Left navigation (14 categories), Right items + details
     let horizontal_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(36), Constraint::Min(40)])
+        .constraints([Constraint::Length(34), Constraint::Min(40)])
         .split(inner);
 
     let left_area = horizontal_chunks[0];
@@ -174,7 +174,7 @@ pub fn render_settings_studio(
             ListItem::new(Line::from(vec![
                 Span::styled(prefix, row_style),
                 type_badge,
-                Span::styled(format!("{:<28}", item.label), row_style),
+                Span::styled(format!("{:<30}", item.label), row_style),
                 Span::raw("  "),
                 value_span,
             ]))
@@ -224,9 +224,9 @@ pub fn render_settings_studio(
         ]),
         Line::raw(""),
         Line::from(vec![
-            Span::styled("  Hint:        ", Style::default().fg(theme.size_color)),
+            Span::styled("  Controls:    ", Style::default().fg(theme.size_color)),
             Span::styled(
-                "Press [Space] or [Enter] to toggle or select, [←/→] to adjust, [Tab] to switch panels.",
+                "[Space/Enter] Toggle │ [←/→] Adjust │ [r] Reset Item │ [R] Reset All │ [e] Export │ [i] Import",
                 Style::default().fg(theme.hidden_color),
             ),
         ]),

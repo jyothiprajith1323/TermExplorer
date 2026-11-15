@@ -189,3 +189,46 @@ jobs:
 
       - name: Validate website pages & static assets
         run: python3 scripts/validate_website.py
+
+  packaging:
+    name: Packaging & Distribution Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install packaging utilities
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev
+
+      - name: Cache Cargo registry & target
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-package-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-package-
+
+      - name: Run complete packaging pipeline
+        run: bash scripts/package-all.sh
+
+      - name: Run packaging acceptance test suite
+        run: bash tests/packaging_tests.sh
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: termexplorer-distribution-artifacts
+          path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/SHA256SUMS
+            dist/MANIFEST.txt
+          retention-days: 14
