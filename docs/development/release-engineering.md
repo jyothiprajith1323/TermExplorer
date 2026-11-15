@@ -9,7 +9,7 @@ TermExplorer features a reproducible packaging system established in Sprint 6A.
 | Deliverable | Target System | Path / Filename | Description |
 |---|---|---|---|
 | **Standalone Tarball** | Generic Linux `x86_64` | `dist/termexplorer-v1.1.0-linux-x86_64.tar.gz` | Binary, manpage, desktop entry, icon, completions, installer scripts |
-| **Debian / Ubuntu Package** | Ubuntu 20.04+, Debian 11+ | `dist/termexplorer_1.1.0_amd64.deb` | Native `.deb` package with dependencies and system integration |
+| **Debian / Ubuntu Package** | Ubuntu 22.04+, Debian 12+ | `dist/termexplorer_1.1.0_amd64.deb` | Native `.deb` package with dependencies and system integration |
 | **Checksum Manifest** | All Releases | `dist/SHA256SUMS` | Cryptographic SHA-256 hashes for supply-chain security |
 | **Artifact Manifest** | All Releases | `dist/MANIFEST.txt` | Complete manifest of included files and metadata |
 

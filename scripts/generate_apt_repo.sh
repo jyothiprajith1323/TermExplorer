@@ -94,7 +94,7 @@ Suite: stable
 Codename: stable
 Architectures: amd64
 Components: main
-Description: TermExplorer Official APT Repository
+Description: TermExplorer Development / Static APT Repository (Unsigned)
 Date: $CURR_DATE
 SHA256:
  $PKGS_SHA256 $PKGS_SIZE main/binary-amd64/Packages

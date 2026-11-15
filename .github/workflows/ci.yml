@@ -202,7 +202,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install packaging utilities
-        run: sudo apt-get update && sudo apt-get install -y dpkg-dev
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm rpm-build cpio
 
       - name: Cache Cargo registry & target
         uses: actions/cache@v6
@@ -222,6 +222,9 @@ jobs:
       - name: Run packaging acceptance test suite
         run: bash tests/packaging_tests.sh
 
+      - name: Run Linux package smoke tests (deb, rpm, tarball)
+        run: bash scripts/test_package_linux.sh "$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)" dist
+
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -229,6 +232,7 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.deb
+            dist/*.rpm
             dist/SHA256SUMS
             dist/MANIFEST.txt
           retention-days: 14

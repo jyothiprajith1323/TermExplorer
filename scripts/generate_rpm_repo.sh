@@ -51,13 +51,14 @@ if [[ -n "${GPG_KEY_ID:-}" ]] && command -v gpg >/dev/null 2>&1 && [[ -f "$REPO_
   gpg --batch --yes --armor --detach-sign -u "$GPG_KEY_ID" -o "$REPO_DIR/$ARCH/repodata/repomd.xml.asc" "$REPO_DIR/$ARCH/repodata/repomd.xml"
 fi
 
-# Provide sample .repo configuration
+# Provide sample .repo configuration for local testing / static staging
 cat > "$REPO_DIR/termexplorer.repo" <<EOF
 [termexplorer]
-name=TermExplorer Official Repository
+name=TermExplorer Development / Static Repository (Unsigned)
 baseurl=https://<host>/rpm/$ARCH/
 enabled=1
 gpgcheck=0
+# Note: Unsigned repository feed for local/staging use. Production deployment requires GPG key signing.
 EOF
 
 echo "RPM repository layout ready at $REPO_DIR"
