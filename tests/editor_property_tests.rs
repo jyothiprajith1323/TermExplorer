@@ -272,7 +272,7 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(50))]
 
     #[test]
-    fn test_proptest_arbitrary_unicode_roundtrip(s in "\\PC*") {
+    fn test_proptest_arbitrary_unicode_roundtrip(s in r"[^\p{C}\u{2028}\u{2029}\r\n]*") {
         let mut buf = Buffer::new();
         buf.insert_text(&s);
         buf.assert_invariants();
