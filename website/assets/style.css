@@ -158,7 +158,11 @@ code { color: #c8d8fb; font-size: .92em; }
 .install-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
 .install-card { min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: rgba(18,24,39,.82); }
 .install-card h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 7px; font-size: 1rem; }
-.install-card p { min-height: 50px; margin: 0 0 15px; color: var(--muted); font-size: .84rem; }
+.install-card p { min-height: 40px; margin: 0 0 12px; color: var(--muted); font-size: .84rem; }
+.install-card .card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.badge-chip { display: inline-block; padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--cyan); background: rgba(127,227,220,.08); font-size: .7rem; font-family: var(--mono); }
+.badge-chip.arch { color: #d7e4f6; background: rgba(255,255,255,.05); border-color: var(--line); }
+.cmd-label { display: block; margin: 8px 0 4px; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
 .install-card .code-block pre { font-size: .7rem; }
 .status-note { margin-top: 18px; padding: 15px 17px; border: 1px solid rgba(249,213,139,.25); border-radius: 12px; color: #dbc9a2; background: rgba(249,213,139,.06); font-size: .84rem; }
 

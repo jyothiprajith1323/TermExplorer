@@ -32,7 +32,7 @@ TermExplorer is engineered as a high-performance, single-binary terminal develop
 | **Plugin Sandbox** | `wasmi` (v0.36) | In-process WebAssembly interpreter, fuel metering, memory limiter |
 | **Search Engine** | `ignore` + `regex` | Multi-threaded `.gitignore` traversal and parallel regex content grep |
 | **Configuration** | `serde` + `toml` | Versioned schema (v2), atomic writes, automatic migration engine |
-| **Git Integration** | `libgit2` / native process wrapper | Status querying, unified diff parsing, staging, commit authoring |
+| **Git Integration** | Subprocess CLI (`std::process::Command`) | Status querying, unified diff parsing, staging, commit authoring |
 | **Hashing & Digests** | `sha2` + `blake3` | Fast cryptographic content checksums and plugin integrity verification |
 
 ---

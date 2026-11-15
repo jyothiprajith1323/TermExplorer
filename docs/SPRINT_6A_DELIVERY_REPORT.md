@@ -205,10 +205,10 @@ Validated in fresh isolated directory `/tmp/te-pack-test-146053`:
 
 ## 21. Documentation Delivered
 
-1. [`docs/INSTALLATION.md`](file:///home/prajith/TermExplorer/docs/INSTALLATION.md) & [`INSTALLATION.md`](file:///home/prajith/TermExplorer/INSTALLATION.md)
-2. [`docs/PACKAGING.md`](file:///home/prajith/TermExplorer/docs/PACKAGING.md)
-3. [`docs/DEPENDENCIES.md`](file:///home/prajith/TermExplorer/docs/DEPENDENCIES.md)
-4. [`docs/WSL2_SETUP.md`](file:///home/prajith/TermExplorer/docs/WSL2_SETUP.md)
+1. [`INSTALLATION.md`](INSTALLATION.md) & [`../INSTALLATION.md`](../INSTALLATION.md)
+2. [`PACKAGING.md`](PACKAGING.md)
+3. [`DEPENDENCIES.md`](DEPENDENCIES.md)
+4. [`WSL2_SETUP.md`](WSL2_SETUP.md)
 
 ---
 

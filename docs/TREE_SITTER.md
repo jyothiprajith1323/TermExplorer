@@ -2,7 +2,7 @@
 
 **Module:** `termexplorer::editor::syntax`  
 **Architecture Version:** V1.1.0-Sprint 2.1  
-**Primary Engine:** Syntect Checkpointed Engine (See [SYNTAX_ENGINE_AUDIT.md](file:///home/prajith/TermExplorer/docs/SYNTAX_ENGINE_AUDIT.md))  
+**Primary Engine:** Syntect Checkpointed Engine (See [SYNTAX_ENGINE_AUDIT.md](SYNTAX_ENGINE_AUDIT.md))  
 **Theme:** Canonical Catppuccin Mocha  
 
 ---

@@ -1,5 +1,7 @@
-/target
+target/
 /dist
+/fuzz/target
+website/node_modules/
 **/*.rs.bk
 .idea/
 .vscode/

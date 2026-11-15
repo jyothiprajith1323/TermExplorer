@@ -22,7 +22,7 @@ Every quality gate passed with zero defects, zero warnings, zero clippy violatio
 
 - **Repository Root:** `/home/prajith/TermExplorer`
 - **Active Git Branch:** `master`
-- **Commit Hash:** `06f7e32c8c4b40b7bd94002f44ca6a26d00000e7`
+- **Commit Hash:** `1a5642d12b0f98ec440d25e3d8453c02de344d41`
 - **Rust Toolchain:** `rustc 1.99.1 (58cf8f9c3 2026-10-13)` / `cargo 1.99.1`
 - **Target Architecture:** `x86_64-unknown-linux-gnu`
 - **Workspace State:** All files and tests verified; uncommitted modifications restricted strictly to release documentation and acceptance suites.
@@ -35,10 +35,10 @@ All prior sprint milestones have undergone strict prerequisite gates and formal 
 
 | Sprint | Scope | Gate Status | Report Reference |
 |---|---|---|---|
-| **Sprint 5D** | Final Integration, Fuzzing & Security Acceptance | **PASSED** (100%) | [docs/SPRINT_5D_ACCEPTANCE_REPORT.md](file:///home/prajith/TermExplorer/docs/SPRINT_5D_ACCEPTANCE_REPORT.md) |
-| **Sprint 6A** | Packaging, Distribution & Supply-Chain Security | **PASSED** (100%) | [docs/SPRINT_6A_DELIVERY_REPORT.md](file:///home/prajith/TermExplorer/docs/SPRINT_6A_DELIVERY_REPORT.md) |
-| **Sprint 6B** | First-Run Onboarding, Configuration & Personalization | **PASSED** (100%) | [docs/SPRINT_6B_DELIVERY_REPORT.md](file:///home/prajith/TermExplorer/docs/SPRINT_6B_DELIVERY_REPORT.md) |
-| **Sprint 6C** | Complete Technical Documentation & Knowledge Base | **PASSED** (100%) | [docs/SPRINT_6C_ACCEPTANCE_REPORT.md](file:///home/prajith/TermExplorer/docs/SPRINT_6C_ACCEPTANCE_REPORT.md) |
+| **Sprint 5D** | Final Integration, Fuzzing & Security Acceptance | **CONDITIONALLY READY** (Non-critical roadmap items noted) | [docs/SPRINT_5D_ACCEPTANCE_REPORT.md](SPRINT_5D_ACCEPTANCE_REPORT.md) |
+| **Sprint 6A** | Packaging, Distribution & Supply-Chain Security | **PASSED** (100%) | [docs/SPRINT_6A_DELIVERY_REPORT.md](SPRINT_6A_DELIVERY_REPORT.md) |
+| **Sprint 6B** | First-Run Onboarding, Configuration & Personalization | **PASSED** (100%) | [docs/SPRINT_6B_DELIVERY_REPORT.md](SPRINT_6B_DELIVERY_REPORT.md) |
+| **Sprint 6C** | Complete Technical Documentation & Knowledge Base | **PASSED** (100%) | [docs/SPRINT_6C_ACCEPTANCE_REPORT.md](SPRINT_6C_ACCEPTANCE_REPORT.md) |
 
 Every prerequisite criteria from Sprint 5D through 6C was re-validated during the Sprint 6D preflight audit.
 
@@ -52,11 +52,11 @@ The release encompasses the full planned capability set of TermExplorer:
 |---|---|---|
 | **Filesystem Explorer** | Tree navigation, metadata inspection, hidden file toggling, adversarial path protection, symlink cycle prevention | **GA Verified** |
 | **Preview / Inspector** | Syntax-highlighted code, Markdown rendering, CSV/TSV table view, JSON/YAML/TOML tree, hex inspector, image dimensions | **GA Verified** |
-| **Integrated Editor** | `crop::Rope`-backed text buffer, atomic fsync writes, crash-recovery journal, LSP/completion integration | **GA Verified** |
+| **Integrated Editor** | `ropey::Rope`-backed text buffer, atomic fsync writes, crash-recovery journal, LSP/completion integration | **GA Verified** |
 | **PTY Terminal Drawer** | Collapsible 15% drawer (`Ctrl+\``), PTY session multiplexer, ANSI/VT100 escape handling, zero-leak process reaper | **GA Verified** |
 | **Native Git Workbench** | Status panel, stage/unstage hunk engine, branch switcher, visual log graph, asynchronous git workers | **GA Verified** |
 | **Developer Task Runner** | Project discovery (`Cargo.toml`, `package.json`, `Makefile`), `.termexplorer/tasks.toml`, background task streaming | **GA Verified** |
-| **Wasm Plugin Engine** | Wasmi interpreter, 16 MiB memory ceiling, 5,000,000 fuel limit, SHA-256 signature verification, strict zero-host-syscall sandbox | **GA Verified** |
+| **Wasm Plugin Engine** | Wasmi interpreter, 16 MiB memory ceiling, 5,000,000 fuel limit, SHA-256 integrity digest verification, strict zero-host-syscall sandbox | **GA Verified** |
 | **Configuration Subsystem** | TOML Schema v2, atomic migrations (v1 $\to$ v2), interactive onboarding wizard, Catppuccin themes | **GA Verified** |
 | **Terminal Integration** | Kitty keyboard protocol, bracketed paste mode, 24-bit TrueColor, WSL2 path translation | **GA Verified** |
 
@@ -165,7 +165,7 @@ Between Sprint 6C and Sprint 6D, strict feature freeze was enforced:
 ## 10. Unicode & Editor Validation
 
 - **Grapheme Cluster Handling:** Validated using `unicode-width` and `unicode-segmentation`. Complex emoji (e.g. 🦀, 🚀), ZWJ sequences (👨‍💻), and zero-width combiners do not cause column misalignment in the Ratatui buffer.
-- **Editor Rope Implementation:** `crop::Rope` handles $O(\log N)$ insertions, deletions, and line splits up to 500,000 lines without UI freezes.
+- **Editor Rope Implementation:** `ropey::Rope` handles $O(\log N)$ insertions, deletions, and line splits up to 500,000 lines without UI freezes.
 - **Atomic File Persistence:** File writes are written to a temporary sibling file (`.<filename>.tmp.XXXXXX`) and fsynced before atomic rename (`renameat2`), preventing file truncation on power failure.
 - **Crash Recovery:** Journal log persisted at `~/.local/state/termexplorer/journal/` with automatic recovery prompt upon unexpected exit.
 
@@ -189,7 +189,7 @@ Between Sprint 6C and Sprint 6D, strict feature freeze was enforced:
 
 ## 13. Git & Task Runner Validation
 
-- **Native Git Integration:** Zero external shell `git` invocations; all repository operations leverage `git2` (libgit2 0.18+) bindings with background worker threads.
+- **Native Git Integration:** Subprocess-isolated Git integration leveraging `std::process::Command` with explicit argument arrays, preventing shell injection and executing git asynchronously with background worker threads.
 - **Task Runner Discovery:** Detects Rust (`Cargo.toml`), Node (`package.json`), Python (`pyproject.toml`), and Make (`Makefile`) targets automatically.
 - **Live Output Streaming:** Tasks stream stdout/stderr into ring-buffered virtual terminals without blocking Ratatui rendering.
 
@@ -201,7 +201,7 @@ Between Sprint 6C and Sprint 6D, strict feature freeze was enforced:
 - **Memory Ceiling:** Enforced 16 MiB linear memory limit (`256` Wasm pages). Allocations exceeding this limit immediately trap.
 - **Execution Fuel:** 5,000,000 fuel units allocated per invocation; infinite loops are trapped and terminated without consuming host CPU.
 - **Capability Isolation:** Host imports are strictly limited to `termexplorer_log`, `termexplorer_read_buffer`, `termexplorer_write_preview`. No direct filesystem, network, or environment syscalls are linked.
-- **Integrity Verification:** Plugins must match SHA-256 signatures declared in plugin manifests.
+- **Integrity Verification:** Plugins must match SHA-256 integrity digests declared in plugin manifests.
 
 ---
 
@@ -367,7 +367,7 @@ ac855f771030453fbc789c3721737bf939b45eb7430d16ca9f7d914ff6cde910  termexplorer_1
 ## 28. Documentation Audit
 
 The documentation tree in `docs/` is verified 100% complete:
-- Master portal: [docs/README.md](file:///home/prajith/TermExplorer/docs/README.md)
+- Master portal: [docs/README.md](README.md)
 - Getting Started: Installation, Quickstart, Keybindings, WSL2 Setup.
 - User Guides: Explorer, Preview, Editor, Terminal, Git, Task Runner, Plugins, Configuration, Themes, Troubleshooting.
 - Architecture: 17 detailed subsystem architecture documents.

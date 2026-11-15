@@ -2,6 +2,7 @@
 """Static GitHub Pages checks: local links, fragments, assets and basic semantics."""
 from __future__ import annotations
 import sys
+import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -21,12 +22,15 @@ class Document(HTMLParser):
         self.viewport_meta = False
         self.images_without_alt: list[str] = []
         self.buttons_without_name = 0
+        self.pre_without_tabindex = 0
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         if tag == "html": self.html_lang = bool(a.get("lang"))
         if tag == "meta" and a.get("name", "").lower() == "viewport": self.viewport_meta = bool(a.get("content"))
         if a.get("id"): self.ids.add(a["id"])
+        if tag == "pre" and a.get("tabindex") != "0":
+            self.pre_without_tabindex += 1
         if tag in ("a", "link") and a.get("href"):
             self.links.append((tag, a["href"], a.get("target", ""), a.get("rel", "")))
         if tag in ("img", "script") and a.get("src"):
@@ -77,6 +81,7 @@ def main() -> int:
             (parser.title == 1, f"expected exactly one title element, found {parser.title}"),
             (not parser.images_without_alt, f"images missing alt attribute: {parser.images_without_alt}"),
             (parser.buttons_without_name == 0, f"{parser.buttons_without_name} button(s) have no accessible name"),
+            (parser.pre_without_tabindex == 0, f"{parser.pre_without_tabindex} <pre> block(s) lack tabindex='0'"),
         ]:
             if not ok: errors.append(f"{file.name}: {message}")
 
@@ -85,6 +90,9 @@ def main() -> int:
             if target_attr == "_blank" and "noopener" not in rel_attr.split():
                 errors.append(f"{file.name}: external new-tab link lacks rel=noopener: {raw}")
             if raw.startswith(("https://", "http://", "mailto:", "tel:", "javascript:")):
+                continue
+            if raw.startswith("/") and not raw.startswith("//"):
+                errors.append(f"{file.name}: local link has absolute leading slash (incompatible with GitHub Pages project subpath): {raw}")
                 continue
             parsed = urlsplit(raw)
             target_name = unquote(parsed.path)
@@ -109,6 +117,9 @@ def main() -> int:
         for tag, raw in parser.assets:
             checked += 1
             if raw.startswith(("https://", "http://", "data:")): continue
+            if raw.startswith("/") and not raw.startswith("//"):
+                errors.append(f"{file.name}: local asset src has absolute leading slash (incompatible with GitHub Pages project subpath): {raw}")
+                continue
             target = (file.parent / unquote(urlsplit(raw).path)).resolve()
             if not target.is_file(): errors.append(f"{file.name}: missing local {tag} source: {raw}")
 
@@ -127,6 +138,44 @@ def main() -> int:
     if js.is_file():
         text = js.read_text(encoding="utf-8")
         if "aria-expanded" not in text or "Escape" not in text: errors.append("JavaScript: accessible menu state and Escape handling are required")
+
+    # SVG XML validation
+    svg_files = sorted((ROOT / "assets").glob("*.svg"))
+    for svg_path in svg_files:
+        try:
+            ET.fromstring(svg_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors.append(f"Invalid SVG XML in {svg_path.relative_to(ROOT)}: {exc}")
+
+    # Sitemap validation
+    sitemap = ROOT / "sitemap.xml"
+    if not sitemap.is_file():
+        errors.append("Missing sitemap.xml")
+    else:
+        try:
+            tree = ET.fromstring(sitemap.read_text(encoding="utf-8"))
+            urls = [elem.text for elem in tree.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")]
+            if not urls:
+                errors.append("sitemap.xml contains no <loc> elements")
+            for u in urls:
+                if not u or not u.startswith("https://jyothiprajith1323.github.io/TermExplorer/"):
+                    errors.append(f"sitemap.xml url does not match project base: {u}")
+        except Exception as exc:
+            errors.append(f"sitemap.xml XML parsing failed: {exc}")
+
+    # Robots.txt validation
+    robots = ROOT / "robots.txt"
+    if not robots.is_file():
+        errors.append("Missing robots.txt")
+    else:
+        txt = robots.read_text(encoding="utf-8")
+        if "User-agent:" not in txt or "Sitemap:" not in txt:
+            errors.append("robots.txt must contain User-agent and Sitemap directives")
+
+    # 404.html validation
+    page_404 = ROOT / "404.html"
+    if not page_404.is_file():
+        errors.append("Missing 404.html")
 
     print(f"Checked {len(html_files)} pages and {checked} local references under {ROOT}")
     if errors:

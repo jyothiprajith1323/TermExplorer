@@ -13,14 +13,14 @@
 Sprint 6C establishes a comprehensive, technically accurate, navigable, and maintainable documentation system for TermExplorer. Prior to this milestone, technical documentation was fragmented across historical sprint audit notes and flat Markdown files.
 
 Sprint 6C delivers:
-1. **Repository Landing Experience**: An updated [README.md](file:///home/prajith/TermExplorer/README.md) clearly presenting TermExplorer as an inspection-first terminal developer workstation, with native package installation methods (Debian `.deb`, standalone `.tar.gz`, Cargo from source), verification steps, and links to the documentation portal.
-2. **Master Documentation Portal**: [docs/README.md](file:///home/prajith/TermExplorer/docs/README.md), acting as the central documentation index for 7 distinct audiences: new users, terminal power-users, Rust contributors, maintainers, plugin developers, security reviewers, and bug investigators.
+1. **Repository Landing Experience**: An updated [README.md](../README.md) clearly presenting TermExplorer as an inspection-first terminal developer workstation, with native package installation methods (Debian `.deb`, standalone `.tar.gz`, Cargo from source), verification steps, and links to the documentation portal.
+2. **Master Documentation Portal**: [docs/README.md](README.md), acting as the central documentation index for 7 distinct audiences: new users, terminal power-users, Rust contributors, maintainers, plugin developers, security reviewers, and bug investigators.
 3. **Structured Getting Started & User Guides**: 16 task-oriented user guides covering installation, first-launch onboarding, navigation, file operations, preview/inspector capabilities, rope editor, embedded PTY drawer, unified search, Git workbench, Task Runner, Settings Studio, keyboard shortcuts, and plugins.
 4. **Subsystem & Systems Architecture**: 17 deep architecture documents complete with Mermaid diagrams representing system context, application lifecycle, input dispatch routing, UI layout algebra, rope buffer model, preview caching, PTY session supervision, and sandboxing.
 5. **WebAssembly Plugin Developer Guide**: Complete SDK documentation for external developers, detailing the `wasmi` in-process interpreter, memory bounds (16 MiB), fuel limits (5M), C-ABI / WIT interface contracts, manifest specification (`plugin.toml`), capabilities, and annotated example plugins (`file-inspector`, `workspace-tools`).
 6. **Architectural Decision Records (ADRs)**: 7 formal ADRs (ADR-0001 through ADR-0007) documenting architectural choices without fabricated history.
-7. **Technical Reference & Governance**: Schema Version 2 configuration reference, keyboard shortcuts master reference, command palette catalog, supported format matrices, environment variables, dependencies, error reference, [CONTRIBUTING.md](file:///home/prajith/TermExplorer/CONTRIBUTING.md), and [SECURITY.md](file:///home/prajith/TermExplorer/SECURITY.md).
-8. **Automated Documentation Quality Checks**: [scripts/validate-docs.sh](file:///home/prajith/TermExplorer/scripts/validate-docs.sh) validating zero broken links, schema consistency, shortcut consistency, plugin manifest matching, and rustdoc (`cargo doc --no-deps`) passing with 0 warnings.
+7. **Technical Reference & Governance**: Schema Version 2 configuration reference, keyboard shortcuts master reference, command palette catalog, supported format matrices, environment variables, dependencies, error reference, [CONTRIBUTING.md](../CONTRIBUTING.md), and [SECURITY.md](../SECURITY.md).
+8. **Automated Documentation Quality Checks**: [scripts/validate-docs.sh](../scripts/validate-docs.sh) validating zero broken links, schema consistency, shortcut consistency, plugin manifest matching, and rustdoc (`cargo doc --no-deps`) passing with 0 warnings.
 
 ---
 
@@ -233,7 +233,7 @@ docs/
 
 ## 15. Developer Setup Guide
 
-- Prerequisites: Rust 1.80+, Cargo, build-essential, pkg-config, libgit2-dev.
+- Prerequisites: Rust 1.80+, Cargo, build-essential, pkg-config, git.
 - Optional preview tools (`ffmpeg`, `poppler-utils`, `sqlite3`, `trash-cli`).
 - WSL2-specific setup with Windows Terminal and TrueColor.
 
@@ -241,13 +241,13 @@ docs/
 
 ## 16. Contribution Guide
 
-- Updated [CONTRIBUTING.md](file:///home/prajith/TermExplorer/CONTRIBUTING.md) with pull request workflow, code standards, error-handling rules, and bug reporting instructions.
+- Updated [CONTRIBUTING.md](../CONTRIBUTING.md) with pull request workflow, code standards, error-handling rules, and bug reporting instructions.
 
 ---
 
 ## 17. Security Policy
 
-- Updated [SECURITY.md](file:///home/prajith/TermExplorer/SECURITY.md) covering data safety, Workspace Trust boundary (`trusted_workspaces.json`), escape sequence sanitization (`sanitize_preview_line`), and private vulnerability reporting channels.
+- Updated [SECURITY.md](../SECURITY.md) covering data safety, Workspace Trust boundary (`trusted_workspaces.json`), escape sequence sanitization (`sanitize_preview_line`), and private vulnerability reporting channels.
 
 ---
 

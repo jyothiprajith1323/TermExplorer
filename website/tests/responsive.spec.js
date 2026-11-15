@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
-const pages = ['/index.html', '/features.html', '/architecture.html', '/docs.html', '/roadmap.html'];
+const pages = ['/index.html', '/features.html', '/architecture.html', '/docs.html', '/roadmap.html', '/404.html'];
 const viewports = [
   { name: 'small-phone', width: 320, height: 640 },
   { name: 'phone', width: 360, height: 800 },
@@ -112,3 +112,19 @@ for (const dpr of [2, 3]) {
     await context.close();
   });
 }
+
+test('all internal links, stylesheets and scripts use relative paths compatible with GitHub Pages project prefix', async ({ page }) => {
+  for (const route of pages) {
+    await page.goto(route);
+    const uris = await page.evaluate(() => {
+      const hrefs = Array.from(document.querySelectorAll('a[href], link[href]')).map(el => el.getAttribute('href'));
+      const srcs = Array.from(document.querySelectorAll('img[src], script[src]')).map(el => el.getAttribute('src'));
+      return [...hrefs, ...srcs];
+    });
+    for (const uri of uris) {
+      if (!uri) continue;
+      if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('#') || uri.startsWith('mailto:')) continue;
+      expect(uri.startsWith('/') && !uri.startsWith('//'), `Absolute path detected in ${route} which would break under /TermExplorer/ subpath: ${uri}`).toBeFalsy();
+    }
+  }
+});

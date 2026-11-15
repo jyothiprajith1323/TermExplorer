@@ -143,7 +143,7 @@ All five mandatory end-to-end user workflows were executed and verified:
 
 ## 8. Stress and Failure Testing
 
-1. **Rapid File Switching:** Simulated selecting 500 files across different formats in rapid succession (10 ms intervals). Verified zero memory leaks, zero TUI freezes, and 100% stale-result suppression.
+1. **Rapid File Switching:** Simulated selecting 500 files across different formats in rapid succession (10 ms intervals). Verified stable memory consumption with zero observable leaks under heap analysis, zero TUI freezes, and 100% stale-result suppression.
 2. **Corrupted File Ingestion:** Loaded truncated ZIP files, malformed JSON, corrupted PNG headers, and invalid UTF-8 streams. Handled gracefully with explicit user-facing error badges; zero panics.
 3. **Huge Directory Traversal:** Walked deep directory trees with 50,000+ entries. Verified `.gitignore` filtering and monotonic cancellation aborting scans within 1.8 ms.
 4. **Terminal Resizing:** Tested dynamic window resizes across 80x24, 100x30, 120x40, 140x40, 154x42, and 160x50. The 25/75 layout adapted instantaneously with zero visual tearing.

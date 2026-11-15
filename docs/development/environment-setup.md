@@ -23,7 +23,6 @@ sudo apt-get update
 sudo apt-get install -y \
     build-essential \
     pkg-config \
-    libgit2-dev \
     git \
     libasound2-dev \
     libudev-dev

@@ -390,11 +390,11 @@ docs/
 
 ## 25. Documentation Deliverables
 
-1. [docs/FIRST_RUN.md](file:///home/prajith/TermExplorer/docs/FIRST_RUN.md): First-run onboarding flow, welcome screen options, guided wizard, and replay.
-2. [docs/CONFIGURATION.md](file:///home/prajith/TermExplorer/docs/CONFIGURATION.md): Schema version 2 specification, table definitions, atomic persistence, and recovery.
-3. [docs/KEYBINDINGS.md](file:///home/prajith/TermExplorer/docs/KEYBINDINGS.md): Centralized keybinding registry, conflict report (0 conflicts), scope separation, and shortcuts table.
-4. [docs/TERMINAL_DETECTION.md](file:///home/prajith/TermExplorer/docs/TERMINAL_DETECTION.md): Terminal hardware capabilities, trust model, shell detection, and diagnostics.
-5. [docs/SPRINT_6B_DELIVERY_REPORT.md](file:///home/prajith/TermExplorer/docs/SPRINT_6B_DELIVERY_REPORT.md): This complete delivery report.
+1. [FIRST_RUN.md](FIRST_RUN.md): First-run onboarding flow, welcome screen options, guided wizard, and replay.
+2. [CONFIGURATION.md](CONFIGURATION.md): Schema version 2 specification, table definitions, atomic persistence, and recovery.
+3. [KEYBINDINGS.md](KEYBINDINGS.md): Centralized keybinding registry, conflict report (0 conflicts), scope separation, and shortcuts table.
+4. [TERMINAL_DETECTION.md](TERMINAL_DETECTION.md): Terminal hardware capabilities, trust model, shell detection, and diagnostics.
+5. [SPRINT_6B_DELIVERY_REPORT.md](SPRINT_6B_DELIVERY_REPORT.md): This complete delivery report.
 
 ---
 

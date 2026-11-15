@@ -76,7 +76,7 @@ To build from source using the Rust toolchain:
 ```bash
 # Prerequisites: Rust 1.80+ and basic C compiler
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-sudo apt-get install -y build-essential pkg-config libgit2-dev
+sudo apt-get install -y build-essential pkg-config git
 
 # Clone and compile
 git clone https://github.com/jyothiprajith1323/TermExplorer.git

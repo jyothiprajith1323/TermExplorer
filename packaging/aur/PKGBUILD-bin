@@ -1,0 +1,33 @@
+# Maintainer: Jyothi Prajith <101039137+jyothiprajith1323@users.noreply.github.com>
+pkgname=termexplorer-bin
+pkgver=1.1.0
+pkgrel=1
+pkgdesc='Inspection-first terminal developer workstation written in Rust (pre-built binary)'
+arch=('x86_64')
+url='https://github.com/jyothiprajith1323/TermExplorer'
+license=('MIT')
+depends=('gcc-libs' 'glibc')
+optdepends=(
+  'git: Git integration'
+  'ffmpeg: media metadata and frame extraction'
+  'poppler: PDF text and metadata extraction'
+  'trash-cli: FreeDesktop trash fallback'
+)
+provides=('termexplorer')
+conflicts=('termexplorer' 'termexplorer-git')
+source_x86_64=("https://github.com/jyothiprajith1323/TermExplorer/releases/download/v${pkgver}/termexplorer-v${pkgver}-linux-x86_64.tar.gz")
+sha256sums_x86_64=('SKIP')
+
+package() {
+  cd "$srcdir/termexplorer-v${pkgver}-linux-${CARCH}"
+  install -Dm755 bin/termexplorer "$pkgdir/usr/bin/termexplorer"
+  install -Dm644 share/doc/termexplorer/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 share/doc/termexplorer/README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 share/doc/termexplorer/INSTALLATION.md "$pkgdir/usr/share/doc/$pkgname/INSTALLATION.md"
+  install -Dm644 share/man/man1/termexplorer.1.gz "$pkgdir/usr/share/man/man1/termexplorer.1.gz"
+  install -Dm644 share/applications/termexplorer.desktop "$pkgdir/usr/share/applications/termexplorer.desktop"
+  install -Dm644 share/icons/hicolor/scalable/apps/termexplorer.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/termexplorer.svg"
+  install -Dm644 share/bash-completion/completions/termexplorer "$pkgdir/usr/share/bash-completion/completions/termexplorer"
+  install -Dm644 share/zsh/site-functions/_termexplorer "$pkgdir/usr/share/zsh/site-functions/_termexplorer"
+  install -Dm644 share/fish/vendor_completions.d/termexplorer.fish "$pkgdir/usr/share/fish/vendor_completions.d/termexplorer.fish"
+}

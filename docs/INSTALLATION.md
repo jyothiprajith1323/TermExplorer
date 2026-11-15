@@ -144,7 +144,7 @@ TermExplorer runs natively inside WSL2 distributions (e.g., Ubuntu on WSL2).
 1. Open Windows Terminal with your WSL2 Ubuntu profile.
 2. Follow **Method 1 (Portable Archive)** or **Method 2 (Debian Package)** above.
 3. Configure Windows Terminal to use a Nerd Font (e.g. JetBrainsMono Nerd Font).
-4. See [WSL2 Setup Guide](file:///home/prajith/TermExplorer/docs/WSL2_SETUP.md) for advanced clipboard, TrueColor, and font tips.
+4. See [WSL2 Setup Guide](WSL2_SETUP.md) for advanced clipboard, TrueColor, and font tips.
 
 ---
 

@@ -36,7 +36,7 @@ Archive extraction (`src/preview/archive/mod.rs`) enforces strict bounds:
 
 ## 3. WebAssembly Plugin Isolation
 
-TermExplorer plugins execute inside a sandboxed WebAssembly runtime (`wasmtime`):
+TermExplorer plugins execute inside a sandboxed WebAssembly interpreter runtime (`wasmi v0.36`, with Wasmtime Component Model roadmapped):
 - **Fuel Metering**: Infinite loops and CPU-spinning plugins are halted within bounded milliseconds.
 - **Memory Growth Limits**: Initial and maximum WebAssembly heap allocations are capped to prevent OOM denial-of-service.
 - **No Undeclared Syscalls**: Plugins have zero direct access to the host filesystem, network sockets, or OS processes unless explicitly granted capabilities in the plugin manifest.

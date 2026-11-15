@@ -4,19 +4,86 @@
 <main id="main" class="shell"><section class="page-hero"><span class="eyebrow">Install · configure · explore</span><h1>Get up and running <span class="gradient-text">on Linux.</span></h1><p>Choose the installation route that matches your distribution. Packages are produced by the tagged release pipeline; verify that the asset exists on the Releases page before running an install command.</p></section>
 <section class="section-tight" id="install"><div class="section-heading"><span class="eyebrow">01 / Installation</span><h2>Pick your package manager.</h2><p>Use the package built for your distribution. For Debian-family systems, APT can install a downloaded local <code>.deb</code> package and resolve its declared dependencies.</p></div>
 <div class="install-grid">
-  <article class="install-card"><h3><span aria-hidden="true">◈</span> Debian / Ubuntu / Linux Mint</h3><p>When a Debian asset is attached to the release, download it and install the local package with APT.</p><div class="code-block"><pre tabindex="0"><code>sudo apt install ./termexplorer_1.1.0~rc2_amd64.deb</code></pre><button class="copy-btn" type="button" data-copy="sudo apt install ./termexplorer_1.1.0~rc2_amd64.deb">Copy</button></div></article>
-  <article class="install-card"><h3><span aria-hidden="true">◉</span> Arch Linux / EndeavourOS / Manjaro</h3><p>Build the repository's PKGBUILD locally with makepkg. AUR publication is separate from keeping the recipe in this repository.</p><div class="code-block"><pre tabindex="0"><code>git clone https://github.com/jyothiprajith1323/TermExplorer.git
+  <article class="install-card">
+    <h3><span aria-hidden="true">◈</span> Debian / Ubuntu / Linux Mint</h3>
+    <div class="card-meta"><span class="badge-chip">Format: .deb</span><span class="badge-chip arch">Arch: x86_64</span><span class="badge-chip">Local Package</span></div>
+    <p>Download the release <code>.deb</code> package and install with APT. APT resolves libc and shared runtime dependencies automatically.</p>
+    <span class="cmd-label">Install</span>
+    <div class="code-block"><pre tabindex="0"><code>sudo apt install ./termexplorer_1.1.0~rc2_amd64.deb</code></pre><button class="copy-btn" type="button" data-copy="sudo apt install ./termexplorer_1.1.0~rc2_amd64.deb">Copy</button></div>
+    <span class="cmd-label">Remove</span>
+    <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>sudo apt remove termexplorer</code></pre><button class="copy-btn" type="button" data-copy="sudo apt remove termexplorer">Copy</button></div>
+  </article>
+
+  <article class="install-card">
+    <h3><span aria-hidden="true">◉</span> Arch Linux / EndeavourOS / Manjaro</h3>
+    <div class="card-meta"><span class="badge-chip">Format: PKGBUILD</span><span class="badge-chip arch">Arch: x86_64</span><span class="badge-chip">In-Tree Recipe</span></div>
+    <p>Build the source or binary PKGBUILD locally with makepkg. In-tree recipes are in <code>packaging/aur/</code>; AUR publication is maintained separately.</p>
+    <span class="cmd-label">Build &amp; Install</span>
+    <div class="code-block"><pre tabindex="0"><code>git clone https://github.com/jyothiprajith1323/TermExplorer.git
 cd TermExplorer/packaging/aur
-makepkg -si</code></pre><button class="copy-btn" type="button" data-copy="git clone https://github.com/jyothiprajith1323/TermExplorer.git&#10;cd TermExplorer/packaging/aur&#10;makepkg -si">Copy</button></div></article>
-  <article class="install-card"><h3><span aria-hidden="true">◒</span> Fedora / RHEL / Rocky / Alma</h3><p>When an RPM asset is attached to the release, download it and install the local package using DNF.</p><div class="code-block"><pre tabindex="0"><code>sudo dnf install ./termexplorer-1.1.0~rc2-1.x86_64.rpm</code></pre><button class="copy-btn" type="button" data-copy="sudo dnf install ./termexplorer-1.1.0~rc2-1.x86_64.rpm">Copy</button></div></article>
-  <article class="install-card"><h3><span aria-hidden="true">◍</span> openSUSE</h3><p>When an RPM asset is attached to the release, install it with Zypper. Confirm the package architecture matches your system.</p><div class="code-block"><pre tabindex="0"><code>sudo zypper install ./termexplorer-1.1.0~rc2-1.x86_64.rpm</code></pre><button class="copy-btn" type="button" data-copy="sudo zypper install ./termexplorer-1.1.0~rc2-1.x86_64.rpm">Copy</button></div></article>
-  <article class="install-card"><h3><span aria-hidden="true">▤</span> Portable Linux archive</h3><p>Extract the release archive and install the binary into your user-local executable directory.</p><div class="code-block"><pre tabindex="0"><code>mkdir -p ~/.local/bin
-install -m 755 termexplorer ~/.local/bin/termexplorer</code></pre><button class="copy-btn" type="button" data-copy="mkdir -p ~/.local/bin&#10;install -m 755 termexplorer ~/.local/bin/termexplorer">Copy</button></div></article>
-  <article class="install-card"><h3><span aria-hidden="true">⌘</span> Build from source</h3><p>For contributors and users who prefer building the current source with Rust stable.</p><div class="code-block"><pre tabindex="0"><code>git clone https://github.com/jyothiprajith1323/TermExplorer.git
+makepkg -si</code></pre><button class="copy-btn" type="button" data-copy="git clone https://github.com/jyothiprajith1323/TermExplorer.git&#10;cd TermExplorer/packaging/aur&#10;makepkg -si">Copy</button></div>
+    <span class="cmd-label">Remove</span>
+    <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>sudo pacman -R termexplorer</code></pre><button class="copy-btn" type="button" data-copy="sudo pacman -R termexplorer">Copy</button></div>
+  </article>
+
+  <article class="install-card">
+    <h3><span aria-hidden="true">◒</span> Fedora / RHEL / Rocky / Alma</h3>
+    <div class="card-meta"><span class="badge-chip">Format: .rpm</span><span class="badge-chip arch">Arch: x86_64</span><span class="badge-chip">Local Package</span></div>
+    <p>Download the release <code>.rpm</code> package and install with DNF. Installs binary, manpage, desktop entry, icon and completions.</p>
+    <span class="cmd-label">Install</span>
+    <div class="code-block"><pre tabindex="0"><code>sudo dnf install ./termexplorer-1.1.0~rc2-1.x86_64.rpm</code></pre><button class="copy-btn" type="button" data-copy="sudo dnf install ./termexplorer-1.1.0~rc2-1.x86_64.rpm">Copy</button></div>
+    <span class="cmd-label">Remove</span>
+    <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>sudo dnf remove termexplorer</code></pre><button class="copy-btn" type="button" data-copy="sudo dnf remove termexplorer">Copy</button></div>
+  </article>
+
+  <article class="install-card">
+    <h3><span aria-hidden="true">◍</span> openSUSE</h3>
+    <div class="card-meta"><span class="badge-chip">Format: .rpm</span><span class="badge-chip arch">Arch: x86_64</span><span class="badge-chip">Local Package</span></div>
+    <p>Download the release <code>.rpm</code> package and install with Zypper. Compatible with openSUSE Leap and Tumbleweed.</p>
+    <span class="cmd-label">Install</span>
+    <div class="code-block"><pre tabindex="0"><code>sudo zypper install ./termexplorer-1.1.0~rc2-1.x86_64.rpm</code></pre><button class="copy-btn" type="button" data-copy="sudo zypper install ./termexplorer-1.1.0~rc2-1.x86_64.rpm">Copy</button></div>
+    <span class="cmd-label">Remove</span>
+    <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>sudo zypper remove termexplorer</code></pre><button class="copy-btn" type="button" data-copy="sudo zypper remove termexplorer">Copy</button></div>
+  </article>
+
+  <article class="install-card">
+    <h3><span aria-hidden="true">▤</span> Portable Linux archive</h3>
+    <div class="card-meta"><span class="badge-chip">Format: .tar.gz</span><span class="badge-chip arch">Arch: x86_64</span><span class="badge-chip">Self-Contained</span></div>
+    <p>Extract the release archive and run the included installer or place the standalone binary in your <code>~/.local/bin</code> directory.</p>
+    <span class="cmd-label">Install</span>
+    <div class="code-block"><pre tabindex="0"><code>tar -xzf termexplorer-v1.1.0-rc2-linux-x86_64.tar.gz
+cd termexplorer-v1.1.0-rc2-linux-x86_64
+./install.sh</code></pre><button class="copy-btn" type="button" data-copy="tar -xzf termexplorer-v1.1.0-rc2-linux-x86_64.tar.gz&#10;cd termexplorer-v1.1.0-rc2-linux-x86_64&#10;./install.sh">Copy</button></div>
+    <span class="cmd-label">Remove</span>
+    <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>./uninstall.sh</code></pre><button class="copy-btn" type="button" data-copy="./uninstall.sh">Copy</button></div>
+  </article>
+
+  <article class="install-card">
+    <h3><span aria-hidden="true">⌘</span> Build from source</h3>
+    <div class="card-meta"><span class="badge-chip">Format: Cargo</span><span class="badge-chip arch">Arch: Portable</span><span class="badge-chip">Source Build</span></div>
+    <p>Build from source using Rust stable. Produces an optimized, LTO-enabled binary directly in your local target directory.</p>
+    <span class="cmd-label">Compile &amp; Install</span>
+    <div class="code-block"><pre tabindex="0"><code>git clone https://github.com/jyothiprajith1323/TermExplorer.git
 cd TermExplorer
-cargo build --locked --release</code></pre><button class="copy-btn" type="button" data-copy="git clone https://github.com/jyothiprajith1323/TermExplorer.git&#10;cd TermExplorer&#10;cargo build --locked --release">Copy</button></div></article>
+cargo build --locked --release
+install -Dm755 target/release/termexplorer ~/.local/bin/termexplorer</code></pre><button class="copy-btn" type="button" data-copy="git clone https://github.com/jyothiprajith1323/TermExplorer.git&#10;cd TermExplorer&#10;cargo build --locked --release&#10;install -Dm755 target/release/termexplorer ~/.local/bin/termexplorer">Copy</button></div>
+    <span class="cmd-label">Remove</span>
+    <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>rm -f ~/.local/bin/termexplorer</code></pre><button class="copy-btn" type="button" data-copy="rm -f ~/.local/bin/termexplorer">Copy</button></div>
+  </article>
 </div>
-<div class="status-note"><strong>Package availability:</strong> the public repository currently shows the <code>v1.1.0-rc2</code> release. Debian and RPM commands above describe the target package filenames for the packaging workflow; do not assume those assets are downloadable until they appear on the Releases page. Installing a local <code>.deb</code> with <code>apt install ./file.deb</code> is not the same as configuring a signed APT repository.</div>
+<div class="status-note">
+  <strong>Package availability &amp; repository status:</strong> The current public release is <code>v1.1.0-rc2</code>.
+  Packages (<code>.deb</code>, <code>.rpm</code>, portable <code>.tar.gz</code>) are distributed directly as release assets.
+  Local package installation (e.g. <code>apt install ./package.deb</code>) is the supported distribution method; signed APT and RPM hosted repository metadata scripts are provided in the repository for maintainers, while public hosted repos await dedicated signing infrastructure.
+</div>
+<div class="status-note" style="margin-top:10px;border-color:rgba(127,227,220,.25);background:rgba(127,227,220,.05);color:#b2ebf2">
+  <strong>Additional Linux Distribution Evaluations:</strong>
+  <ul style="margin:6px 0 0 18px;padding:0;line-height:1.6">
+    <li><strong>NixOS:</strong> Flake recipe available at <code>packaging/nix/flake.nix</code> for declarative Nix environments.</li>
+    <li><strong>Alpine Linux (musl):</strong> Evaluated for static compilation (<code>x86_64-unknown-linux-musl</code>). Standard glibc release binaries require <code>gcompat</code>.</li>
+    <li><strong>Flatpak / AppImage:</strong> Evaluated; TermExplorer's embedded PTY terminal drawer requires unconfined host access (<code>/dev/ptmx</code> and host shell execution), making native packages preferred over container sandboxes.</li>
+  </ul>
+</div>
 <div class="actions" style="margin-top:22px"><a class="btn btn-primary" href="https://github.com/jyothiprajith1323/TermExplorer/releases" target="_blank" rel="noopener noreferrer">Check release assets ↗</a><a class="btn btn-secondary" href="https://github.com/jyothiprajith1323/TermExplorer/tree/master/packaging" target="_blank" rel="noopener noreferrer">Browse packaging files ↗</a></div>
 </section>
 <section class="section" id="dependencies"><div class="section-heading"><span class="eyebrow">02 / Runtime dependencies</span><h2>Core application first. Optional tools when needed.</h2><p>TermExplorer can use external system tools for selected file and media workflows. Install only the utilities you need and consult the package metadata for required shared libraries.</p></div><div class="table-wrap"><table><thead><tr><th>Tool</th><th>Purpose</th><th>Requirement</th></tr></thead><tbody><tr><td><strong>Git</strong></td><td>Repository status and Git workflow features.</td><td>Optional integration; install Git to use it.</td></tr><tr><td><strong>FFmpeg / ffprobe</strong></td><td>Selected media metadata and frame extraction workflows.</td><td>Optional.</td></tr><tr><td><strong>Poppler utilities</strong></td><td>PDF text and metadata extraction in supported paths.</td><td>Optional.</td></tr><tr><td><strong>trash-cli / gio</strong></td><td>Desktop trash integration where available.</td><td>Optional; depends on the operation and environment.</td></tr><tr><td><strong>Rust stable + Cargo</strong></td><td>Building TermExplorer from source.</td><td>Development only.</td></tr></tbody></table></div></section>

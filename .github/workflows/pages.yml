@@ -46,7 +46,7 @@ jobs:
 
       - name: Install browser test dependencies
         working-directory: website
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Install Chromium
         working-directory: website

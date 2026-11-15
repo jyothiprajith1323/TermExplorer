@@ -47,4 +47,10 @@ package() {
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
   install -Dm644 INSTALLATION.md "$pkgdir/usr/share/doc/$pkgname/INSTALLATION.md"
+  install -Dm644 packaging/termexplorer.1 "$pkgdir/usr/share/man/man1/termexplorer.1"
+  install -Dm644 packaging/termexplorer.desktop "$pkgdir/usr/share/applications/termexplorer.desktop"
+  install -Dm644 packaging/termexplorer.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/termexplorer.svg"
+  install -Dm644 packaging/completions/termexplorer.bash "$pkgdir/usr/share/bash-completion/completions/termexplorer"
+  install -Dm644 packaging/completions/_termexplorer "$pkgdir/usr/share/zsh/site-functions/_termexplorer"
+  install -Dm644 packaging/completions/termexplorer.fish "$pkgdir/usr/share/fish/vendor_completions.d/termexplorer.fish"
 }

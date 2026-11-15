@@ -28,8 +28,10 @@ The packager requires `dpkg-deb` and `rpmbuild`. RPM runtime requirements are de
 - A local `.deb` can be installed by APT, which resolves dependencies declared in the package metadata: `sudo apt install ./termexplorer_VERSION_amd64.deb`. This is not a signed remote APT repository.
 - These artifacts are Linux packages, not a promise of universal binary compatibility. They are built for the architecture and ABI shown in the artifact name. The initial release workflow targets Linux x86_64; additional architectures require their own build and clean-install validation.
 - Linux Mint, Pop!_OS and other Debian-derived distributions can generally consume the `.deb`; RPM-compatible distributions can generally consume the `.rpm`. Verify each distribution's supported dependency names and ABI before advertising it as tested.
-- The portable archive is intended for compatible glibc Linux systems. Alpine Linux/musl is not covered by this build unless a separately tested musl target is added.
-- A signed APT repository hosted on GitHub Pages requires signed repository metadata and a managed signing key. Do not add an unsigned `apt` source or embed a private signing key in the repository.
-- The Arch `PKGBUILD` is a repository build recipe. It is not evidence that a package has been submitted to or accepted by the AUR.
+- The portable archive is intended for compatible glibc Linux systems. Alpine Linux/musl is not covered by this build unless a separately tested musl target is added (e.g. `x86_64-unknown-linux-musl`), or running under `gcompat`.
+- A signed APT repository hosted on GitHub Pages requires signed repository metadata and a managed signing key. Do not add an unsigned `apt` source or embed a private signing key in the repository. Helper scripts `scripts/generate_apt_repo.sh` and `scripts/generate_rpm_repo.sh` are provided for maintainers.
+- The Arch `PKGBUILD` and `PKGBUILD-bin` are repository build recipes in `packaging/aur/`. They are not evidence that a package has been submitted to or accepted by the upstream AUR.
+- NixOS is evaluated via `packaging/nix/flake.nix` utilizing `buildRustPackage`.
+- Flatpak and AppImage packaging was evaluated; TermExplorer's embedded PTY terminal drawer requires unconfined host access (`/dev/ptmx`, host process spawning, and signal dispatching), making native distribution packages significantly preferred over container sandboxes.
 - Optional tools such as Git, FFmpeg, Poppler and trash utilities are not bundled. Their availability affects only the associated integrations.
 - Package artifacts should be published only after the tagged release workflow successfully builds and validates them.

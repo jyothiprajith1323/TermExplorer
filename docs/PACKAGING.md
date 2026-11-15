@@ -116,3 +116,25 @@ Automated acceptance tests are implemented in `tests/packaging_tests.sh`:
 - Installer execution in isolated prefixes with spaces and Unicode (`/tmp/test_üñîçødé_ワークスペース`).
 - Uninstallation verification: ensures installed files are cleanly removed while user configurations in `~/.config/termexplorer` are preserved.
 - Debian package structure inspection (`dpkg-deb --info`, `dpkg-deb --contents`, and `md5sum -c DEBIAN/md5sums`).
+
+---
+
+## 📦 7. Consolidated Linux Packager (`package_linux.sh`)
+
+The canonical packager `scripts/package_linux.sh <binary> <version> <output-directory>` builds all distribution artifacts:
+- **Debian Package (`.deb`):** Uses `dpkg-deb` with control metadata, compressed manpages (`termexplorer.1.gz`), desktop integration, SVG icon, and shell completions.
+- **RPM Package (`.rpm`):** Generates `termexplorer.spec` and compiles an RPM with SONAME-based dependencies via `rpmbuild`.
+- **Portable Tarball (`.tar.gz`):** Self-contained bundle with binary, completions, desktop file, icon, manpage, and standalone `install.sh` / `uninstall.sh`.
+- **Manifests & Checksums:** Emits `SHA256SUMS` and `MANIFEST.txt` covering all generated artifacts.
+
+Tested via `scripts/test_package_linux.sh <version> <dist-directory>`.
+
+---
+
+## 🌐 8. Additional Distribution Evaluations
+
+- **Arch Linux (AUR):** Source recipe `packaging/aur/PKGBUILD` and binary repackaging `packaging/aur/PKGBUILD-bin` are maintained in-tree.
+- **NixOS:** Evaluated with declarative Nix Flake at `packaging/nix/flake.nix` using `buildRustPackage`.
+- **Alpine Linux / musl:** Evaluated for static compilation (`x86_64-unknown-linux-musl`). Standard glibc release binaries require `gcompat` on musl systems.
+- **Flatpak / AppImage:** Evaluated for desktop containerization. TermExplorer's embedded PTY drawer requires direct access to `/dev/ptmx` and unconfined process spawning of user shells, making native host packages preferred over container sandboxes.
+- **Repository Hosting:** Static repository generation scripts `scripts/generate_apt_repo.sh` and `scripts/generate_rpm_repo.sh` create the directory hierarchies (`pool/`, `dists/`, and `repodata/`). Official public hosted repositories await dedicated GPG signing infrastructure; release artifacts are distributed directly as signed GitHub release assets.

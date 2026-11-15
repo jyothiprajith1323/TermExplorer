@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # TermExplorer Master Release Packaging Pipeline
-# Orchestrates release compilation, portable tarball packaging, Debian package creation, and checksum generation.
+# Orchestrates release compilation, package assembly (.deb, .rpm, .tar.gz), and checksum generation.
 
 set -euo pipefail
 
@@ -13,28 +13,23 @@ echo "=========================================================="
 echo "Start Time: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 echo "=========================================================="
 
-# 1. Clean old release dist directory (except old archives if user wants, but clean ensures pure build)
 mkdir -p "${REPO_ROOT}/dist"
 
-# 2. Build Release Binary
-echo ""
-echo "[Step 1/4] Building production release binary..."
-"${SCRIPT_DIR}/build-release.sh"
+# 1. Build Release Binary
+if [ ! -f "${REPO_ROOT}/target/release/termexplorer" ]; then
+    echo ""
+    echo "[Step 1/2] Building production release binary..."
+    "${SCRIPT_DIR}/build-release.sh"
+else
+    echo ""
+    echo "[Step 1/2] Using existing release binary: ${REPO_ROOT}/target/release/termexplorer"
+fi
 
-# 3. Package Portable Linux Tarball
+# 2. Execute consolidated packaging pipeline
+VERSION="$(grep -m1 '^version = ' "${REPO_ROOT}/Cargo.toml" | cut -d '"' -f 2)"
 echo ""
-echo "[Step 2/4] Packaging portable Linux tarball..."
-"${SCRIPT_DIR}/package-tarball.sh"
-
-# 4. Package Debian .deb
-echo ""
-echo "[Step 3/4] Packaging Debian (.deb) package..."
-"${SCRIPT_DIR}/package-deb.sh"
-
-# 5. Generate Checksums and Manifest
-echo ""
-echo "[Step 4/4] Generating cryptographic checksums and manifest..."
-"${SCRIPT_DIR}/generate-checksums.sh"
+echo "[Step 2/2] Executing package_linux.sh for version ${VERSION}..."
+"${SCRIPT_DIR}/package_linux.sh" "${REPO_ROOT}/target/release/termexplorer" "${VERSION}" "${REPO_ROOT}/dist"
 
 echo ""
 echo "=========================================================="
