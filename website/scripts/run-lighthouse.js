@@ -41,7 +41,7 @@ const desktop = spawnSync(process.execPath, [
   '--chrome-path', chromePath,
   '--chrome-flags=--headless --no-sandbox',
   '--only-categories=performance,accessibility,best-practices,seo',
-  '--form-factor=desktop',
+  '--preset=desktop',
   '--output=json',
   `--output-path=${desktopReport}`,
   '--quiet',
