@@ -15,17 +15,20 @@ pub fn collect(sys: &mut System) -> CpuInfo {
 
     let cpus = sys.cpus();
     let global = sys.global_cpu_usage();
-    let per_core: Vec<f32> = cpus.iter().map(|c| c.cpu_usage()).collect();
+    let per_core: Vec<f32> = cpus.iter().map(|c| c.usage()).collect();
     let name = cpus
         .first()
         .map(|c| c.brand().to_string())
         .unwrap_or_default();
 
-    let load = System::load_average();
+    let (one, five, fifteen) = match System::load_average() {
+        Ok(l) => (l.one, l.five, l.fifteen),
+        Err(_) => (0.0, 0.0, 0.0),
+    };
     CpuInfo {
         global_usage: global,
         per_core,
         cpu_name: name,
-        load_avg: (load.one, load.five, load.fifteen),
+        load_avg: (one, five, fifteen),
     }
 }

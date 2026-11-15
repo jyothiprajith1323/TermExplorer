@@ -27,7 +27,10 @@ impl DiskInfo {
 }
 
 pub fn collect() -> Vec<DiskInfo> {
-    let disks = Disks::new_with_refreshed_list();
+    let disks = match Disks::new_with_refreshed_list() {
+        Ok(d) => d,
+        Err(_) => return Vec::new(),
+    };
     disks
         .iter()
         .map(|d| DiskInfo {

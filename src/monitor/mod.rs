@@ -23,7 +23,9 @@ pub struct Monitor {
 impl Monitor {
     pub fn new() -> Self {
         Self {
-            sys: System::new_all(),
+            sys: System::new_all()
+                .or_else(|_| System::new())
+                .expect("Failed to initialize system info"),
         }
     }
 
