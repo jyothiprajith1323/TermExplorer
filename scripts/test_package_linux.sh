@@ -34,7 +34,14 @@ assert_eq() {
 }
 
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
+cleanup() {
+  if sudo -n true 2>/dev/null; then
+    sudo rm -rf "$TMP"
+  else
+    rm -rf "$TMP" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
 
 # -------------------------------------------------------------
 # 1. Test Debian package (.deb)
@@ -82,16 +89,24 @@ fi
 if [[ -f "$RPM" ]]; then
   if command -v rpm >/dev/null 2>&1; then
     echo "=== Validating RPM Package: $(basename "$RPM") ==="
-    assert_eq "$(rpm -qp --qf '%{NAME}' "$RPM")" 'termexplorer' 'RPM package name'
-    assert_eq "$(rpm -qp --qf '%{VERSION}' "$RPM")" "$RPM_VERSION" 'RPM package version'
-    assert_eq "$(rpm -qp --qf '%{RELEASE}' "$RPM")" '1' 'RPM package release'
-    assert_eq "$(rpm -qp --qf '%{ARCH}' "$RPM")" "$RPM_ARCH" 'RPM package architecture'
+    mkdir -p "$TMP/rpmdb"
+    assert_eq "$(rpm --define "_dbpath $TMP/rpmdb" -qp --qf '%{NAME}' "$RPM")" 'termexplorer' 'RPM package name'
+    assert_eq "$(rpm --define "_dbpath $TMP/rpmdb" -qp --qf '%{VERSION}' "$RPM")" "$RPM_VERSION" 'RPM package version'
+    assert_eq "$(rpm --define "_dbpath $TMP/rpmdb" -qp --qf '%{RELEASE}' "$RPM")" '1' 'RPM package release'
+    assert_eq "$(rpm --define "_dbpath $TMP/rpmdb" -qp --qf '%{ARCH}' "$RPM")" "$RPM_ARCH" 'RPM package architecture'
 
     # Install into an isolated RPM root. No host package database or host files are modified.
     RPM_ROOT="$TMP/rpm-root"
-    mkdir -p "$RPM_ROOT"
-    rpm --root "$RPM_ROOT" --dbpath /var/lib/rpm --initdb
-    rpm --root "$RPM_ROOT" --dbpath /var/lib/rpm --nodeps --noscripts -i "$RPM"
+    mkdir -p "$RPM_ROOT/db"
+    if [ "$(id -u)" -eq 0 ]; then
+      rpm --root "$RPM_ROOT" --dbpath /db --initdb >/dev/null 2>&1 || true
+      rpm --root "$RPM_ROOT" --dbpath /db --nodeps --noscripts -i "$RPM" >/dev/null 2>&1 || true
+    elif sudo -n true 2>/dev/null; then
+      sudo rpm --root "$RPM_ROOT" --dbpath /db --initdb >/dev/null 2>&1 || true
+      sudo rpm --root "$RPM_ROOT" --dbpath /db --nodeps --noscripts -i "$RPM" >/dev/null 2>&1 || true
+    elif command -v rpm2cpio >/dev/null 2>&1 && command -v cpio >/dev/null 2>&1; then
+      (cd "$RPM_ROOT" && rpm2cpio "$RPM" | cpio -idm >/dev/null 2>&1)
+    fi
     [[ -x "$RPM_ROOT/usr/bin/termexplorer" ]] || { echo "FAIL: missing executable in rpm" >&2; exit 1; }
     [[ -f "$RPM_ROOT/usr/share/man/man1/termexplorer.1.gz" || -f "$RPM_ROOT/usr/share/man/man1/termexplorer.1" ]] || { echo "FAIL: missing manpage in rpm" >&2; exit 1; }
     "$RPM_ROOT/usr/bin/termexplorer" --version

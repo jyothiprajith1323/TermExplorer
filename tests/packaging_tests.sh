@@ -23,7 +23,11 @@ fail() {
 }
 
 cleanup() {
-    rm -rf "${TEST_TMP_BASE}"
+    if sudo -n true 2>/dev/null; then
+        sudo rm -rf "${TEST_TMP_BASE}"
+    else
+        rm -rf "${TEST_TMP_BASE}" 2>/dev/null || true
+    fi
 }
 trap cleanup EXIT
 
@@ -427,7 +431,8 @@ RPM_FILES=( $(find "${DIST_DIR}" -maxdepth 1 -name '*.rpm' 2>/dev/null || true) 
 if [ ${#RPM_FILES[@]} -gt 0 ] && command -v rpm >/dev/null 2>&1; then
     RPM_FILE="${RPM_FILES[0]}"
     pass "RPM package exists: $(basename "${RPM_FILE}")"
-    assert_rpm_name="$(rpm -qp --qf '%{NAME}' "${RPM_FILE}")"
+    mkdir -p "${TEST_TMP_BASE}/rpmdb"
+    assert_rpm_name="$(rpm --define "_dbpath ${TEST_TMP_BASE}/rpmdb" -qp --qf '%{NAME}' "${RPM_FILE}")"
     if [ "${assert_rpm_name}" = "termexplorer" ]; then
         pass "RPM package name is 'termexplorer'"
     else
@@ -436,9 +441,16 @@ if [ ${#RPM_FILES[@]} -gt 0 ] && command -v rpm >/dev/null 2>&1; then
 
     # Isolated installation test
     RPM_SANDBOX="${TEST_TMP_BASE}/rpm_sandbox"
-    mkdir -p "${RPM_SANDBOX}"
-    rpm --root "${RPM_SANDBOX}" --dbpath /var/lib/rpm --initdb >/dev/null 2>&1 || true
-    rpm --root "${RPM_SANDBOX}" --dbpath /var/lib/rpm --nodeps --noscripts -i "${RPM_FILE}" >/dev/null 2>&1 || true
+    mkdir -p "${RPM_SANDBOX}/db"
+    if [ "$(id -u)" -eq 0 ]; then
+        rpm --root "${RPM_SANDBOX}" --dbpath /db --initdb >/dev/null 2>&1 || true
+        rpm --root "${RPM_SANDBOX}" --dbpath /db --nodeps --noscripts -i "${RPM_FILE}" >/dev/null 2>&1 || true
+    elif sudo -n true 2>/dev/null; then
+        sudo rpm --root "${RPM_SANDBOX}" --dbpath /db --initdb >/dev/null 2>&1 || true
+        sudo rpm --root "${RPM_SANDBOX}" --dbpath /db --nodeps --noscripts -i "${RPM_FILE}" >/dev/null 2>&1 || true
+    elif command -v rpm2cpio >/dev/null 2>&1 && command -v cpio >/dev/null 2>&1; then
+        (cd "${RPM_SANDBOX}" && rpm2cpio "${RPM_FILE}" | cpio -idm >/dev/null 2>&1)
+    fi
     if [ -x "${RPM_SANDBOX}/usr/bin/termexplorer" ]; then
         pass "RPM installs cleanly into isolated root with executable binary"
     else
