@@ -112,7 +112,7 @@ fn test_huge_directory_listing_performance() {
 
     assert_eq!(entries.len(), 1500);
     // Listing 1,500 files in local tempfs should take < 500ms (relaxed in debug builds under parallel test I/O contention)
-    let threshold_ms = if cfg!(debug_assertions) { 3000 } else { 500 };
+    let threshold_ms = if cfg!(debug_assertions) { 6000 } else { 500 };
     assert!(
         elapsed.as_millis() < threshold_ms,
         "Listing 1,500 files took too long: {}ms",

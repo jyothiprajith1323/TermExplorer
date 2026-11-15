@@ -16,7 +16,7 @@ concurrency:
 jobs:
   build-linux:
     name: Build and package Linux x86_64
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
       - name: Checkout source
