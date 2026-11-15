@@ -38,6 +38,12 @@
       el.textContent = String(new Date().getFullYear());
     });
 
+    document.querySelectorAll('pre').forEach(el => {
+      if (!el.hasAttribute('tabindex')) {
+        el.setAttribute('tabindex', '0');
+      }
+    });
+
     const copyText = async text => {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);

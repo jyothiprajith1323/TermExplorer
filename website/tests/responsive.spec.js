@@ -52,7 +52,7 @@ for (const route of pages) {
 test('responsive navigation opens, closes and supports Escape on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/index.html');
-  const toggle = page.getByRole('button', { name: 'Open navigation' });
+  const toggle = page.locator('.menu-toggle');
   const nav = page.locator('#primary-nav');
   await expect(toggle).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
