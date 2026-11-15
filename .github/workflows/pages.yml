@@ -2,43 +2,112 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [master, main]
     paths:
       - 'website/**'
+      - 'scripts/validate_website.py'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'website/**'
+      - 'scripts/validate_website.py'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Website validation, responsive and accessibility tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Validate static website references
+        run: python scripts/validate_website.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Install browser test dependencies
+        working-directory: website
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        working-directory: website
+        run: npx playwright install --with-deps chromium
+
+      - name: Run responsive and accessibility browser tests
+        working-directory: website
+        run: npm test
+
+      - name: Start static site for Lighthouse
+        run: |
+          python3 -m http.server 4173 --directory website > /tmp/termexplorer-pages-server.log 2>&1 &
+          echo $! > /tmp/termexplorer-pages-server.pid
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/termexplorer-pages-server.log
+          exit 1
+
+      - name: Run mobile and desktop Lighthouse audits
+        working-directory: website
+        run: npm run test:lighthouse
+
+      - name: Upload browser and Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: termexplorer-website-playwright-report
+          path: |
+            website/playwright-report/
+            website/test-results/
+            website/lighthouse-reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
   deploy:
+    name: Deploy static website
+    needs: validate
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup GitHub Pages
+      - name: Set up GitHub Pages
         uses: actions/configure-pages@v6
         with:
           enablement: true
 
-      - name: Validate website assets
-        run: python3 scripts/validate_website.py
-
-      - name: Upload Pages Artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: 'website/'
+          path: website/
 
       - name: Deploy to GitHub Pages
         id: deployment

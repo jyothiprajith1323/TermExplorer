@@ -1,0 +1,17 @@
+{
+  "name": "termexplorer-website-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Responsive and accessibility tests for the TermExplorer GitHub Pages site",
+  "scripts": {
+    "test": "playwright test",
+    "test:responsive": "playwright test -g responsive",
+    "test:a11y": "playwright test -g accessibility",
+    "test:lighthouse": "node scripts/run-lighthouse.js"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.65.1",
+    "lighthouse": "13.6.0"
+  }
+}

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://jyothiprajith1323.github.io/TermExplorer/sitemap.xml

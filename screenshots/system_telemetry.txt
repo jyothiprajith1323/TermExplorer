@@ -1,20 +1,20 @@
 ╭ 󰻠 SYSTEM TELEMETRY  ─  [F6 Toggle] ──────────────────────────────────────────────────────────────────────────────────╮
-│CPU: [██░░░░░░░░░░] 12.7%      RAM:  [████░░░░░░░░] 34.1%  DISKS                      PID    Name       CPU%    Mem   │
-│Model: Intel(R) Core(TM) i5-720  Used:   2.8 GB / 8.3 GB     …dard-WSL2 [░░░░░░░░░░]  194838 ui_visual_ 0.0%    12.3 M│
-│Load:  2.97  5.32  9.07          Avail:  5.4 GB               0 B/4.1 GB (0%)         194867 test_adapt 0.0%    12.3 M│
-│                                                             …dard-WSL2 [██████████]  194866 test_adapt 0.0%    12.3 M│
-│Per Core:                      SWAP: [███████░░░░░] 57.1%     101.1 MB/101.1 MB (100% 194865 test_adapt 0.0%    12.3 M│
-│  C00 [░░░░░░░░] 0%              Used:   1.2 GB / 2.1 GB     …dard-WSL2 [██████████]  1419   agy        0.0%    1.5 GB│
-│  C01 [░░░░░░░░] 0%                                           101.1 MB/101.1 MB (100% 1486   agy        0.0%    1.5 GB│
-│  C02 [░░░░░░░░] 0%                                          …l/drivers [███████░░░]  194864 test_adapt 0.0%    12.3 M│
-│  C03 [░░░░░░░░] 0%                                           731.6 GB/978.2 GB (75%) 240    fuse_worke 0.0%    1.4 MB│
-│                                                             /        [█████░░░░░]    726    dockerd    0.0%    40.6 M│
-│                                                              150.9 GB/315.9 GB (48%) 703    postgres   0.0%    5.1 MB│
-│                                                             …lg/distro [█████░░░░░]  1087   containerd 0.0%    9.5 MB│
-│                                                              150.9 GB/315.9 GB (48%) 1487   agy        0.0%    1.5 GB│
-│                                                             …b/wsl/lib [░░░░░░░░░░]  1147   postgres   0.0%    5.3 MB│
-│                                                              0 B/4.1 GB (0%)         724    containerd 0.0%    27.5 M│
-│                                                             …sions.txt [░░░░░░░░░░]  1171   postgres   0.0%    7.5 MB│
-│                                                              81.9 KB/4.1 GB (0%)     193    systemd-ud 0.0%    6.6 MB│
+│CPU: [██░░░░░░░░░░] 13.2%      RAM:  [████░░░░░░░░] 30.0%  DISKS                      PID    Name       CPU%    Mem   │
+│Model: Intel(R) Core(TM) i5-720  Used:   2.5 GB / 8.3 GB     …dard-WSL2 [░░░░░░░░░░]  226240 ui_visual_ 0.0%    10.7 M│
+│Load:  4.96  7.25  5.02          Avail:  5.8 GB               0 B/4.1 GB (0%)         226266 test_rende 0.0%    10.7 M│
+│                                                             …dard-WSL2 [██████████]  226241 test_adapt 0.0%    10.7 M│
+│Per Core:                      SWAP: [████████░░░░] 65.8%     101.1 MB/101.1 MB (100% 1419   agy        0.0%    1.3 GB│
+│  C00 [░░░░░░░░] 0%              Used:   1.4 GB / 2.1 GB     …dard-WSL2 [██████████]  215    fuse_worke 0.0%    1.5 MB│
+│  C01 [░░░░░░░░] 0%                                           101.1 MB/101.1 MB (100% 212    fuse_worke 0.0%    1.7 MB│
+│  C02 [░░░░░░░░] 0%                                          …l/drivers [████████░░]  240    fuse_worke 0.0%    1.5 MB│
+│  C03 [░░░░░░░░] 0%                                           742.3 GB/978.2 GB (76%) 696    dockerd    0.0%    40.1 M│
+│                                                             /        [█████░░░░░]    1423   agy        0.0%    1.3 GB│
+│                                                              161.7 GB/315.9 GB (51%) 191543 agy        0.0%    1.3 GB│
+│                                                             …lg/distro [█████░░░░░]  202    fuse_worke 0.0%    1.5 MB│
+│                                                              161.7 GB/315.9 GB (51%) 544    fuse_worke 0.0%    1.6 MB│
+│                                                             …b/wsl/lib [░░░░░░░░░░]  739    fuse_worke 0.0%    1.5 MB│
+│                                                              0 B/4.1 GB (0%)         407    rsyslogd   0.0%    4.2 MB│
+│                                                             …sions.txt [░░░░░░░░░░]  1      systemd    0.0%    9.5 MB│
+│                                                              81.9 KB/4.1 GB (0%)     686    dockerd    0.0%    40.1 M│
 │                                                             …/wslg/doc [░░░░░░░░░░]                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
