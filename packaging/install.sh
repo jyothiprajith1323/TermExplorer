@@ -89,7 +89,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/bin/termexplorer" ]; then
     # Running from extracted portable tarball
     SRC_BIN="${SCRIPT_DIR}/bin/termexplorer"
-    SRC_MAN="${SCRIPT_DIR}/share/man/man1/termexplorer.1"
+    if [ -f "${SCRIPT_DIR}/share/man/man1/termexplorer.1.gz" ]; then
+        SRC_MAN="${SCRIPT_DIR}/share/man/man1/termexplorer.1.gz"
+        DEST_MAN="${PREFIX}/share/man/man1/termexplorer.1.gz"
+    else
+        SRC_MAN="${SCRIPT_DIR}/share/man/man1/termexplorer.1"
+        DEST_MAN="${PREFIX}/share/man/man1/termexplorer.1"
+    fi
     SRC_DESKTOP="${SCRIPT_DIR}/share/applications/termexplorer.desktop"
     SRC_ICON="${SCRIPT_DIR}/share/icons/hicolor/scalable/apps/termexplorer.svg"
     SRC_BASH="${SCRIPT_DIR}/share/bash-completion/completions/termexplorer"
@@ -102,7 +108,13 @@ elif [ -f "${SCRIPT_DIR}/../target/release/termexplorer" ]; then
     # Running from repository packaging/ directory after cargo build --release
     REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
     SRC_BIN="${REPO_ROOT}/target/release/termexplorer"
-    SRC_MAN="${SCRIPT_DIR}/termexplorer.1"
+    if [ -f "${SCRIPT_DIR}/termexplorer.1.gz" ]; then
+        SRC_MAN="${SCRIPT_DIR}/termexplorer.1.gz"
+        DEST_MAN="${PREFIX}/share/man/man1/termexplorer.1.gz"
+    else
+        SRC_MAN="${SCRIPT_DIR}/termexplorer.1"
+        DEST_MAN="${PREFIX}/share/man/man1/termexplorer.1"
+    fi
     SRC_DESKTOP="${SCRIPT_DIR}/termexplorer.desktop"
     SRC_ICON="${SCRIPT_DIR}/termexplorer.svg"
     SRC_BASH="${SCRIPT_DIR}/completions/termexplorer.bash"
@@ -144,7 +156,7 @@ fi
 
 # Define destination paths
 DEST_BIN="${PREFIX}/bin/termexplorer"
-DEST_MAN="${PREFIX}/share/man/man1/termexplorer.1"
+DEST_MAN="${DEST_MAN:-${PREFIX}/share/man/man1/termexplorer.1}"
 DEST_DESKTOP="${PREFIX}/share/applications/termexplorer.desktop"
 DEST_ICON="${PREFIX}/share/icons/hicolor/scalable/apps/termexplorer.svg"
 DEST_BASH="${PREFIX}/share/bash-completion/completions/termexplorer"

@@ -117,6 +117,13 @@ CONTROL
   chmod 0755 "$DEB_ROOT/DEBIAN"
   chmod 0644 "$DEB_ROOT/DEBIAN/control"
 
+  # Generate md5sums for packaging integrity
+  (
+    cd "$DEB_ROOT"
+    find usr -type f -exec md5sum {} + > DEBIAN/md5sums
+    chmod 0644 DEBIAN/md5sums
+  )
+
   dpkg-deb --root-owner-group --build "$DEB_ROOT" "$OUTPUT/termexplorer_${DEB_VERSION}_${DEB_ARCH}.deb" >/dev/null
   echo "Debian package created: $OUTPUT/termexplorer_${DEB_VERSION}_${DEB_ARCH}.deb"
 else
@@ -217,6 +224,9 @@ mkdir -p "$TAR_STAGE/share/doc/termexplorer"
 install -Dm755 "$BINARY" "$TAR_STAGE/bin/termexplorer"
 
 # Assets
+if [[ -f "$ROOT/packaging/termexplorer.1" ]]; then
+  install -Dm644 "$ROOT/packaging/termexplorer.1" "$TAR_STAGE/share/man/man1/termexplorer.1"
+fi
 if [[ -f "$MANPAGE_GZ" ]]; then
   install -Dm644 "$MANPAGE_GZ" "$TAR_STAGE/share/man/man1/termexplorer.1.gz"
 fi

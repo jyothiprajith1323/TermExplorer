@@ -122,6 +122,7 @@ else
     echo "No install manifest found. Removing known standard files from ${PREFIX}..."
     remove_file "${PREFIX}/bin/termexplorer"
     remove_file "${PREFIX}/share/man/man1/termexplorer.1"
+    remove_file "${PREFIX}/share/man/man1/termexplorer.1.gz"
     remove_file "${PREFIX}/share/applications/termexplorer.desktop"
     remove_file "${PREFIX}/share/icons/hicolor/scalable/apps/termexplorer.svg"
     remove_file "${PREFIX}/share/bash-completion/completions/termexplorer"
