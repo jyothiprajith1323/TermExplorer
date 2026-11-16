@@ -23,7 +23,7 @@ ratatui = { version = "0.30", features = ["all-widgets"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
 
 # WebAssembly Plugin Runtime & Hashing
-wasmi = "0.36"
+wasmi = "2.0"
 sha2 = "0.11"
 
 # Async runtime
