@@ -75,7 +75,7 @@ chrono = { version = "0.4", features = ["serde"] }
 fuzzy-matcher = "0.3"
 
 # Byte size formatting
-bytesize = "1"
+bytesize = "2"
 
 # Atomic file writes
 tempfile = "3"
