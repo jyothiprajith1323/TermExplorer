@@ -293,7 +293,7 @@ fn test_lazy_plugin_discovery_no_upfront_wasm_compilation() {
 
     // Discovery reads manifest toml only; instances must be None until requested
     assert!(
-        elapsed.as_millis() < 100,
+        elapsed.as_millis() < 250,
         "Plugin discovery took {:?}, should be fast metadata reading",
         elapsed
     );

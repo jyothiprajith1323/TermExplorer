@@ -296,6 +296,32 @@ impl Default for LayoutSettings {
     }
 }
 
+impl LayoutSettings {
+    /// Return the file explorer width percentage as an integer (e.g. 25).
+    pub fn explorer_percent(&self) -> u16 {
+        (self.explorer_ratio * 100.0).round() as u16
+    }
+
+    /// Return the preview panel width percentage as an integer (e.g. 75).
+    pub fn preview_percent(&self) -> u16 {
+        (self.preview_ratio * 100.0).round() as u16
+    }
+
+    /// Set file explorer ratio percentage (15%..50%) and automatically derive preview ratio.
+    pub fn set_explorer_percent(&mut self, pct: u16) {
+        let clamped_exp = pct.clamp(15, 50);
+        self.explorer_ratio = clamped_exp as f32 / 100.0;
+        self.preview_ratio = (100 - clamped_exp) as f32 / 100.0;
+    }
+
+    /// Set preview panel ratio percentage (50%..85%) and automatically derive explorer ratio.
+    pub fn set_preview_percent(&mut self, pct: u16) {
+        let clamped_exp = (100u16.saturating_sub(pct)).clamp(15, 50);
+        self.explorer_ratio = clamped_exp as f32 / 100.0;
+        self.preview_ratio = (100 - clamped_exp) as f32 / 100.0;
+    }
+}
+
 // ── Root configuration struct ─────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -427,14 +453,45 @@ impl Config {
         Self::config_dir().join("config.toml.bak")
     }
 
+    /// Set file explorer ratio percentage (15%..50%) and automatically derive preview ratio.
+    pub fn set_explorer_percent(&mut self, pct: u16) {
+        self.layout.set_explorer_percent(pct);
+        self.preview_width = self.layout.preview_percent();
+        self.validate_and_clamp();
+    }
+
+    /// Set preview panel ratio percentage (50%..85%) and automatically derive explorer ratio.
+    pub fn set_preview_percent(&mut self, pct: u16) {
+        self.layout.set_preview_percent(pct);
+        self.preview_width = self.layout.preview_percent();
+        self.validate_and_clamp();
+    }
+
     /// Validate and clamp layout ratios, dimensions, and theme settings to valid ranges.
     pub fn validate_and_clamp(&mut self) {
         // Enforce approved 2-pane workstation limits: Explorer 15%..50%, Preview 50%..85%
-        self.layout.explorer_ratio = self.layout.explorer_ratio.clamp(0.15, 0.50);
-        self.layout.preview_ratio = self.layout.preview_ratio.clamp(0.50, 0.85);
+        // Guarantee horizontal ratios always sum to 1.0 (100%)
+        let exp = if self.layout.explorer_ratio.is_nan() || self.layout.explorer_ratio < 0.15 {
+            0.15
+        } else if self.layout.explorer_ratio > 0.50 {
+            0.50
+        } else {
+            self.layout.explorer_ratio
+        };
+        let exp_pct = (exp * 100.0).round() as u16;
+        let clamped_exp = exp_pct.clamp(15, 50);
+        self.layout.explorer_ratio = clamped_exp as f32 / 100.0;
+        self.layout.preview_ratio = (100 - clamped_exp) as f32 / 100.0;
 
-        // Terminal drawer height: 10%..40%
-        self.layout.terminal_height_percent = self.layout.terminal_height_percent.clamp(10, 40);
+        // Terminal drawer height: 10%..40% (default 15%)
+        if self.layout.terminal_height_percent == 0 {
+            self.layout.terminal_height_percent = 15;
+        } else {
+            self.layout.terminal_height_percent = self.layout.terminal_height_percent.clamp(10, 40);
+        }
+
+        // Clamp preview_width to valid bounds
+        self.preview_width = self.preview_width.clamp(15, 85);
 
         // Tab width: 2, 4, or 8
         if self.editor.tab_width != 2 && self.editor.tab_width != 4 && self.editor.tab_width != 8 {

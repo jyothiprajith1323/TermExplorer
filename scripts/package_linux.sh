@@ -106,7 +106,7 @@ Version: $DEB_VERSION
 Section: utils
 Priority: optional
 Architecture: $DEB_ARCH
-Depends: libc6, libgcc-s1
+Depends: libc6 (>= 2.35), libgcc-s1
 Suggests: git, ffmpeg, poppler-utils, trash-cli
 Maintainer: TermExplorer Contributors <101039137+jyothiprajith1323@users.noreply.github.com>
 Description: Rust terminal developer workstation

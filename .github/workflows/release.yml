@@ -16,7 +16,7 @@ concurrency:
 jobs:
   build-linux:
     name: Build and package Linux x86_64
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
       - name: Checkout source
@@ -25,7 +25,7 @@ jobs:
       - name: Install native packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes dpkg-dev rpm rpm-build cpio
+          sudo apt-get install --yes dpkg-dev rpm cpio
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable

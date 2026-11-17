@@ -35,7 +35,7 @@ Inspection via `readelf -d target/release/termexplorer`:
 ```
 
 ### Supported C Library Baseline
-- **Minimum GLIBC:** `glibc >= 2.34` (supported on Ubuntu 22.04 LTS+, Debian 12 Bookworm+, Fedora 36+, Arch Linux, openSUSE Leap 15.4+).
+- **Minimum GLIBC:** `glibc >= 2.35` (supported on Ubuntu 22.04 LTS+, Debian 12 Bookworm+, Fedora 36+, Arch Linux, openSUSE Leap 15.4+). Older distributions such as Ubuntu 20.04 (Focal) or Debian 11 (Bullseye) with GLIBC < 2.35 are not supported by the official binaries.
 - **Architecture:** `x86_64` (ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV)).
 - **ARM64:** Fully supported for `aarch64-unknown-linux-gnu` cross-compilation.
 

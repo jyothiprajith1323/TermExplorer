@@ -83,6 +83,18 @@ impl ConfigMigrator {
             config.general.first_run_completed = true;
         }
 
+        // If legacy config had preview_width and no explicit [layout] table, migrate it:
+        if let Ok(val) = toml::from_str::<toml::Value>(raw_toml) {
+            if val.get("layout").is_none() {
+                if let Some(pw) = val.get("preview_width").and_then(|v| v.as_integer()) {
+                    let pw = pw as u16;
+                    if (50..=85).contains(&pw) {
+                        config.layout.set_preview_percent(pw);
+                    }
+                }
+            }
+        }
+
         // Validate and clamp all fields
         config.validate_and_clamp();
 

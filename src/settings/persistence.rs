@@ -44,6 +44,29 @@ impl SettingsPersistence {
             config.monitor_height = config.monitor_height.clamp(5, 50);
         }
 
+        // Layout ratios validation
+        let exp_pct = (config.layout.explorer_ratio * 100.0).round() as u16;
+        let clamped_exp = if exp_pct == 0 {
+            25
+        } else {
+            exp_pct.clamp(15, 50)
+        };
+        if exp_pct != clamped_exp {
+            warnings.push(format!("Explorer ratio {}% clamped to 15..50%", exp_pct));
+            config.layout.explorer_ratio = clamped_exp as f32 / 100.0;
+        }
+        config.layout.preview_ratio = (100 - clamped_exp) as f32 / 100.0;
+
+        if config.layout.terminal_height_percent < 10 || config.layout.terminal_height_percent > 40
+        {
+            warnings.push(format!(
+                "Terminal drawer height {}% clamped to 10..40%",
+                config.layout.terminal_height_percent
+            ));
+            config.layout.terminal_height_percent =
+                config.layout.terminal_height_percent.clamp(10, 40);
+        }
+
         warnings
     }
 

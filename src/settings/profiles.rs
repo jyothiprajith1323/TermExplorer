@@ -53,11 +53,12 @@ impl ProfileKind {
             Self::Default => {
                 cfg.show_sidebar = false;
                 cfg.show_preview = true;
-                cfg.show_terminal = true;
+                cfg.show_terminal = false;
                 cfg.show_monitor = false;
                 cfg.sidebar_width = 20;
                 cfg.preview_width = 75;
                 cfg.terminal_height = 8;
+                cfg.layout.terminal_height_percent = 15;
             }
             Self::Developer => {
                 cfg.show_sidebar = true;
@@ -65,7 +66,7 @@ impl ProfileKind {
                 cfg.show_terminal = true;
                 cfg.show_monitor = false;
                 cfg.sidebar_width = 18;
-                cfg.preview_width = 35;
+                cfg.preview_width = 65;
                 cfg.terminal_height = 14;
             }
             Self::Minimal => {
@@ -73,7 +74,7 @@ impl ProfileKind {
                 cfg.show_preview = true;
                 cfg.show_terminal = false;
                 cfg.show_monitor = false;
-                cfg.preview_width = 35;
+                cfg.preview_width = 75;
             }
             Self::TerminalPowerUser => {
                 cfg.show_sidebar = false;
@@ -87,7 +88,7 @@ impl ProfileKind {
                 cfg.show_preview = true;
                 cfg.show_terminal = false;
                 cfg.show_monitor = false;
-                cfg.preview_width = 50;
+                cfg.preview_width = 85;
             }
             Self::Monitoring => {
                 cfg.show_sidebar = true;
@@ -98,5 +99,11 @@ impl ProfileKind {
             }
             Self::Custom(_) => {}
         }
+
+        let prev = cfg.preview_width.clamp(50, 85);
+        cfg.preview_width = prev;
+        cfg.layout.preview_ratio = prev as f32 / 100.0;
+        cfg.layout.explorer_ratio = (100 - prev) as f32 / 100.0;
+        cfg.validate_and_clamp();
     }
 }

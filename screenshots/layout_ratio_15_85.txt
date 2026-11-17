@@ -1,0 +1,40 @@
+ ◆ TERMEXPLORER  󰲋 Ratio_15_85 [🦀  R~ › TermExplorer │ │ 󰻠 15% 󰍛 1.6 GB [ 󰍉 Search ]    [ ◇ Plugins ]   [ ⚙ Settings ]  
+╭ 󰝰 TermExplorer ╮╭ [󰈈 Preview]  󰋽 Info  󰘳 Metadata  󰌒 Actions ────────────────────────────────────────────────────────╮
+│ Name      Size ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││  󰍉 Select a file to preview                                                                        │
+│                ││                                                                                                    │
+│                ││  Choose an item in the explorer to inspect its content.                                            │
+│                ││                                                                                                    │
+│                ││  [↑ / ↓]  Navigate entries                                                                         │
+│                ││  [← / →]  Open / Exit folders                                                                      │
+│                ││  [Tab]    Switch panel focus                                                                       │
+│                ││  [/]      Fuzzy filter entries                                                                     │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+│                ││                                                                                                    │
+╰────────────────╯╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ NORMAL   EXPLORER   0/0                                                                                                

@@ -8,7 +8,7 @@ This guide covers all supported installation methods, system prerequisites, pack
 
 - **Operating System:** Linux (Ubuntu 22.04+, Debian 12+, Fedora 38+, Arch Linux, openSUSE, Alpine) or WSL2 (Windows Subsystem for Linux 2).
 - **Architecture:** `x86_64` (Primary), `aarch64` / `arm64` (Secondary).
-- **C Library Baseline:** GNU C Library (`glibc >= 2.34`).
+- **C Library Baseline:** GNU C Library (`glibc >= 2.35`). Tested on Ubuntu 22.04 LTS+, Debian 12 (Bookworm)+, Fedora 36+, and Arch Linux. Older distributions (e.g., Ubuntu 20.04, Debian 11) with GLIBC < 2.35 are not supported by the official binaries.
 - **Terminal Emulator:** Any modern terminal emulator supporting 24-bit TrueColor and UTF-8 (e.g., Alacritty, Kitty, WezTerm, Foot, Windows Terminal).
 - **Recommended Font:** [JetBrains Mono Nerd Font](https://www.nerdfonts.com/font-downloads) (or any Nerd Font) for file icons and Git branch markers.
 
@@ -90,7 +90,38 @@ termexplorer --health
 
 ---
 
-## 🐧 Method 3: Arch Linux (AUR / PKGBUILD)
+## 📦 Method 3: Fedora / RHEL / openSUSE Package (`.rpm`)
+
+For Fedora, Red Hat Enterprise Linux, Rocky Linux, AlmaLinux, and openSUSE:
+
+### 1. Download the RPM Package
+```bash
+curl -LO https://github.com/jyothiprajith1323/TermExplorer/releases/download/v1.1.0/termexplorer-1.1.0-1.x86_64.rpm
+curl -LO https://github.com/jyothiprajith1323/TermExplorer/releases/download/v1.1.0/SHA256SUMS
+
+# Verify integrity
+sha256sum --ignore-missing -c SHA256SUMS
+```
+
+### 2. Install Package
+- **Fedora / RHEL / CentOS Stream:**
+  ```bash
+  sudo dnf install -y ./termexplorer-1.1.0-1.x86_64.rpm
+  ```
+- **openSUSE / SUSE Linux Enterprise:**
+  ```bash
+  sudo zypper install -y ./termexplorer-1.1.0-1.x86_64.rpm
+  ```
+
+### 3. Verify RPM Installation
+```bash
+termexplorer --version
+termexplorer --health
+```
+
+---
+
+## 🐧 Method 4: Arch Linux (AUR / PKGBUILD)
 
 For Arch Linux, EndeavourOS, and Manjaro:
 
@@ -110,7 +141,7 @@ makepkg -si
 
 ---
 
-## 🦀 Method 4: Install via Cargo
+## 🦀 Method 5: Install via Cargo
 
 If you have a working Rust toolchain (`cargo >= 1.80`):
 ```bash
@@ -120,7 +151,7 @@ This places `termexplorer` into `~/.cargo/bin/`.
 
 ---
 
-## 🛠️ Method 5: Build from Source & Package
+## 🛠️ Method 6: Build from Source & Package
 
 To build and package TermExplorer directly from source:
 
@@ -137,6 +168,23 @@ ls -la dist/
 ```
 
 ---
+
+## 🔐 Package Security & Repository Feed Posture
+
+TermExplorer maintains strict security boundaries for software distribution:
+
+1. **Official Distribution Channel (Production):**
+   - Official releases are distributed exclusively as cryptographically hashed artifacts (`.deb`, `.rpm`, `.tar.gz`) attached to GitHub Releases.
+   - Every release includes a signed/verified `SHA256SUMS` manifest. Users should always verify SHA-256 digests prior to installation.
+
+2. **Static & Development Repository Generators:**
+   - The repository includes helper scripts (`scripts/generate_apt_repo.sh` and `scripts/generate_rpm_repo.sh`) to assemble static APT pools and RPM repodata.
+   - These scripts produce **unsigned development repositories** (`gpgcheck=0` / `[trusted=yes]`) designed strictly for internal testing, staging, and local offline mirrors.
+   - They are **not** production-ready remote package feeds.
+
+3. **Future Signed Repository Hosting:**
+   - Production hosted package feeds (`apt.termexplorer.org` / `rpm.termexplorer.org`) require official, maintainer-controlled private signing keys managed through hardware security modules (HSM) or dedicated GitHub Actions secrets environments.
+   - Private keys and mock signing credentials are never checked into source control.
 
 ## 🪟 Method 6: WSL2 (Windows Subsystem for Linux 2)
 

@@ -23,7 +23,11 @@ fail() {
 }
 
 cleanup() {
-    rm -rf "${TEST_TMP_BASE}"
+    if sudo -n true 2>/dev/null; then
+        sudo rm -rf "${TEST_TMP_BASE}"
+    else
+        rm -rf "${TEST_TMP_BASE}" 2>/dev/null || true
+    fi
 }
 trap cleanup EXIT
 
@@ -276,6 +280,42 @@ else
     fail "Dry-run created directories unexpectedly"
 fi
 
+# Test 6: Fallback regression - package containing ONLY compressed manpage (termexplorer.1.gz)
+FIXTURE_GZ="${TEST_TMP_BASE}/fixture_gz_only"
+cp -r "${ROOT_FOLDER}" "${FIXTURE_GZ}"
+rm -f "${FIXTURE_GZ}/share/man/man1/termexplorer.1"
+PREFIX_GZ="${TEST_TMP_BASE}/prefix_gz_test"
+"${FIXTURE_GZ}/install.sh" --prefix "${PREFIX_GZ}" >/dev/null
+if [ -f "${PREFIX_GZ}/share/man/man1/termexplorer.1.gz" ] && [ ! -f "${PREFIX_GZ}/share/man/man1/termexplorer.1" ]; then
+    pass "Installer correctly falls back to compressed manpage when uncompressed is absent"
+else
+    fail "Installer failed compressed manpage fallback test"
+fi
+"${PREFIX_GZ}/share/termexplorer/uninstall.sh" >/dev/null
+if [ ! -f "${PREFIX_GZ}/share/man/man1/termexplorer.1.gz" ]; then
+    pass "Uninstaller cleanly removes compressed manpage"
+else
+    fail "Uninstaller failed to remove compressed manpage"
+fi
+
+# Test 7: Fallback regression - package containing ONLY uncompressed manpage (termexplorer.1)
+FIXTURE_RAW="${TEST_TMP_BASE}/fixture_raw_only"
+cp -r "${ROOT_FOLDER}" "${FIXTURE_RAW}"
+rm -f "${FIXTURE_RAW}/share/man/man1/termexplorer.1.gz"
+PREFIX_RAW="${TEST_TMP_BASE}/prefix_raw_test"
+"${FIXTURE_RAW}/install.sh" --prefix "${PREFIX_RAW}" >/dev/null
+if [ -f "${PREFIX_RAW}/share/man/man1/termexplorer.1" ] && [ ! -f "${PREFIX_RAW}/share/man/man1/termexplorer.1.gz" ]; then
+    pass "Installer correctly installs uncompressed manpage when compressed is absent"
+else
+    fail "Installer failed uncompressed manpage test"
+fi
+"${PREFIX_RAW}/share/termexplorer/uninstall.sh" >/dev/null
+if [ ! -f "${PREFIX_RAW}/share/man/man1/termexplorer.1" ]; then
+    pass "Uninstaller cleanly removes uncompressed manpage"
+else
+    fail "Uninstaller failed to remove uncompressed manpage"
+fi
+
 # -----------------------------------------------------------------------------
 echo ""
 echo "=== Phase 5: Debian Package (.deb) Validation ==="
@@ -301,7 +341,9 @@ else
     fail "Debian package architecture is incorrect"
 fi
 
-if echo "${DEB_INFO}" | grep -q "Depends: libc6"; then
+if echo "${DEB_INFO}" | grep -q "Depends: libc6 (>= 2.35)"; then
+    pass "Debian package declares dependency on libc6 (>= 2.35)"
+elif echo "${DEB_INFO}" | grep -q "Depends: libc6"; then
     pass "Debian package declares dependency on libc6"
 else
     fail "Debian package missing libc6 dependency"
@@ -378,6 +420,44 @@ done
 
 if [ "${UNEXPECTED_LIBS}" -eq 0 ]; then
     pass "Binary strictly links only standard glibc runtime (libc.so.6, libm.so.6, libgcc_s.so.1)"
+fi
+
+# -----------------------------------------------------------------------------
+echo ""
+echo "=== Phase 7: RPM Package (.rpm) Validation ==="
+# -----------------------------------------------------------------------------
+
+RPM_FILES=( $(find "${DIST_DIR}" -maxdepth 1 -name '*.rpm' 2>/dev/null || true) )
+if [ ${#RPM_FILES[@]} -gt 0 ] && command -v rpm >/dev/null 2>&1; then
+    RPM_FILE="${RPM_FILES[0]}"
+    pass "RPM package exists: $(basename "${RPM_FILE}")"
+    mkdir -p "${TEST_TMP_BASE}/rpmdb"
+    assert_rpm_name="$(rpm --define "_dbpath ${TEST_TMP_BASE}/rpmdb" -qp --qf '%{NAME}' "${RPM_FILE}")"
+    if [ "${assert_rpm_name}" = "termexplorer" ]; then
+        pass "RPM package name is 'termexplorer'"
+    else
+        fail "RPM package name is incorrect: ${assert_rpm_name}"
+    fi
+
+    # Isolated installation test
+    RPM_SANDBOX="${TEST_TMP_BASE}/rpm_sandbox"
+    mkdir -p "${RPM_SANDBOX}/db"
+    if [ "$(id -u)" -eq 0 ]; then
+        rpm --root "${RPM_SANDBOX}" --dbpath /db --initdb >/dev/null 2>&1 || true
+        rpm --root "${RPM_SANDBOX}" --dbpath /db --nodeps --noscripts -i "${RPM_FILE}" >/dev/null 2>&1 || true
+    elif sudo -n true 2>/dev/null; then
+        sudo rpm --root "${RPM_SANDBOX}" --dbpath /db --initdb >/dev/null 2>&1 || true
+        sudo rpm --root "${RPM_SANDBOX}" --dbpath /db --nodeps --noscripts -i "${RPM_FILE}" >/dev/null 2>&1 || true
+    elif command -v rpm2cpio >/dev/null 2>&1 && command -v cpio >/dev/null 2>&1; then
+        (cd "${RPM_SANDBOX}" && rpm2cpio "${RPM_FILE}" | cpio -idm >/dev/null 2>&1)
+    fi
+    if [ -x "${RPM_SANDBOX}/usr/bin/termexplorer" ]; then
+        pass "RPM installs cleanly into isolated root with executable binary"
+    else
+        fail "RPM failed isolated installation"
+    fi
+else
+    echo "  [INFO] RPM build tools (rpm/rpmbuild) not present or no RPM in dist; validated in CI packaging pipeline"
 fi
 
 # -----------------------------------------------------------------------------

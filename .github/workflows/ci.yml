@@ -145,7 +145,7 @@ jobs:
 
   release-build:
     name: Release Binary Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
       - name: Checkout code
@@ -174,25 +174,60 @@ jobs:
           ./target/release/termexplorer --version
           ./target/release/termexplorer --help
 
-  website-validation:
-    name: Website Validation
+  audit:
+    name: Security Vulnerability Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run security audit
+        run: cargo audit
+
+  website-tests:
+    name: Website E2E & Lighthouse Audits
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
       - name: Validate website pages & static assets
         run: python3 scripts/validate_website.py
 
+      - name: Install website npm dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: website
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E tests
+        working-directory: website
+        run: npm test
+
+      - name: Run Lighthouse audit
+        working-directory: website
+        run: npm run test:lighthouse
+
   packaging:
     name: Packaging & Distribution Pipeline
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 25
     steps:
       - name: Checkout code
@@ -202,7 +237,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install packaging utilities
-        run: sudo apt-get update && sudo apt-get install -y dpkg-dev
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm cpio
 
       - name: Cache Cargo registry & target
         uses: actions/cache@v6
@@ -222,6 +257,9 @@ jobs:
       - name: Run packaging acceptance test suite
         run: bash tests/packaging_tests.sh
 
+      - name: Run Linux package smoke tests (deb, rpm, tarball)
+        run: bash scripts/test_package_linux.sh "$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)" dist
+
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -229,6 +267,35 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.deb
+            dist/*.rpm
             dist/SHA256SUMS
             dist/MANIFEST.txt
           retention-days: 14
+
+  compatibility:
+    name: Baseline Runtime Compatibility (${{ matrix.os }})
+    needs: packaging
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            image: "ubuntu:22.04"
+          - os: debian-12
+            image: "debian:12"
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: termexplorer-distribution-artifacts
+          path: dist/
+
+      - name: Verify package installation and CLI execution
+        run: |
+          dpkg -i dist/termexplorer_*.deb
+          termexplorer --version
+          termexplorer --help
+          termexplorer --health

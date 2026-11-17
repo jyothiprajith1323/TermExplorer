@@ -8,8 +8,8 @@ This document specifies the packaging infrastructure, reproducible release proce
 
 | Platform / Target | Tier | Build Host / Toolchain | Runtime Minimum | Validation Status |
 |:---|:---:|:---|:---|:---:|
-| **Linux x86_64** (`x86_64-unknown-linux-gnu`) | **Tier 1 (Primary)** | Ubuntu 22.04+ / Rust 1.80+ | `glibc >= 2.34` | **Fully Validated** |
-| **Linux ARM64** (`aarch64-unknown-linux-gnu`) | **Tier 2 (Secondary)** | Cross-compile / aarch64 host | `glibc >= 2.34` | **Fully Supported** |
+| **Linux x86_64** (`x86_64-unknown-linux-gnu`) | **Tier 1 (Primary)** | Ubuntu 22.04+ / Rust 1.80+ | `glibc >= 2.35` | **Fully Validated** |
+| **Linux ARM64** (`aarch64-unknown-linux-gnu`) | **Tier 2 (Secondary)** | Cross-compile / aarch64 host | `glibc >= 2.35` | **Fully Supported** |
 | **WSL2 (Windows Subsystem for Linux 2)** | **Tier 1 (Runtime)** | Linux x86_64 / AArch64 | WSL2 Kernel 5.10+ | **Fully Validated** |
 
 ---
