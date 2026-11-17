@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#090b12"><meta name="description" content="Install TermExplorer on Debian, Ubuntu, Arch, Fedora and other Linux distributions. Browse build instructions, dependencies and user guides."><title>Get started & installation — TermExplorer</title><link rel="icon" href="assets/termexplorer-mark.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/style.css"><script src="assets/app.js" defer></script></head>
-<body data-page="docs"><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><nav class="nav-inner shell" aria-label="Primary navigation"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">⌘</span><span>TermExplorer</span><span class="brand-version">v1.1.0-rc2</span></a><button class="menu-toggle" type="button" aria-label="Open navigation" aria-controls="primary-nav" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button><ul class="nav-links" id="primary-nav"><li><a href="index.html">Overview</a></li><li><a href="features.html">Features</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="docs.html" aria-current="page">Get started</a></li><li><a href="roadmap.html">Roadmap</a></li><li><a class="nav-cta" href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a></li></ul></nav></header>
+<body data-page="docs"><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><nav class="nav-inner shell" aria-label="Primary navigation"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">⌘</span><span>TermExplorer</span><span class="brand-version">v1.1.0</span></a><button class="menu-toggle" type="button" aria-label="Open navigation" aria-controls="primary-nav" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button><ul class="nav-links" id="primary-nav"><li><a href="index.html">Overview</a></li><li><a href="features.html">Features</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="docs.html" aria-current="page">Get started</a></li><li><a href="roadmap.html">Roadmap</a></li><li><a class="nav-cta" href="https://github.com/jyothiprajith1323/TermExplorer" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a></li></ul></nav></header>
 <main id="main" class="shell"><section class="page-hero"><span class="eyebrow">Install · configure · explore</span><h1>Get up and running <span class="gradient-text">on Linux.</span></h1><p>Choose the installation route that matches your distribution. Packages are produced by the tagged release pipeline; verify that the asset exists on the Releases page before running an install command.</p></section>
 <section class="section-tight" id="install"><div class="section-heading"><span class="eyebrow">01 / Installation</span><h2>Pick your package manager.</h2><p>Use the package built for your distribution. For Debian-family systems, APT can install a downloaded local <code>.deb</code> package and resolve its declared dependencies.</p></div>
 <div class="install-grid">
@@ -9,7 +9,7 @@
     <div class="card-meta"><span class="badge-chip">Format: .deb</span><span class="badge-chip arch">Arch: x86_64</span><span class="badge-chip">Local Package</span></div>
     <p>Download the release <code>.deb</code> package and install with APT. APT resolves libc and shared runtime dependencies automatically.</p>
     <span class="cmd-label">Install</span>
-    <div class="code-block"><pre tabindex="0"><code>sudo apt install ./termexplorer_1.1.0~rc2_amd64.deb</code></pre><button class="copy-btn" type="button" data-copy="sudo apt install ./termexplorer_1.1.0~rc2_amd64.deb">Copy</button></div>
+    <div class="code-block"><pre tabindex="0"><code>sudo apt install ./termexplorer_1.1.0_amd64.deb</code></pre><button class="copy-btn" type="button" data-copy="sudo apt install ./termexplorer_1.1.0_amd64.deb">Copy</button></div>
     <span class="cmd-label">Remove</span>
     <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>sudo apt remove termexplorer</code></pre><button class="copy-btn" type="button" data-copy="sudo apt remove termexplorer">Copy</button></div>
   </article>
@@ -31,7 +31,7 @@ makepkg -si</code></pre><button class="copy-btn" type="button" data-copy="git cl
     <div class="card-meta"><span class="badge-chip">Format: .rpm</span><span class="badge-chip arch">Arch: x86_64</span><span class="badge-chip">Local Package</span></div>
     <p>Download the release <code>.rpm</code> package and install with DNF. Installs binary, manpage, desktop entry, icon and completions.</p>
     <span class="cmd-label">Install</span>
-    <div class="code-block"><pre tabindex="0"><code>sudo dnf install ./termexplorer-1.1.0~rc2-1.x86_64.rpm</code></pre><button class="copy-btn" type="button" data-copy="sudo dnf install ./termexplorer-1.1.0~rc2-1.x86_64.rpm">Copy</button></div>
+    <div class="code-block"><pre tabindex="0"><code>sudo dnf install ./termexplorer-1.1.0-1.x86_64.rpm</code></pre><button class="copy-btn" type="button" data-copy="sudo dnf install ./termexplorer-1.1.0-1.x86_64.rpm">Copy</button></div>
     <span class="cmd-label">Remove</span>
     <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>sudo dnf remove termexplorer</code></pre><button class="copy-btn" type="button" data-copy="sudo dnf remove termexplorer">Copy</button></div>
   </article>
@@ -41,7 +41,7 @@ makepkg -si</code></pre><button class="copy-btn" type="button" data-copy="git cl
     <div class="card-meta"><span class="badge-chip">Format: .rpm</span><span class="badge-chip arch">Arch: x86_64</span><span class="badge-chip">Local Package</span></div>
     <p>Download the release <code>.rpm</code> package and install with Zypper. Compatible with openSUSE Leap and Tumbleweed.</p>
     <span class="cmd-label">Install</span>
-    <div class="code-block"><pre tabindex="0"><code>sudo zypper install ./termexplorer-1.1.0~rc2-1.x86_64.rpm</code></pre><button class="copy-btn" type="button" data-copy="sudo zypper install ./termexplorer-1.1.0~rc2-1.x86_64.rpm">Copy</button></div>
+    <div class="code-block"><pre tabindex="0"><code>sudo zypper install ./termexplorer-1.1.0-1.x86_64.rpm</code></pre><button class="copy-btn" type="button" data-copy="sudo zypper install ./termexplorer-1.1.0-1.x86_64.rpm">Copy</button></div>
     <span class="cmd-label">Remove</span>
     <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>sudo zypper remove termexplorer</code></pre><button class="copy-btn" type="button" data-copy="sudo zypper remove termexplorer">Copy</button></div>
   </article>
@@ -51,9 +51,9 @@ makepkg -si</code></pre><button class="copy-btn" type="button" data-copy="git cl
     <div class="card-meta"><span class="badge-chip">Format: .tar.gz</span><span class="badge-chip arch">Arch: x86_64</span><span class="badge-chip">Self-Contained</span></div>
     <p>Extract the release archive and run the included installer or place the standalone binary in your <code>~/.local/bin</code> directory.</p>
     <span class="cmd-label">Install</span>
-    <div class="code-block"><pre tabindex="0"><code>tar -xzf termexplorer-v1.1.0-rc2-linux-x86_64.tar.gz
-cd termexplorer-v1.1.0-rc2-linux-x86_64
-./install.sh</code></pre><button class="copy-btn" type="button" data-copy="tar -xzf termexplorer-v1.1.0-rc2-linux-x86_64.tar.gz&#10;cd termexplorer-v1.1.0-rc2-linux-x86_64&#10;./install.sh">Copy</button></div>
+    <div class="code-block"><pre tabindex="0"><code>tar -xzf termexplorer-v1.1.0-linux-x86_64.tar.gz
+cd termexplorer-v1.1.0-linux-x86_64
+./install.sh</code></pre><button class="copy-btn" type="button" data-copy="tar -xzf termexplorer-v1.1.0-linux-x86_64.tar.gz&#10;cd termexplorer-v1.1.0-linux-x86_64&#10;./install.sh">Copy</button></div>
     <span class="cmd-label">Remove</span>
     <div class="code-block" style="margin-top:6px"><pre tabindex="0"><code>./uninstall.sh</code></pre><button class="copy-btn" type="button" data-copy="./uninstall.sh">Copy</button></div>
   </article>
@@ -72,9 +72,9 @@ install -Dm755 target/release/termexplorer ~/.local/bin/termexplorer</code></pre
   </article>
 </div>
 <div class="status-note">
-  <strong>Package availability &amp; repository status:</strong> The current public release is <code>v1.1.0-rc2</code>.
+  <strong>Package availability &amp; repository status:</strong> The current public release is <code>v1.1.0</code>.
   Packages (<code>.deb</code>, <code>.rpm</code>, portable <code>.tar.gz</code>) are distributed directly as release assets.
-  Local package installation (e.g. <code>apt install ./package.deb</code>) is the supported distribution method; signed APT and RPM hosted repository metadata scripts are provided in the repository for maintainers, while public hosted repos await dedicated signing infrastructure.
+  Local package installation (e.g. <code>apt install ./termexplorer_1.1.0_amd64.deb</code>) is the supported distribution method; signed APT and RPM hosted repository metadata scripts are provided in the repository for maintainers, while public hosted repos await dedicated signing infrastructure.
 </div>
 <div class="status-note" style="margin-top:10px;border-color:rgba(127,227,220,.25);background:rgba(127,227,220,.05);color:#b2ebf2">
   <strong>Additional Linux Distribution Evaluations:</strong>

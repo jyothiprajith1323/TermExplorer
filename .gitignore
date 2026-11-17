@@ -8,3 +8,6 @@ website/node_modules/
 *.log
 termexplorer.log
 *.zip
+
+# Temporary lighthouse artifacts on WSL
+C:*
