@@ -146,25 +146,22 @@ pub fn compute_layout(area: Rect, cfg: &LayoutConfig) -> AppLayout {
 
     let avail_w = content_area.width.saturating_sub(sidebar_w);
 
-    let preview_w = if show_preview {
-        if cfg.preview_pct == 30 && avail_w == 100 {
-            // Strict unit-test expectation for 70/30 on 100-column fixture
-            30
-        } else if cfg.preview_pct > 0 && cfg.preview_pct != 30 && cfg.preview_pct != 35 {
-            // Explicit custom percentage configuration (e.g. from settings)
-            let p_calc = ((avail_w as u32 * cfg.preview_pct as u32 + 50) / 100) as u16;
-            p_calc.clamp(24, avail_w.saturating_sub(20))
+    let (explorer_w, preview_w) = if show_preview {
+        let p_pct = if cfg.preview_pct == 0 {
+            75
         } else {
-            // 25% File Explorer and ~75% Preview (Developer Workstation layout)
-            let exp_calc = ((avail_w as u32 * 25 + 50) / 100) as u16;
-            let exp_w = exp_calc.clamp(20, avail_w.saturating_sub(30));
-            avail_w.saturating_sub(exp_w)
-        }
+            cfg.preview_pct
+        };
+        let exp_pct = 100u16.saturating_sub(p_pct);
+        let exp_calc = ((avail_w as u32 * exp_pct as u32 + 50) / 100) as u16;
+        let min_exp = 12.min(avail_w);
+        let max_exp = avail_w.saturating_sub(20).max(min_exp);
+        let exp_w = exp_calc.clamp(min_exp, max_exp);
+        let prev_w = avail_w.saturating_sub(exp_w);
+        (exp_w, prev_w)
     } else {
-        0
+        (avail_w, 0)
     };
-
-    let explorer_w = avail_w.saturating_sub(preview_w);
 
     let mut h_constraints = Vec::new();
     if show_sidebar {

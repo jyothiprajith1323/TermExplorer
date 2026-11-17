@@ -337,13 +337,20 @@ impl App {
                 state.config.monitor_height + 2
             };
 
+            let preview_pct = (state.config.layout.preview_ratio * 100.0).round() as u16;
+            let preview_pct = if preview_pct == 0 {
+                75
+            } else {
+                preview_pct
+            };
+
             let layout_cfg = LayoutConfig {
                 show_sidebar: state.show_sidebar,
                 show_preview: state.show_preview,
                 show_bottom,
                 dual_pane: state.dual_pane_enabled,
                 sidebar_pct: state.config.sidebar_width,
-                preview_pct: state.config.preview_width,
+                preview_pct,
                 bottom_height,
                 preview_maximized: state.preview_maximized,
                 terminal_maximized: state.terminal_maximized,
@@ -1139,32 +1146,31 @@ impl App {
                 && self.state.focused != FocusedPanel::Preview);
 
         if is_preview_shrink {
-            self.state.config.preview_width =
-                self.state.config.preview_width.saturating_sub(5).max(15);
-            self.state.config.layout.preview_ratio = self.state.config.preview_width as f32 / 100.0;
-            self.state.config.layout.explorer_ratio = 1.0 - self.state.config.layout.preview_ratio;
+            let cur_prev = (self.state.config.layout.preview_ratio * 100.0).round() as i32;
+            let new_prev = (cur_prev - 5).clamp(50, 85) as u16;
+            let new_exp = 100 - new_prev;
+            self.state.config.layout.preview_ratio = new_prev as f32 / 100.0;
+            self.state.config.layout.explorer_ratio = new_exp as f32 / 100.0;
+            self.state.config.preview_width = new_prev;
+            self.state.config.validate_and_clamp();
             let _ = self.state.config.save();
             self.state.set_status(
-                format!(
-                    "Preview: {}% │ Explorer: {}%",
-                    self.state.config.preview_width,
-                    100 - self.state.config.preview_width
-                ),
+                format!("Preview: {}% │ Explorer: {}%", new_prev, new_exp),
                 StatusKind::Info,
             );
             return Ok(false);
         }
         if is_preview_expand {
-            self.state.config.preview_width = (self.state.config.preview_width + 5).min(85);
-            self.state.config.layout.preview_ratio = self.state.config.preview_width as f32 / 100.0;
-            self.state.config.layout.explorer_ratio = 1.0 - self.state.config.layout.preview_ratio;
+            let cur_prev = (self.state.config.layout.preview_ratio * 100.0).round() as i32;
+            let new_prev = (cur_prev + 5).clamp(50, 85) as u16;
+            let new_exp = 100 - new_prev;
+            self.state.config.layout.preview_ratio = new_prev as f32 / 100.0;
+            self.state.config.layout.explorer_ratio = new_exp as f32 / 100.0;
+            self.state.config.preview_width = new_prev;
+            self.state.config.validate_and_clamp();
             let _ = self.state.config.save();
             self.state.set_status(
-                format!(
-                    "Preview: {}% │ Explorer: {}%",
-                    self.state.config.preview_width,
-                    100 - self.state.config.preview_width
-                ),
+                format!("Preview: {}% │ Explorer: {}%", new_prev, new_exp),
                 StatusKind::Info,
             );
             return Ok(false);
@@ -2604,10 +2610,20 @@ impl App {
 
         match key.code {
             KeyCode::Esc | KeyCode::F(10) | KeyCode::Char('q') => {
-                let _ = SettingsPersistence::save_with_backup(&self.state.config);
-                self.state.mode = AppMode::Browse;
-                self.state
-                    .set_status("Settings saved successfully", StatusKind::Success);
+                self.state.config.validate_and_clamp();
+                match SettingsPersistence::save_with_backup(&self.state.config) {
+                    Ok(()) => {
+                        self.state.mode = AppMode::Browse;
+                        self.state
+                            .set_status("Settings saved successfully", StatusKind::Success);
+                    }
+                    Err(e) => {
+                        self.state.set_status(
+                            format!("Failed to save settings: {:#}", e),
+                            StatusKind::Error,
+                        );
+                    }
+                }
                 return Ok(false);
             }
             KeyCode::Tab => {
@@ -2664,10 +2680,14 @@ impl App {
                         "explorer_ratio" => {
                             self.state.config.layout.explorer_ratio = 0.25;
                             self.state.config.layout.preview_ratio = 0.75;
+                            self.state.config.preview_width = 75;
+                            self.state.config.validate_and_clamp();
                         }
                         "preview_ratio" => {
                             self.state.config.layout.preview_ratio = 0.75;
                             self.state.config.layout.explorer_ratio = 0.25;
+                            self.state.config.preview_width = 75;
+                            self.state.config.validate_and_clamp();
                         }
                         "terminal_height_percent" => {
                             self.state.config.layout.terminal_height_percent = 15
@@ -2851,26 +2871,26 @@ impl App {
                                 };
                         }
                         "explorer_ratio" => {
-                            let delta = if key.code == KeyCode::Left {
-                                -0.05
-                            } else {
-                                0.05
-                            };
-                            self.state.config.layout.explorer_ratio =
-                                (self.state.config.layout.explorer_ratio + delta).clamp(0.15, 0.50);
-                            self.state.config.layout.preview_ratio =
-                                1.0 - self.state.config.layout.explorer_ratio;
+                            let cur_exp =
+                                (self.state.config.layout.explorer_ratio * 100.0).round() as i32;
+                            let delta = if key.code == KeyCode::Left { -5 } else { 5 };
+                            let new_exp = (cur_exp + delta).clamp(15, 50) as u16;
+                            let new_prev = 100 - new_exp;
+                            self.state.config.layout.explorer_ratio = new_exp as f32 / 100.0;
+                            self.state.config.layout.preview_ratio = new_prev as f32 / 100.0;
+                            self.state.config.preview_width = new_prev;
+                            self.state.config.validate_and_clamp();
                         }
                         "preview_ratio" => {
-                            let delta = if key.code == KeyCode::Left {
-                                -0.05
-                            } else {
-                                0.05
-                            };
-                            self.state.config.layout.preview_ratio =
-                                (self.state.config.layout.preview_ratio + delta).clamp(0.50, 0.85);
-                            self.state.config.layout.explorer_ratio =
-                                1.0 - self.state.config.layout.preview_ratio;
+                            let cur_prev =
+                                (self.state.config.layout.preview_ratio * 100.0).round() as i32;
+                            let delta = if key.code == KeyCode::Left { -5 } else { 5 };
+                            let new_prev = (cur_prev + delta).clamp(50, 85) as u16;
+                            let new_exp = 100 - new_prev;
+                            self.state.config.layout.preview_ratio = new_prev as f32 / 100.0;
+                            self.state.config.layout.explorer_ratio = new_exp as f32 / 100.0;
+                            self.state.config.preview_width = new_prev;
+                            self.state.config.validate_and_clamp();
                         }
                         "terminal_height_percent" => {
                             let delta = if key.code == KeyCode::Left { -5 } else { 5 };
