@@ -5,10 +5,7 @@ version = 2
 unmaintained = "none"
 yanked = "warn"
 ignore = [
-    "RUSTSEC-2026-0367",
     "RUSTSEC-2026-0368",
-    "RUSTSEC-2026-0369",
-    "RUSTSEC-2026-0429",
     "GHSA-q7v9-x93c-xqv3",
 ]
 
